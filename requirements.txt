@@ -1,0 +1,12 @@
+lmdeploy>=0.12.3
+PyYAML==6.0.3
+requests==2.32.3
+edge-tts==7.2.7
+vieneu>=2.4.0
+neucodec>=0.0.5
+streamlit>=1.43,<2
+Pillow>=10,<12
+pytest>=8,<9
+ruff>=0.11,<1
+mypy>=1.10,<2
+wheel>=0.42,<1

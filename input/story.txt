@@ -1,0 +1,312 @@
+# FORMAT: AUDIO_STORY_PLAIN v1.1.0
+# CONTRACT_VERSION: 1.1.0
+# TITLE: Ngày Tôi Đòi Lại Tên Mình
+# SERIES: Thiên Kim Phản Đòn
+# EPISODE: 1
+# AUTHOR: Catalina
+# CHANNEL: Audio Story
+# TARGET: nữ trưởng thành thích truyện audio phản đòn
+# LENGTH: 20–30 phút
+
+SCRIPT:
+// LỜI CHÀO
+[NARRATOR][NORMAL][VI][SFX=rain_soft] Đêm tôi bị đuổi khỏi biệt thự, người cướp tên tôi còn đứng trên ban công cười xuống.
+[NARRATOR][NORMAL][VI][SFX=rain_soft] Người đàn ông từng thề cưới tôi lại khoác tay cô ta và bảo tôi biết điều mà biến mất.
+[NARRATOR][NORMAL][VI][SFX=rain_soft] Chiếc vòng giám định ADN bị tráo nằm lạnh trong túi áo tôi như một cái tát muộn màng.
+[NARRATOR][NORMAL][VI][SFX=rain_soft] Nhưng lần này tôi không chết trong cơn mưa ấy nữa, vì tôi đã sống lại đúng ngày bị phản bội.
+[NARRATOR][NORMAL][VI][SFX=rain_soft] Và tôi trở về không phải để xin một chỗ đứng, mà để đòi lại cả cái họ họ đã cướp của tôi.
+
+// MỞ TRUYỆN
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Tôi mở mắt trên sàn đá phòng thay đồ của khách sạn Trịnh gia, đúng ba giờ trước lễ công bố thiên kim.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Trên gương vẫn còn vệt nước do Hạ Vy vừa hắt vào mặt tôi.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Cô ta cúi sát tai tôi và nhắc lại câu nói từng khiến tôi gục ngã ở kiếp trước.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Rằng đồ giả thì đừng mơ bước vào cửa chính.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Tôi ngẩng lên nhìn cô ta qua lớp tóc ướt và mỉm cười lần đầu tiên.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Hạ Vy khựng lại vì trong mắt tôi không còn chút sợ hãi nào.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Tôi đứng dậy, phủi váy, rồi tự tay chỉnh lại chiếc trâm ngọc mà mẹ ruột tôi từng để lại.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Cô ta định giật nó đi như mọi lần nhưng tôi chặn cổ tay cô ta ngay giữa không trung.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Tiếng xương khớp bật nhẹ làm gương mặt cô ta tái đi.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Đừng chạm vào đồ của tôi, tôi nói rất khẽ.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Hạ Vy cố giữ giọng ngọt như mật trước ống kính giấu trong góc phòng.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Cô ta giả vờ khóc và bảo tôi lại bắt nạt cô ta.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Tôi biết chiếc camera đó do Minh Quân bố trí để bôi xấu tôi trước khi bữa tiệc bắt đầu.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Kiếp trước tôi đã hoảng loạn cãi vã rồi rơi đúng vào bẫy của họ.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Kiếp này tôi chỉ nhấc tay vẫy nhân viên trang điểm đang đứng ngoài cửa kính.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Mời cô vào đây làm chứng giúp tôi, tôi nói đủ lớn để camera thu rõ.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Hạ Vy lập tức bỏ tay tôi ra.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Từ khoảnh khắc đó, bàn cờ đã đổi chiều.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Tôi không cần la hét, vì người có bằng chứng sẽ là người quyết định câu chuyện.
+[NARRATOR][NORMAL][VI][SFX=night_city_soft] Ba giờ trước lễ công bố, tôi bắt đầu viết lại số phận của mình.
+
+// GIỚI THIỆU
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Tôi tên là Trịnh An Nhiên, con gái ruột thất lạc của nhà họ Trịnh.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Ít nhất đó là sự thật bị chôn suốt hai mươi ba năm.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Hạ Vy là đứa trẻ được nhận nuôi sau vụ bắt cóc năm xưa.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Lớn lên trong nhung lụa quá lâu, cô ta quên mất chỗ đứng hôm nay vốn được xây trên tên của tôi.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Minh Quân là bạn trai cũ của tôi và cũng là người giúp Hạ Vy giữ chiếc ngai giả đó.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Hắn không yêu cô ta hơn tôi.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Hắn chỉ yêu quyền lực đứng sau họ Trịnh.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Kiếp trước tôi tin hắn vì nghĩ một người từng cùng tôi ăn mì gói lúc khởi nghiệp sẽ không bán rẻ tôi.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Tôi đã nhầm.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Chính hắn đánh tráo báo cáo giám định cuối cùng, đẩy tôi thành kẻ bịa chuyện trước toàn bộ gia tộc.
+[NARRATOR][NORMAL][VI] Sau lễ công bố, tôi bị truyền thông ném đá, bị đuổi khỏi nhà thuê, rồi chết trong tai nạn do phanh xe bị cắt.
+[NARRATOR][NORMAL][VI] Lúc hấp hối tôi mới hiểu mọi mắt xích đều nối về cùng một bàn tay.
+[NARRATOR][NORMAL][VI] May mắn duy nhất của tôi là ông trời cho tôi quay lại.
+[NARRATOR][NORMAL][VI] Lần này tôi không lao vào nhận thân bằng nước mắt.
+[NARRATOR][NORMAL][VI] Tôi chọn nhận lại mọi thứ bằng chứng cứ.
+[NARRATOR][NORMAL][VI] Nhà họ Trịnh nổi tiếng lạnh và trọng thể diện.
+[NARRATOR][NORMAL][VI] Ông nội Trịnh lão gia càng tin thứ gì có giấy trắng mực đen hơn là lời kể đáng thương.
+[NARRATOR][NORMAL][VI] Bà quản gia Tần là người duy nhất từng lặng lẽ đặt cho tôi bát canh nóng ở kiếp trước.
+[NARRATOR][NORMAL][VI] Hôm nay bà sẽ là nhân chứng đầu tiên.
+[NARRATOR][NORMAL][VI] Còn mẹ ruột tôi, bà Trịnh Lan, vẫn đang sống trong day dứt vì năm đó để lạc con.
+[NARRATOR][NORMAL][VI] Nhưng bà chưa biết người con gái mình cưng chiều suốt mười lăm năm chỉ đang diễn quá giỏi.
+[NARRATOR][NORMAL][VI] Tôi cũng không cần bà thương hại ngay lập tức.
+[NARRATOR][NORMAL][VI] Tôi chỉ cần bà nhìn thấy sự thật.
+[NARRATOR][NORMAL][VI] Trong túi tôi có chiếc USB chứa bản sao camera bệnh viện năm xưa.
+[NARRATOR][NORMAL][VI] Nó là đầu dây, chưa phải đòn kết liễu.
+[NARRATOR][NORMAL][VI] Đòn kết liễu phải đến từ chính sự tham lam của Hạ Vy.
+[NARRATOR][NORMAL][VI] Và tôi biết cô ta sẽ không chịu nổi khi thấy thứ thuộc về tôi quay về tay tôi.
+[NARRATOR][NORMAL][VI] Người tham lam nhất luôn tự mở cửa bẫy nhanh nhất.
+[NARRATOR][NORMAL][VI] Ba giờ là đủ để tôi dẫn họ đi hết con đường đó.
+[NARRATOR][NORMAL][VI] Chỉ cần tôi không phạm lại sai lầm cũ.
+
+// TRIỂN KHAI
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Tôi rời phòng thay đồ và đi thẳng đến hành lang phía tây nơi đặt phòng hồ sơ tạm của bữa tiệc.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Ở đó, mọi giấy tờ xác nhận khách mời và quà tặng đều được lưu trước giờ khai màn.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Bà Tần vừa thấy tôi đã lặng người vì chiếc trâm trên tóc tôi.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Bà hỏi tại sao tôi lại có món đồ chỉ bà chủ nhỏ thất lạc mới có.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Tôi đáp rằng vì tôi chính là người bà đã tìm suốt mười lăm năm.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Bà không tin ngay, nhưng đôi mắt bà run lên.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Tôi đưa bà xem mặt sau chiếc trâm có khắc chữ Nhiên bằng kiểu viết riêng của mẹ tôi.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Bà Tần ôm miệng quay đi để giấu tiếng nấc.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Tôi không để cảm xúc kéo dài, vì tôi cần bà giúp một việc.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Tôi nhờ bà âm thầm kiểm tra xem hôm nay ai đã chạm vào túi hồ sơ giám định.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Bà gật đầu rất nhanh.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Từ xa, Minh Quân đang bước đến với bộ vest xanh đậm và nụ cười lịch thiệp.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Hắn gọi tôi bằng giọng cũ như thể giữa chúng tôi chưa từng có nhát dao nào.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Hắn bảo nếu tôi chịu xin lỗi Hạ Vy trước mọi người thì hắn sẽ xin cho tôi một khoản tiền rời đi.
+[NARRATOR][NORMAL][VI][SFX=cafe_soft] Tôi nhìn hắn như nhìn một món hàng sắp hết hạn.
+[NARRATOR][NORMAL][VI] Tôi hỏi hắn định mua im lặng của tôi bằng giá bao nhiêu.
+[NARRATOR][NORMAL][VI] Hắn ngỡ tôi dao động nên tiến thêm một bước.
+[NARRATOR][NORMAL][VI] Tôi bấm ghi âm trong túi áo trước khi hắn kịp nhìn thấy.
+[NARRATOR][NORMAL][VI] Hắn thì thầm rằng người thông minh phải biết mình không thắng nổi người có gia tộc chống lưng.
+[NARRATOR][NORMAL][VI] Tôi cười và hỏi vậy chiếc phanh xe hôm đó có phải cũng là cách của người thông minh không.
+[NARRATOR][NORMAL][VI] Minh Quân biến sắc ngay lập tức.
+[NARRATOR][NORMAL][VI] Hắn phủ nhận quá nhanh, nhanh đến mức tôi biết mình đã chạm đúng vết rạn.
+[NARRATOR][NORMAL][VI] Tôi nói tôi chỉ đùa thôi mà hắn đã sợ như vậy thì tối nay nên cẩn thận hơn.
+[NARRATOR][NORMAL][VI] Hắn bỏ đi trong vẻ mặt lạnh hẳn.
+[NARRATOR][NORMAL][VI] Một mũi kéo đầu tiên đã cắt trúng sự bình tĩnh của hắn.
+[NARRATOR][NORMAL][VI] Tôi tranh thủ đến phòng kỹ thuật của khách sạn.
+[NARRATOR][NORMAL][VI] Ở kiếp trước tôi từng làm cố vấn dữ liệu cho một startup bảo mật.
+[NARRATOR][NORMAL][VI] Thứ khiến tôi sống được đến hôm nay chưa bao giờ là nước mắt.
+[NARRATOR][NORMAL][VI] Mà là khả năng nhìn vào một hệ thống và tìm ra nơi nó nói dối.
+[NARRATOR][NORMAL][VI] Tôi cắm USB vào máy phụ của đội âm thanh và trích xuất lịch sử sao chép từ máy in hồ sơ.
+[NARRATOR][NORMAL][VI] Đúng như tôi đoán, bản giám định chính đã bị đổi lúc tám giờ sáng.
+[NARRATOR][NORMAL][VI] Người đăng nhập không phải nhân viên y tế mà là tài khoản khách do Minh Quân mượn danh trưởng bộ phận PR.
+[NARRATOR][NORMAL][VI] Tôi chụp lại toàn bộ log rồi gửi vào hộp thư ẩn của mình.
+[NARRATOR][NORMAL][VI] Ngay lúc đó, Hạ Vy bước vào với hai phù dâu theo sau.
+[NARRATOR][NORMAL][VI] Cô ta ngọt ngào hỏi tôi có cần cô ta bố thí cho một bộ váy đàng hoàng không.
+[NARRATOR][NORMAL][VI] Tôi đáp rằng thứ tôi cần nhất là thấy cô ta mặc vừa cái giá phải trả.
+[NARRATOR][NORMAL][VI] Hai cô gái đi cạnh bật cười vì tưởng tôi đang dọa suông.
+[NARRATOR][NORMAL][VI] Hạ Vy ghé sát nói rằng dù tôi có là con ruột đi nữa thì người được chọn vẫn là cô ta.
+[NARRATOR][NORMAL][VI] Tôi hỏi cô ta có dám nhắc lại câu đó trước mặt luật sư gia tộc không.
+[NARRATOR][NORMAL][VI] Cô ta im một nhịp rồi cười nhạt.
+[NARRATOR][NORMAL][VI] Sự do dự rất nhỏ ấy đủ cho tôi biết cô ta không hề chắc mình sạch sẽ.
+[NARRATOR][NORMAL][VI] Tôi cố tình để lộ mép tập hồ sơ trong túi xách.
+[NARRATOR][NORMAL][VI] Đó là bản sao camera bệnh viện tôi đã chuẩn bị.
+[NARRATOR][NORMAL][VI] Hạ Vy nhìn thấy liền thay đổi sắc mặt.
+[NARRATOR][NORMAL][VI] Cô ta nghĩ tôi mang theo bằng chứng gốc.
+[NARRATOR][NORMAL][VI] Tôi rời đi chậm rãi để cô ta có đủ thời gian cắn câu.
+[NARRATOR][NORMAL][VI] Đúng như dự đoán, mười phút sau bà Tần báo có người vừa lục tủ đồ dự phòng nơi tôi gửi túi.
+[NARRATOR][NORMAL][VI] Người đó đeo găng tay ren màu ngà, đúng kiểu Hạ Vy thích dùng.
+[NARRATOR][NORMAL][VI] Tôi không hề để bằng chứng thật ở đó.
+[NARRATOR][NORMAL][VI] Thứ tôi để lại chỉ là một phong bì có gắn bột phản quang vô hình.
+[NARRATOR][NORMAL][VI] Chỉ cần mở ra, dấu vết sẽ bám lên tay và váy.
+[NARRATOR][NORMAL][VI] Kiếp trước cô ta đẩy tôi vào bẫy bằng một chiếc camera.
+[NARRATOR][NORMAL][VI] Kiếp này tôi trả lại bằng một cái bẫy sạch hơn nhiều.
+[NARRATOR][NORMAL][VI] Bà Tần âm thầm dẫn tôi tới phòng trà nơi mẹ tôi đang ngồi dưỡng thần trước giờ ra lễ.
+[NARRATOR][NORMAL][VI] Bà Trịnh Lan nhìn tôi vài giây rất lâu rồi hỏi chúng ta từng gặp nhau chưa.
+[NARRATOR][NORMAL][VI] Tôi nói có lẽ trong giấc mơ của bà.
+[NARRATOR][NORMAL][VI] Bà hơi thất thần khi thấy chiếc trâm.
+[NARRATOR][NORMAL][VI] Tôi không kể lể thân thế ngay.
+[NARRATOR][NORMAL][VI] Tôi chỉ hỏi bà một câu rằng nếu con gái ruột của bà đứng trước mặt bà, bà sẽ muốn tin nước mắt hay tin chứng cứ.
+[NARRATOR][NORMAL][VI] Bà đáp rằng bà từng sai một lần nên lần này bà muốn thấy sự thật trọn vẹn.
+[NARRATOR][NORMAL][VI] Tôi đặt chiếc USB lên bàn.
+[NARRATOR][NORMAL][VI] Tôi nói tối nay xin bà đừng cắt lời tôi dù có chuyện gì xảy ra.
+[NARRATOR][NORMAL][VI] Bà nhìn tôi, rồi cất USB vào tay áo như cất một nhịp tim.
+[NARRATOR][NORMAL][VI] Tôi vừa rời đi thì luật sư gia tộc gọi bà sang phòng chuẩn bị văn kiện.
+[NARRATOR][NORMAL][VI] Bước cờ thứ hai đã vào tay người cần thấy.
+[NARRATOR][NORMAL][VI] Nhưng tôi chưa thể thắng chỉ bằng vài mảnh chứng cứ rời.
+[NARRATOR][NORMAL][VI] Tôi cần Hạ Vy và Minh Quân tự kéo nhau ra ánh sáng trước đám đông.
+[NARRATOR][NORMAL][VI] Vì vậy tôi gọi cho một người khác.
+[NARRATOR][NORMAL][VI] Đó là Tấn, kỹ sư an ninh từng làm cùng tôi ở startup cũ.
+[NARRATOR][NORMAL][VI] Ở kiếp trước, anh là người cuối cùng nhắn tin hỏi tôi có an toàn không.
+[NARRATOR][NORMAL][VI] Hôm nay anh đang phụ trách hệ thống màn hình led cho bữa tiệc như một nhà thầu phụ.
+[NARRATOR][NORMAL][VI] Nghe tôi đọc mật khẩu cũ của dự án, anh im lặng ba giây rồi nhận ra tôi.
+[NARRATOR][NORMAL][VI] Anh hỏi tôi lại định một mình chống cả nhà họ Trịnh sao.
+[NARRATOR][NORMAL][VI] Tôi đáp rằng tôi chỉ cần anh bảo đảm không ai tắt được màn hình chính khi sự thật xuất hiện.
+[NARRATOR][NORMAL][VI] Tấn nói phần đó cứ để anh lo.
+[NARRATOR][NORMAL][VI] Tôi cúp máy, cảm giác như cuối cùng mình cũng có một đồng minh biết tôi không hề yếu.
+[NARRATOR][NORMAL][VI] Phía bên kia sảnh, Hạ Vy đang bắt chuyện với vài phóng viên quen.
+[NARRATOR][NORMAL][VI] Cô ta kể rằng tối nay gia tộc sẽ công bố một tin vui lớn.
+[NARRATOR][NORMAL][VI] Tôi nghe qua cũng biết cô ta muốn dư luận chứng kiến khoảnh khắc mình được chọn.
+[NARRATOR][NORMAL][VI] Càng nhiều mắt nhìn, cú ngã càng đau.
+[NARRATOR][NORMAL][VI] Tôi lướt qua quầy champagne và lấy một ly nước lọc.
+[NARRATOR][NORMAL][VI] Minh Quân lại chặn đường tôi lần nữa.
+[NARRATOR][NORMAL][VI] Hắn hạ giọng đe dọa rằng đừng thử phát điên trong lễ nếu không tôi sẽ hối hận.
+[NARRATOR][NORMAL][VI] Tôi hỏi hắn đã chuẩn bị lời nào để giải thích khoản chuyển tiền vào tài khoản bác sĩ giám định chưa.
+[NARRATOR][NORMAL][VI] Hắn suýt đánh rơi điện thoại.
+[NARRATOR][NORMAL][VI] Hắn hỏi tôi lấy thông tin đó ở đâu.
+[NARRATOR][NORMAL][VI] Tôi đáp rằng người làm chuyện bẩn luôn để lại hóa đơn.
+[NARRATOR][NORMAL][VI] Minh Quân siết quai hàm và nói tôi đang tự đào mồ.
+[NARRATOR][NORMAL][VI] Tôi gật đầu và bảo đúng, nhưng là đào cho ai thì chưa chắc.
+[NARRATOR][NORMAL][VI] Hắn bỏ đi để gọi điện cho ai đó.
+[NARRATOR][NORMAL][VI] Tôi biết hắn sẽ chạy đi bịt đầu mối.
+[NARRATOR][NORMAL][VI] Điều tôi cần chính là sự cuống lên đó.
+[NARRATOR][NORMAL][VI] Mười lăm phút sau, Tấn gửi cho tôi hình chụp từ camera bãi xe.
+[NARRATOR][NORMAL][VI] Minh Quân đang ép một bác sĩ trung niên lên xe riêng để nói chuyện.
+[NARRATOR][NORMAL][VI] Tôi chuyển ngay ảnh cho bà Trịnh Lan bằng tin nhắn ẩn danh kèm giờ giấc.
+[NARRATOR][NORMAL][VI] Bà chưa trả lời, nhưng tôi biết bà sẽ nhìn.
+[NARRATOR][NORMAL][VI] Khi một người mẹ bắt đầu nghi ngờ, bản năng của bà sẽ đào sâu hơn tất cả luật sư.
+[NARRATOR][NORMAL][VI] Trước giờ khai màn hai mươi phút, quản lý sự kiện thông báo khách mời đã ổn định vị trí.
+[NARRATOR][NORMAL][VI] Tôi đứng sau rèm sân khấu nghe MC đọc danh sách thành viên gia tộc.
+[NARRATOR][NORMAL][VI] Tên Hạ Vy được đặt đúng chỗ lẽ ra là của tôi.
+[NARRATOR][NORMAL][VI] Nhịp tim tôi không rối.
+[NARRATOR][NORMAL][VI] Nó đều như tiếng đếm ngược.
+[NARRATOR][NORMAL][VI] Bởi tôi không còn là cô gái lao vào tranh phần bằng miệng ở kiếp trước.
+[NARRATOR][NORMAL][VI] Tôi là người đã học cách để đối thủ tự công bố tội của mình.
+[NARRATOR][NORMAL][VI] Bà Tần quay lại và báo tin tốt.
+[NARRATOR][NORMAL][VI] Bột phản quang đã xuất hiện trên găng tay ren trong phòng nghỉ của Hạ Vy.
+[NARRATOR][NORMAL][VI] Còn phong bì giả cô ta lấy trộm đã bị xé trong thùng rác riêng.
+[NARRATOR][NORMAL][VI] Tôi nhờ bà chụp hình và giữ nguyên hiện trường.
+[NARRATOR][NORMAL][VI] Bà Tần hỏi tôi có chắc muốn lật mọi thứ ngay tối nay không.
+[NARRATOR][NORMAL][VI] Tôi nói hôm nay tôi chỉ chậm một giây thì ngày mai họ sẽ chôn tôi thêm một lần nữa.
+[NARRATOR][NORMAL][VI] Bà nhìn tôi rất lâu rồi cúi đầu gọi tôi là tiểu thư.
+[NARRATOR][NORMAL][VI] Chỉ hai chữ ấy thôi cũng đủ bù cho nửa đời bị gọi nhầm tên.
+[NARRATOR][NORMAL][VI] Nhưng tôi vẫn chưa cho phép mình mềm lòng.
+[NARRATOR][NORMAL][VI] Buổi lễ bắt đầu bằng tiếng nhạc dây lạnh và ánh đèn vàng.
+[NARRATOR][NORMAL][VI] Ông nội Trịnh lão gia bước lên sân khấu với vẻ mặt uy nghi không ai dám thở mạnh.
+[NARRATOR][NORMAL][VI] Bên dưới, từng dãy ghế đều kín người của giới đầu tư và họ hàng xa.
+[NARRATOR][NORMAL][VI] Hạ Vy khoác tay mẹ tôi đi ra như một công chúa được nuôi quá hoàn hảo.
+[NARRATOR][NORMAL][VI] Tiếng vỗ tay nổi lên theo phản xạ xã giao.
+[NARRATOR][NORMAL][VI] Tôi đứng ở lối phụ, lặng im như một lưỡi dao còn nằm trong vỏ.
+[NARRATOR][NORMAL][VI] MC giới thiệu về hành trình tìm lại máu mủ thất lạc của nhà họ Trịnh.
+[NARRATOR][NORMAL][VI] Từng câu từng chữ đều do Minh Quân soạn.
+[NARRATOR][NORMAL][VI] Nghe vô cùng cảm động và cũng vô cùng giả dối.
+[NARRATOR][NORMAL][VI] Khi ông nội chuẩn bị tuyên bố tên người thừa kế, tôi bước ra khỏi bóng tối.
+[NARRATOR][NORMAL][VI] Cả sảnh ồn lên vì không ai hiểu vì sao cô gái từng bị đuổi khỏi nhà lại dám xuất hiện.
+[NARRATOR][NORMAL][VI] Tôi cầm micro phụ và xin đúng năm phút.
+[NARRATOR][NORMAL][VI] Minh Quân lập tức ra hiệu cho bảo vệ chặn tôi.
+[NARRATOR][NORMAL][VI] Nhưng mẹ tôi đứng dậy trước tiên.
+[NARRATOR][NORMAL][VI] Bà nói để cô ấy nói.
+[NARRATOR][NORMAL][VI] Cái nghiêng đầu rất nhỏ của bà khiến cả sảnh im bặt.
+[NARRATOR][NORMAL][VI] Tôi biết bức tường lạnh nhất đã xuất hiện một khe nứt.
+[NARRATOR][NORMAL][VI] Tôi không nhắc đến tình cảm.
+[NARRATOR][NORMAL][VI] Tôi bắt đầu bằng log hệ thống máy in hồ sơ.
+[NARRATOR][NORMAL][VI] Tôi đọc rõ thời gian sao chép, tài khoản truy cập và tên thiết bị ngoài được dùng để thay bản giám định.
+[NARRATOR][NORMAL][VI] Luật sư gia tộc cau mày nhận lấy bản in từ tay tôi.
+[NARRATOR][NORMAL][VI] Minh Quân cười khẩy và bảo mấy dòng kỹ thuật đó ai mà không sửa được.
+[NARRATOR][NORMAL][VI] Tôi gật đầu như chờ sẵn câu ấy.
+[NARRATOR][NORMAL][VI] Tấn ngay lập tức cho hiện đồng bộ dữ liệu gốc từ máy chủ của khách sạn lên màn hình lớn.
+[NARRATOR][NORMAL][VI] Phía dưới góc phải còn nguyên dấu thời gian không thể chỉnh bằng máy cục bộ.
+[NARRATOR][NORMAL][VI] Khách mời bắt đầu xì xào.
+[NARRATOR][NORMAL][VI] Hạ Vy siết chặt tay mẹ tôi nhưng vẫn cố giữ nụ cười ngoan ngoãn.
+[NARRATOR][NORMAL][VI] Tôi quay sang hỏi cô ta có muốn giải thích vì sao cô ta lại lục túi của tôi trước giờ lễ không.
+[NARRATOR][NORMAL][VI] Cô ta bật khóc và nói tôi vu khống.
+[NARRATOR][NORMAL][VI] Tôi mời bà Tần lên sân khấu.
+[NARRATOR][NORMAL][VI] Bà đem theo ảnh chụp găng tay dính phản quang dưới đèn tia tím.
+[NARRATOR][NORMAL][VI] Cả vạt váy của Hạ Vy lập tức lộ ra những đốm sáng xanh nhạt.
+[NARRATOR][NORMAL][VI] Tiếng hít mạnh vang lên khắp sảnh.
+[NARRATOR][NORMAL][VI] Hạ Vy lùi một bước rồi quay sang nhìn Minh Quân như cầu cứu.
+[NARRATOR][NORMAL][VI] Đó là lúc tôi biết họ sắp kéo nhau chìm.
+
+// CAO TRÀO
+[NARRATOR][FAST][VI][SFX=night_city_soft] Tôi chưa dừng lại ở đó.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Tôi xin Tấn phát tiếp đoạn ghi âm vừa thu được ngoài hành lang.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Giọng Minh Quân vang lên rất rõ giữa sảnh tiệc im phăng phắc.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Hắn nói người thông minh phải biết mình không thắng nổi người có gia tộc chống lưng.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Ngay sau đó là đoạn hắn hốt hoảng khi tôi nhắc đến chiếc phanh xe bị cắt.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Mặt hắn trắng bệch như tờ giấy vừa bị lột khỏi máy in.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Hắn lao lên định giật micro của tôi.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Bảo vệ của khách sạn giữ hắn lại theo lệnh trực tiếp từ ông nội.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Hạ Vy vẫn cố gào rằng một đoạn ghi âm không nói lên điều gì.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Tôi nhìn thẳng vào cô ta và bảo đúng, nên tôi còn chuẩn bị thứ khác.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Mẹ tôi từ ghế đầu bước lên sân khấu cùng chiếc USB tôi đã trao trước đó.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Bà yêu cầu bộ phận kỹ thuật mở video camera bệnh viện năm xưa.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Hình ảnh mờ cũ hiện lên nhưng vẫn đủ rõ để nhận ra người bế đứa trẻ thất lạc ra cửa sau.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Người phụ nữ đó chính là dì ruột của Hạ Vy.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Tiếng bàn tán lập tức bùng nổ như sóng vỗ vào kính.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Hạ Vy lắc đầu liên tục và nói đó chỉ là người giống người.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Tôi hỏi vậy khoản chu cấp suốt mười lăm năm từ tài khoản bí mật của cô ta cho dì ấy giải thích thế nào.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Luật sư gia tộc giơ bản sao kê ngân hàng vừa nhận từ trợ lý điều tra riêng của mẹ tôi.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Hạ Vy quay sang Minh Quân, còn Minh Quân quay sang tránh mắt cô ta.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Không ai cứu ai nữa.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Tôi chốt câu cuối cùng bằng bản giám định ADN gốc do bệnh viện gửi thẳng đến email bảo mật của mẹ tôi một giờ trước.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Trên màn hình, dòng kết luận xác nhận quan hệ mẹ con hiện ra rõ như nhát dao chém đứt mọi lời chối cãi.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Mẹ tôi run tay nhưng vẫn đọc to tên tôi trước toàn bộ gia tộc.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Trịnh An Nhiên mới là con gái ruột của bà.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Khoảnh khắc đó, Hạ Vy khuỵu xuống vì biết mình đã mất thứ chống lưng lớn nhất.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Nhưng cú lật đau nhất chưa phải dành cho cô ta.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Tôi quay sang nhìn Minh Quân và công bố ảnh bãi xe cùng giao dịch chuyển tiền cho bác sĩ giám định.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Tôi nói nếu hắn còn phủ nhận, tôi sẽ nộp luôn hồ sơ vụ cắt phanh cho cảnh sát ngay trong đêm.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Hắn im lặng ba giây rồi buột miệng hỏi Hạ Vy tại sao cô ta không hủy hết chứng cứ từ sớm.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Cả sảnh chết lặng.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Chỉ một câu đó thôi, hai kẻ diễn giỏi nhất đã tự nhận tội trước đám đông.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Ông nội yêu cầu luật sư lập biên bản ngay tại chỗ.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Hạ Vy nhào tới định giật bản kết luận ADN nhưng trượt tay làm rơi cả điện thoại.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Màn hình sáng lên với hàng loạt tin nhắn dặn dò bác sĩ sửa kết quả.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Tôi cúi xuống nhặt chiếc điện thoại bằng khăn tay của mình.
+[NARRATOR][FAST][VI][SFX=night_city_soft] Thêm một lần nữa, chính sự cuống loạn của cô ta khóa chặt đường lui cuối cùng.
+
+// HẠ MÀN
+[NARRATOR][NORMAL][VI] Ông nội chống gậy đứng lên, tiếng gỗ gõ xuống sàn khiến không ai dám nói thêm.
+[NARRATOR][NORMAL][VI] Ông ra lệnh khóa toàn bộ lối ra phụ và mời luật sư cùng cảnh sát đến ngay.
+[NARRATOR][NORMAL][VI] Mẹ tôi bước về phía tôi rất chậm như sợ chỉ cần đi nhanh một chút thì tôi sẽ tan biến.
+[NARRATOR][SLOW][VI] Bà đưa tay chạm lên trâm ngọc trên tóc tôi rồi bật khóc lần đầu tiên trước đám đông.
+[NARRATOR][NORMAL][VI] Tôi không ôm bà ngay.
+[NARRATOR][NORMAL][VI] Tôi chỉ đỡ bà đứng vững vì tối nay tôi cần sự tỉnh táo hơn là một màn đoàn tụ đẹp.
+[NARRATOR][NORMAL][VI] Hạ Vy bò tới nắm gấu váy mẹ tôi và van xin tha thứ.
+[NARRATOR][NORMAL][VI] Mẹ tôi rút váy lại, ánh mắt lạnh đến mức cô ta cũng phải sững người.
+[NARRATOR][NORMAL][VI] Minh Quân còn định bào chữa rằng hắn bị Hạ Vy dụ dỗ.
+[NARRATOR][NORMAL][VI] Tôi cười nhạt và nói người trưởng thành làm chuyện bẩn thì tự chịu phần bẩn của mình.
+[NARRATOR][NORMAL][VI] Vài cổ đông từng nhìn tôi như trò cười giờ đồng loạt quay sang xin lỗi mẹ tôi vì đã tin nhầm người.
+[NARRATOR][NORMAL][VI] Truyền thông ngoài sảnh nhận được tin rò rỉ liền dồn ống kính về phía cửa lớn.
+[NARRATOR][NORMAL][VI] Tấn nhắn cho tôi rằng toàn bộ dữ liệu đã sao lưu an toàn ở ba nơi.
+[NARRATOR][SLOW][VI] Tôi trả lời anh chỉ hai chữ là cảm ơn.
+[NARRATOR][NORMAL][VI] Bữa tiệc nhận thân xa hoa cuối cùng biến thành lễ xét xử công khai cho chính những kẻ dựng kịch.
+[NARRATOR][NORMAL][VI] Những người họ hàng từng đứng về phía Hạ Vy đồng loạt lùi lại như sợ bị kéo chung vào vũng bùn.
+[NARRATOR][NORMAL][VI] Tiếng xin tha chuyển dần thành tiếng chỉ trích, và mỗi câu đều quay ngược vào mặt hai kẻ phản bội.
+[NARRATOR][NORMAL][VI] Mẹ tôi tháo chiếc vòng gia tộc khỏi cổ tay Hạ Vy trước toàn bộ khách mời.
+
+// KẾT TRUYỆN
+[NARRATOR][NORMAL][VI] Rạng sáng hôm sau, nhà họ Trịnh ra thông báo chính thức sửa lại toàn bộ hồ sơ thừa kế.
+[NARRATOR][NORMAL][VI] Tên tôi được đặt lên vị trí vốn thuộc về mình ngay từ đầu.
+[NARRATOR][NORMAL][VI] Ông nội hỏi tôi muốn vào tập đoàn bằng danh nghĩa nào.
+[NARRATOR][NORMAL][VI] Tôi đáp rằng tôi không cần một ghế được ban ơn.
+[NARRATOR][NORMAL][VI] Tôi muốn bắt đầu từ ban phân tích rủi ro nơi tôi đủ sức tự chứng minh giá trị.
+[NARRATOR][NORMAL][VI] Ông nhìn tôi thật lâu rồi gật đầu.
+[NARRATOR][NORMAL][VI] Mẹ tôi đề nghị bù đắp cho tôi bằng mọi thứ bà có.
+[NARRATOR][NORMAL][VI] Tôi nói thứ tôi cần không phải chuộc lỗi bằng tiền, mà là từ nay đừng để ai dùng tình thân làm lá chắn cho cái ác nữa.
+[NARRATOR][NORMAL][VI] Bà im lặng rất lâu rồi nói bà hiểu.
+[NARRATOR][NORMAL][VI] Hạ Vy bị tạm giữ để phục vụ điều tra gian lận và chiếm đoạt danh tính.
+[NARRATOR][NORMAL][VI] Minh Quân mất sạch hợp đồng, danh tiếng và bị khởi tố vì hành vi đồng phạm cùng phá hoại phương tiện.
+[NARRATOR][NORMAL][VI] Hắn gửi cho tôi mấy chục tin nhắn xin gặp lại.
+[NARRATOR][NORMAL][VI] Tôi xóa toàn bộ mà không hề mở ra đọc.
+[NARRATOR][NORMAL][VI] Tôi không quay lại với người cũ, nhất là khi tôi vừa bước ra khỏi đống tro họ định chôn mình.
+[NARRATOR][NORMAL][VI] Một tháng sau, tôi dùng bản phân tích đầu tiên của mình để cứu nhà họ Trịnh tránh một thương vụ rủi ro hàng trăm tỷ.
+[NARRATOR][NORMAL][VI] Những người từng coi tôi là con bé nghèo bám víu bắt đầu học cách gọi đúng tên tôi.
+[NARRATOR][NORMAL][VI] Tôi không cần họ yêu quý.
+[NARRATOR][NORMAL][VI] Tôi chỉ cần họ biết tôi đứng ở đây không phải nhờ thương hại.
+[NARRATOR][NORMAL][VI] Thứ tôi giành lại được đêm đó không chỉ là họ Trịnh.
+[NARRATOR][NORMAL][VI] Mà là quyền tự viết tiếp cuộc đời mình.
+[NARRATOR][NORMAL][VI] Ngày tôi nhận bàn làm việc mới, bà Tần đặt lên đó một bát canh nóng như năm xưa.
+[NARRATOR][NORMAL][VI] Tôi mỉm cười và gọi bà là người nhà lần đầu tiên.
+[NARRATOR][NORMAL][VI] Mẹ tôi bắt đầu đến văn phòng gặp tôi mỗi tuần, không phải để kiểm soát, mà để học cách ở cạnh tôi từ đầu.
+[NARRATOR][NORMAL][VI] Chúng tôi không thể bù lại hai mươi ba năm chỉ sau một đêm, nhưng ít nhất từ nay không còn ai chen vào giữa sự thật.
+
+// TẠM BIỆT
+[NARRATOR][SLOW][VI][SFX=night_city_soft] Đôi khi công bằng đến rất chậm, nhưng một khi đã đến thì nó không cần nói lớn.
+[NARRATOR][SLOW][VI][SFX=night_city_soft] Tôi rời khỏi ban công biệt thự trong ánh bình minh đầu tiên mà không mang theo bất kỳ tiếc nuối nào.
+[NARRATOR][SLOW][VI][SFX=night_city_soft] Những người phản bội tôi đã tự khóa cửa đường lui của họ bằng chính lòng tham.
+[NARRATOR][SLOW][VI][SFX=night_city_soft] Còn tôi giữ lại chiếc trâm ngọc, không phải để nhớ nỗi đau, mà để nhớ mình đã thắng bằng bản lĩnh.
+[NARRATOR][SLOW][VI][SFX=night_city_soft] Và từ hôm đó, không ai còn dám gọi tôi bằng cái tên không thuộc về tôi nữa.

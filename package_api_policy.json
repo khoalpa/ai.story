@@ -1,0 +1,201 @@
+{
+  "policy_version": 1,
+  "packages": {
+    "audio": {
+      "stable_public_modules": [
+        "audio",
+        "audio.__main__",
+        "audio.cli",
+        "audio.doctor",
+        "audio.entrypoints",
+        "audio.gui_entry",
+        "audio.gui",
+        "audio.render_audio_app",
+        "audio.app_config",
+        "audio.profile_config",
+        "audio.tts_provider",
+        "audio.voice_catalog"
+      ],
+      "allowed_root_modules": [
+        "app_config",
+        "asset_profile_utils",
+        "audio_story_spec",
+        "bgm_config_schema",
+        "bgm_config_utils",
+        "canonical_to_plain_script",
+        "cli",
+        "cli_utils",
+        "doctor",
+        "entrypoints",
+        "exceptions",
+        "gui_entry",
+        "logging_utils",
+        "make_audio_edge_tts",
+        "media_test_utils",
+        "paths",
+        "profile_config",
+        "profile_manifest_schema",
+        "raw_to_plain_script",
+        "render_audio_app",
+        "render_batch_manifest",
+        "render_batch_runner",
+        "render_cli_adapter",
+        "render_events",
+        "render_job_repository",
+        "render_job_store",
+        "render_observers",
+        "render_reporting",
+        "runtime_binaries",
+        "runtime_checks",
+        "tts_provider",
+        "validate_plain_script",
+        "voice_catalog",
+        "__init__",
+        "__main__"
+      ],
+      "internal_prefixes": [
+        "audio.adapters",
+        "audio.models",
+        "audio.pipeline",
+        "audio.services"
+      ],
+      "deprecated_public_modules": []
+    },
+    "story": {
+      "stable_public_modules": [
+        "story",
+        "story.__main__",
+        "story.cli",
+        "story.gui_entry",
+        "story.generate_script",
+        "story.gui",
+        "story.paths",
+        "story.test_llm"
+      ],
+      "allowed_root_modules": [
+        "audio_story_spec",
+        "canonical_to_plain_script",
+        "cli",
+        "client",
+        "cli_utils",
+        "common",
+        "convert_raw_to_script",
+        "dedupe",
+        "generate_script",
+        "generate_script_args",
+        "generate_script_config",
+        "generate_script_runner",
+        "gui_entry",
+        "llm_providers",
+        "llm_provider_runtime",
+        "llm_provider_user_config",
+        "normalization",
+        "orchestration",
+        "parsing",
+        "paths",
+        "prompting",
+        "repair",
+        "service",
+        "testing",
+        "test_llm",
+        "validate_canonical_authoring",
+        "validate_plain_script",
+        "__init__",
+        "__main__"
+      ],
+      "internal_prefixes": [
+        "story.adapters",
+        "story.models",
+        "story.pipeline",
+        "story.services"
+      ],
+      "deprecated_public_modules": []
+    },
+    "image": {
+      "stable_public_modules": [
+        "image",
+        "image.__main__",
+        "image.app_api",
+        "image.gui_entry",
+        "image.gui"
+      ],
+      "allowed_root_modules": [
+        "app_api",
+        "gui_entry",
+        "providers",
+        "workflow_routing",
+        "__init__",
+        "__main__"
+      ],
+      "internal_prefixes": [
+        "image.gui"
+      ],
+      "deprecated_public_modules": []
+    },
+    "video": {
+      "stable_public_modules": [
+        "video",
+        "video.__main__",
+        "video.app_api",
+        "video.cli",
+        "video.cli_entry",
+        "video.gui_entry",
+        "video.gui",
+        "video.make_video_from_audio"
+      ],
+      "allowed_root_modules": [
+        "app_api",
+        "asset_profile_utils",
+        "cli",
+        "cli_entry",
+        "cli_utils",
+        "command_builders",
+        "config",
+        "error_handling",
+        "exceptions",
+        "ffmpeg_runner",
+        "gui_entry",
+        "logging_utils",
+        "make_video_from_audio",
+        "paths",
+        "render_slideshow",
+        "render_static",
+        "runtime_tools",
+        "run_history",
+        "slideshow_concat",
+        "subtitle_filters",
+        "validation",
+        "__init__",
+        "__main__"
+      ],
+      "internal_prefixes": [
+        "video.adapters",
+        "video.models",
+        "video.pipeline",
+        "video.services"
+      ],
+      "deprecated_public_modules": []
+    },
+    "common": {}
+  },
+  "dependency_direction": {
+    "audio": [
+      "common"
+    ],
+    "story": [
+      "common"
+    ],
+    "image": [
+      "common"
+    ],
+    "video": [
+      "common"
+    ],
+    "common": []
+  },
+  "rules": {
+    "forbid_cross_package_imports_unless_allowed": true,
+    "ignore_tests_for_dependency_direction": true,
+    "ignore_same_package_imports": true
+  }
+}

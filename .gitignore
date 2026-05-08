@@ -1,0 +1,39 @@
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Runtime artifacts and local outputs
+out/
+output/
+tmp/
+tmp*/
+.tmp_test_*/
+.render_audio_gui/
+*.log
+
+# Local heavyweight/runtime environments
+models/
+neucodec/
+
+# Packaging artifacts
+build/
+dist/
+*.egg-info/

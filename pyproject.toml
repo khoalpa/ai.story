@@ -1,0 +1,169 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-studio"
+version = "0.1.0"
+description = "Unified Story, Audio, Image, and Video studio tooling with CLI and Streamlit launchers."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+  { name = "AI Story Studio" }
+]
+keywords = ["story", "audio", "image", "video", "streamlit", "tts", "ffmpeg"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Multimedia :: Sound/Audio",
+  "Topic :: Multimedia :: Video",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+  "PyYAML==6.0.3",
+  "requests==2.32.3",
+  "edge-tts==7.2.7",
+  "vieneu>=2.4.0",
+  "neucodec>=0.0.5",
+  "streamlit>=1.43,<2",
+  "Pillow>=10,<12",
+]
+
+[project.optional-dependencies]
+gui = [
+  "streamlit>=1.43,<2",
+  "Pillow>=10,<12",
+]
+test = [
+  "pytest>=8,<9",
+  "ruff>=0.11,<1",
+  "mypy>=1.10,<2",
+  "wheel>=0.42,<1",
+]
+dev = [
+  "streamlit>=1.43,<2",
+  "Pillow>=10,<12",
+  "pytest>=8,<9",
+  "ruff>=0.11,<1",
+  "mypy>=1.10,<2",
+  "wheel>=0.42,<1",
+]
+all = [
+  "streamlit>=1.43,<2",
+  "Pillow>=10,<12",
+  "pytest>=8,<9",
+  "ruff>=0.11,<1",
+  "mypy>=1.10,<2",
+  "lmdeploy>=0.12.3",
+]
+image-local = [
+  "torch>=2.2",
+  "diffusers>=0.31",
+  "transformers>=4.44",
+  "accelerate>=0.33",
+  "safetensors>=0.4",
+  "opencv-python-headless>=4.10",
+  "streamlit-drawable-canvas>=0.9.3",
+  "mediapipe>=0.10.14",
+  "ultralytics>=8.3",
+]
+lmdeploy = [
+  "lmdeploy>=0.12.3",
+]
+
+[project.urls]
+Homepage = "https://www.pythonanywhere.com/user/khoalpa/ai-studio"
+Documentation = "https://www.pythonanywhere.com/user/khoalpa/ai-studio/docs"
+
+[project.scripts]
+generator-story = "story.cli:main"
+generator-story-gui = "story.gui_entry:main"
+render-audio = "audio.entrypoints:main"
+render-audio-gui = "audio.gui_entry:main"
+render-video = "video.cli:main"
+render-video-gui = "video.gui_entry:main"
+render-image-gui = "image.gui_entry:main"
+ai-studio-gui = "studio.gui_entry:main"
+
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+audio = [
+  "py.typed",
+  "assets/*",
+  "assets/*/*",
+  "assets/*/*/*",
+  "assets/*/*/*/*",
+]
+story = [
+  "assets/*",
+  "assets/*/*",
+  "assets/*/*/*",
+  "assets/*/*/*/*",
+]
+"image" = [
+  "assets/workflows/*.json",
+]
+"video" = [
+  "assets/*",
+  "assets/*/*",
+  "assets/*/*/*",
+  "assets/*/*/*/*",
+]
+"studio._shared" = [
+  "assets/*",
+  "assets/*/*",
+  "assets/*/*/*",
+  "assets/*/*/*/*",
+]
+
+[tool.setuptools.packages.find]
+include = ["audio*", "story*", "image*", "video*", "studio*", "common*"]
+exclude = [
+  "tests*",
+  "dist*",
+  "build*",
+  "audio.models",
+  "audio.models.*",
+  "image._shared",
+  "image._shared.*",
+  "*.local_models",
+  "*.local_models.*",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+
+[tool.ruff]
+target-version = "py310"
+exclude = [
+  ".venv",
+  "build",
+  "dist",
+  "*.egg-info",
+  "audio/models",
+  "*/local_models",
+]
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["scripts"]
+ignore_missing_imports = true
+exclude = [
+  '(^|/)build/',
+  '(^|/)dist/',
+  '\.egg-info/',
+  '(^|/)audio/models/',
+  '(^|/)[^/]+/local_models/',
+]

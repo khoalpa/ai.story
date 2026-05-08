@@ -1,0 +1,33 @@
+provider_id: openai_chatgpt
+label: ChatGPT / OpenAI (remote)
+description: Remote OpenAI API provider. Requires a valid API key.
+default_profile_id: gpt_4o_mini
+requires_api_key: true
+profiles:
+  - profile_id: gpt_4o_mini
+    label: GPT-4o mini
+    description: Fast, lower-cost profile for smoke tests and lighter generation.
+    base_url_env: OPENAI_BASE_URL
+    base_url_fallback: https://api.openai.com/v1
+    model_env: OPENAI_MODEL
+    model_fallback: gpt-4o-mini
+    api_key_env: OPENAI_API_KEY
+    api_key_fallback: ''
+  - profile_id: gpt_4_1_mini
+    label: GPT-4.1 mini
+    description: Balanced speed and quality for longer prompts.
+    base_url_env: OPENAI_BASE_URL
+    base_url_fallback: https://api.openai.com/v1
+    model_env: OPENAI_MODEL_41_MINI
+    model_fallback: gpt-4.1-mini
+    api_key_env: OPENAI_API_KEY
+    api_key_fallback: ''
+  - profile_id: gpt_4_1
+    label: GPT-4.1
+    description: Higher-quality profile for harder content generation tasks.
+    base_url_env: OPENAI_BASE_URL
+    base_url_fallback: https://api.openai.com/v1
+    model_env: OPENAI_MODEL_41
+    model_fallback: gpt-4.1
+    api_key_env: OPENAI_API_KEY
+    api_key_fallback: ''

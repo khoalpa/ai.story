@@ -1,0 +1,50 @@
+brief_id: trong_sinh_trend_audio_v1
+version: 1.0
+language: vi
+
+project:
+  genre: trend_driven_audio_story
+  format: audio_story
+  channel_hint: truyện audio hiện đại, hook mạnh, không nhắc tên kênh thật
+  audience:
+    gender: nam, nữ
+    age_range: 25-45
+    listening_behavior: ưu tiên nhịp nhanh, dễ nghe, nhiều cao trào
+
+story_core:
+  main_themes: trả đũa tra nam và trà xanh
+  emotional_promise: bị ép vào đường cùng nhưng phản đòn tỉnh táo, sảng khoái
+  tone:
+    primary: trọng sinh sửa mệnh
+    avoid_tone: đạo lý dài dòng, ngôn tình sến, bi lụy kéo dài, hài nhảm làm loãng cao trào
+
+length:
+  target_minutes: 15 minutes
+  min_minutes: 10 minutes
+  max_minutes: 20 minutes
+  pacing:
+    opening: rất nhanh, vào thẳng xung đột
+    middle: liên tục tăng áp lực và cài bẫy ngược
+    ending: giải quyết dứt điểm, không kết mở mơ hồ
+
+character_rules:
+  protagonist:
+    archetype: bị xem thường nhưng có năng lực thật
+    traits: bình tĩnh, quan sát tốt, không yếu đuối
+    boundaries: không tha thứ dễ dãi cho người cố ý hại mình
+  antagonist:
+    archetype: cướp thân phận hoặc thao túng dư luận
+    function: tưởng mình đã thắng ít nhất một lần
+  supporting_cast:
+    max_key_supporting_characters: 3
+    note: hạn chế nhân vật phụ để truyện audio dễ theo dõi
+
+required_elements:
+  opening: bắt đầu bằng cảnh bị phản bội, bị cướp thân phận, bị vu oan hoặc bị công khai xem thường
+  plot_twists: có ít nhất một cú lật thân phận hoặc lật chứng cứ
+  conflict_resolution: phản diện phải trả giá hợp lý
+  payoff: đủ rõ, đủ đã, không hụt cảm xúc
+
+avoid:
+  content: gore, bạo lực cực đoan, kết mở mơ hồ
+  writing: giảng đạo dài, mô tả lan man, thoại quá văn viết, khó nghe khi TTS, lặp lại cùng một cảm xúc quá nhiều lần

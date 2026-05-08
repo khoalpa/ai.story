@@ -1,0 +1,3 @@
+ai_studio source-only release 0.1.0
+Contains source code, assets, docs, and packaging metadata.
+Excludes dist/, tests/, CI workflows, caches, and runtime artifacts.

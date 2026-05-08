@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "base_dir": "bgm",
+  "intro_clip": {
+    "file": "intro_clip.mp3",
+    "gain_db": -12,
+    "fade_in_ms": 800,
+    "fade_out_ms": 800,
+    "loop": false
+  },
+  "zone_bgm": {
+    "greeting": {
+      "file": "zone_greeting.mp3",
+      "gain_db": -18,
+      "fade_in_ms": 1500,
+      "fade_out_ms": 2500,
+      "loop": true
+    },
+    "opening": {
+      "file": "zone_opening.mp3",
+      "gain_db": -18,
+      "fade_in_ms": 1500,
+      "fade_out_ms": 2500,
+      "loop": true
+    },
+    "introduction": {
+      "file": "zone_introduction.mp3",
+      "gain_db": -18,
+      "fade_in_ms": 1500,
+      "fade_out_ms": 2500,
+      "loop": true
+    },
+    "development": {
+      "file": "zone_development.mp3",
+      "gain_db": -18,
+      "fade_in_ms": 1500,
+      "fade_out_ms": 2500,
+      "loop": true
+    },
+    "climax": {
+      "file": "zone_climax.mp3",
+      "gain_db": -18,
+      "fade_in_ms": 1500,
+      "fade_out_ms": 2500,
+      "loop": true
+    },
+    "falling": {
+      "file": "zone_falling.mp3",
+      "gain_db": -18,
+      "fade_in_ms": 1500,
+      "fade_out_ms": 2500,
+      "loop": true
+    },
+    "ending": {
+      "file": "zone_ending.mp3",
+      "gain_db": -18,
+      "fade_in_ms": 1500,
+      "fade_out_ms": 2500,
+      "loop": true
+    },
+    "farewell": {
+      "file": "zone_farewell.mp3",
+      "gain_db": -18,
+      "fade_in_ms": 1500,
+      "fade_out_ms": 2500,
+      "loop": true
+    }
+  },
+  "env_ambience_map": {
+    "cafe": {
+      "file": "cafe_soft.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "forest_deep_ambience": {
+      "file": "forest_deep_ambience.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "hospital_room": {
+      "file": "hospital_room.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "night_city_soft": {
+      "file": "night_city_soft.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "rain": {
+      "file": "rain_soft.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "school_hallway": {
+      "file": "school_hallway.mp3",
+      "gain_db": -24,
+      "loop": true
+    }
+  }
+}

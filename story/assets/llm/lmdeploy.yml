@@ -1,0 +1,24 @@
+provider_id: lmdeploy
+label: LMDeploy (local)
+description: Local headless OpenAI-compatible server for GPU inference without a desktop app.
+default_profile_id: local_api_server
+requires_api_key: false
+profiles:
+  - profile_id: local_api_server
+    label: API server
+    description: Default LMDeploy api_server endpoint for local headless generation.
+    base_url_env: LMDEPLOY_BASE_URL
+    base_url_fallback: http://localhost:1234/v1
+    model_env: LMDEPLOY_MODEL
+    model_fallback: auto
+    api_key_env: LMDEPLOY_API_KEY
+    api_key_fallback: not-needed
+  - profile_id: qwen_instruct
+    label: Qwen instruct
+    description: Example local LMDeploy profile for Qwen instruct/chat models.
+    base_url_env: LMDEPLOY_BASE_URL
+    base_url_fallback: http://localhost:1234/v1
+    model_env: LMDEPLOY_MODEL_QWEN
+    model_fallback: Qwen2.5-7B-Instruct
+    api_key_env: LMDEPLOY_API_KEY
+    api_key_fallback: not-needed

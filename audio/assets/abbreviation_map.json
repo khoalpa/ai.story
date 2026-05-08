@@ -1,0 +1,40 @@
+{
+  "KPI": "K P I",
+  "OKR": "O K R",
+  "CRM": "C R M",
+  "POS": "P O S",
+  "CA": "C A",
+  "BDM": "B D M",
+  "RSM": "R S M",
+  "ASM": "A S M",
+
+  "HR": "H R",
+  "IT": "I T",
+  "QC": "Q C",
+  "QA": "Q A",
+  "R&D": "R and D",
+  "PM": "P M",
+
+  "CEO": "C E O",
+  "CFO": "C F O",
+  "COO": "C O O",
+  "CTO": "C T O",
+
+  "B2B": "B to B",
+  "B2C": "B to C",
+  "NPS": "N P S",
+  "ROI": "R O I",
+  "OK": "O K",
+
+  "AI": "A I",
+  "ML": "M L",
+  "DL": "D L",
+  "NLP": "N L P",
+  "SQL": "S Q L",
+  "API": "A P I",
+  "SDK": "S D K",
+  "URL": "U R L",
+  "FAQ": "F A Q",
+  "ETL": "E T L",
+  "BI": "B I"
+}

@@ -1,0 +1,8 @@
+# TITLE: Smoke Test Script
+# LANG: vi
+
+SCRIPT:
+
+[NARRATOR] Đây là một đoạn script mẫu để kiểm tra pipeline render_audio.
+[FEMALE] Xin chào, đây là dòng thoại thử nghiệm.
+[MALE] Audio format mặc định phải là WAV.

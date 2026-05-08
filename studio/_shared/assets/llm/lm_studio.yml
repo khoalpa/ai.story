@@ -1,0 +1,33 @@
+provider_id: lm_studio
+label: LM Studio (local)
+description: Dung endpoint local mac dinh cua LM Studio theo chuan OpenAI-compatible.
+default_profile_id: local_default
+requires_api_key: false
+profiles:
+  - profile_id: local_default
+    label: Local default
+    description: Endpoint mac dinh cua LM Studio cho may local.
+    base_url_env: LM_STUDIO_BASE_URL
+    base_url_fallback: http://localhost:1234/v1
+    model_env: LM_STUDIO_MODEL
+    model_fallback: local-model
+    api_key_env: LM_STUDIO_API_KEY
+    api_key_fallback: not-needed
+  - profile_id: qwen_coder
+    label: Qwen coder
+    description: Vi du profile local cho tac vu code/chat tren LM Studio.
+    base_url_env: LM_STUDIO_BASE_URL
+    base_url_fallback: http://localhost:1234/v1
+    model_env: LM_STUDIO_MODEL_QWEN
+    model_fallback: qwen2.5-coder-7b-instruct
+    api_key_env: LM_STUDIO_API_KEY
+    api_key_fallback: not-needed
+  - profile_id: llama_instruct
+    label: Llama instruct
+    description: Vi du profile local cho hoi thoai tong quat.
+    base_url_env: LM_STUDIO_BASE_URL
+    base_url_fallback: http://localhost:1234/v1
+    model_env: LM_STUDIO_MODEL_LLAMA
+    model_fallback: llama-3.1-8b-instruct
+    api_key_env: LM_STUDIO_API_KEY
+    api_key_fallback: not-needed
