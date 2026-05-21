@@ -52,9 +52,9 @@ Recommended workflow:
 
 If this project is useful to you, you can support continued development via VietQR:
 
-- Account holder: **LE PHAM ANH KHOA**
-- Bank: **MB Bank**
-- Account number: **0914030780**
+- Account holder: `LE PHAM ANH KHOA`
+- Bank: `MB Bank`
+- Account number: `0914030780`
 - Suggested content: `Donation AI Story`
 
 ![Donation VietQR](docs/assets/donation-mbb-0914030780.jpg)
