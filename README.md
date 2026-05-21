@@ -48,17 +48,6 @@ Recommended workflow:
 3. Send the image prompt bundle to Image and render cover/scenes.
 4. Send Audio/Image outputs to Video and render the final MP4.
 
-## Donation
-
-If this project is useful to you, you can support continued development via VietQR:
-
-- Bank: `MB Bank`
-- Account number: `0914030780`
-- Account holder: `LE PHAM ANH KHOA`
-- Suggested content: `Donation AI Story`
-
-![Donation VietQR](docs/assets/donation-mbb-0914030780.jpg)
-
 ## Install
 
 Install from the merged requirements file:
@@ -1306,3 +1295,14 @@ there is a deliberate extension point and the dependency is pinned.
 Minimal committed asset profile for tests and runtime defaults.
 
 Default Vietnamese voice presets in this demo profile are aligned with VieNeu TTS core canonical names: Thục Đoan, Phạm Tuyên, Bích Ngọc, Xuân Vĩnh.
+
+## Donation
+
+If this project is useful to you, you can support continued development via VietQR:
+
+- Bank: `MB Bank`
+- Account number: `0914030780`
+- Account holder: `LE PHAM ANH KHOA`
+- Suggested content: `Donation AI Story`
+
+![Donation VietQR](docs/assets/donation-mbb-0914030780.jpg)
