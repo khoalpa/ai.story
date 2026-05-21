@@ -81,13 +81,20 @@ def _render_quick_test_feedback() -> None:
     quick_error = str(st.session_state.get(QUICK_ERROR_KEY) or "")
     quick_result = st.session_state.get(QUICK_RESULT_KEY)
     if quick_error:
-        show_provider_error("LLM quick test", problem=quick_error, actions=["Kiểm tra cấu hình provider trong sidebar.", "Chạy lại quick test sau khi cập nhật model hoặc endpoint."])
+        show_provider_error(
+            "LLM quick test",
+            problem=quick_error,
+            actions=[
+                "Check the provider configuration in the sidebar.",
+                "Run the quick test again after updating the model or endpoint.",
+            ],
+        )
     if quick_result:
         render_user_message(
             UserMessage(
                 level="info",
                 title="LLM quick test",
-                body="Quick test thành công • provider={provider} • profile={profile} • latency={latency} ms".format(
+                body="Quick test succeeded - provider={provider} - profile={profile} - latency={latency} ms".format(
                     provider=quick_result.get("provider_label"),
                     profile=quick_result.get("profile_label"),
                     latency=quick_result.get("latency_ms"),
@@ -97,8 +104,7 @@ def _render_quick_test_feedback() -> None:
 
 
 def render_provider_quick_tests(*, timeout_s: int = 30, max_tokens: int = 256) -> None:
-    with st.expander("Quick test từng provider", expanded=False):
-
+    with st.expander("Quick test by provider", expanded=False):
         provider_ids = list_provider_ids()
         cols = st.columns(len(provider_ids))
         system_prompt, user_prompt = current_test_prompts()
@@ -124,20 +130,12 @@ def render_provider_quick_tests(*, timeout_s: int = 30, max_tokens: int = 256) -
 
 def render_llm_test_panel(settings: dict[str, Any]) -> None:
     st.subheader("Test LLM")
-    st.caption("Kiểm tra nhanh kết nối và phản hồi từ endpoint OpenAI-compatible trước khi chạy pipeline generate.")
+    st.caption("Quickly check the OpenAI-compatible endpoint connection and response before running the generation pipeline.")
 
     _apply_prompt_input_defaults()
 
-    system_prompt = st.text_area(
-        "Test system prompt",
-        key=SYSTEM_INPUT_KEY,
-        height=90,
-    )
-    user_prompt = st.text_area(
-        "Test user prompt",
-        key=USER_INPUT_KEY,
-        height=110,
-    )
+    system_prompt = st.text_area("Test system prompt", key=SYSTEM_INPUT_KEY, height=90)
+    user_prompt = st.text_area("Test user prompt", key=USER_INPUT_KEY, height=110)
 
     cols = st.columns([1, 1, 3])
     if cols[0].button("Run Test LLM", width="stretch"):
@@ -163,22 +161,29 @@ def render_llm_test_panel(settings: dict[str, Any]) -> None:
         st.rerun()
 
     status = current_llm_status(settings)
-    badge = {"ok": "🟢", "error": "🔴", "stale": "🟡", "unknown": "⚪"}.get(status["state"], "⚪")
-    st.caption(f"{badge} {status['label']} — {status['detail']}")
+    badge = {"ok": "[OK]", "error": "[ERROR]", "stale": "[STALE]", "unknown": "[UNKNOWN]"}.get(status["state"], "[UNKNOWN]")
+    st.caption(f"{badge} {status['label']} - {status['detail']}")
 
     error_text = st.session_state.get("story_llm_test_error") or ""
     result = st.session_state.get("story_llm_test_result")
 
     if error_text:
-        show_provider_error("LLM test", problem=error_text, actions=["Kiểm tra model, base URL, API key và timeout.", "Dùng nút Run Test LLM sau khi cập nhật cấu hình."])
+        show_provider_error(
+            "LLM test",
+            problem=error_text,
+            actions=[
+                "Check the model, base URL, API key, and timeout.",
+                "Use Run Test LLM after updating the configuration.",
+            ],
+        )
     if result:
         st.success(
-            "Kết nối thành công • model={model} • latency={latency} ms".format(
+            "Connection succeeded - model={model} - latency={latency} ms".format(
                 model=result.get("model"),
                 latency=result.get("latency_ms"),
             )
         )
-        with st.expander("Chi tiết phản hồi Test LLM", expanded=True):
+        with st.expander("Test LLM response details", expanded=True):
             st.json(
                 {
                     "endpoint": result.get("endpoint"),

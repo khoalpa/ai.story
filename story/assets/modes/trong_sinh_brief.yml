@@ -19,9 +19,9 @@ story_core:
     avoid_tone: đạo lý dài dòng, ngôn tình sến, bi lụy kéo dài, hài nhảm làm loãng cao trào
 
 length:
-  target_minutes: 15 minutes
+  target_minutes: 20 minutes
   min_minutes: 10 minutes
-  max_minutes: 20 minutes
+  max_minutes: 30 minutes
   pacing:
     opening: rất nhanh, vào thẳng xung đột
     middle: liên tục tăng áp lực và cài bẫy ngược

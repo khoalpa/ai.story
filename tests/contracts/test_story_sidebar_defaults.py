@@ -13,7 +13,7 @@ def test_story_sidebar_generation_defaults() -> None:
     sidebar = Path("story/gui/sidebar.py").read_text(encoding="utf-8")
     state = Path("story/gui/state.py").read_text(encoding="utf-8")
 
-    assert 'st.number_input("Timeout (s)", min_value=10, value=180, step=10)' in sidebar
+    assert 'st.number_input("Timeout (s)", min_value=10, value=360, step=10)' in sidebar
     assert 'STORY_TEST_BEFORE_GENERATE_KEY: False' in state
 
 

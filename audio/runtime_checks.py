@@ -55,7 +55,7 @@ def _resolve_command(executable: str, label: str, exc_type=DependencyError) -> s
     if resolve_tool_path(raw):
         return raw
     raise exc_type(
-        f"{label} executable not found: {raw}. Hãy cài đặt {_USER_FACING_LABELS.get(label, label)} và bảo đảm binary có trong PATH hoặc cấu hình đúng đường dẫn."
+        f"{label} executable not found: {raw}. Install {_USER_FACING_LABELS.get(label, label)} and make sure the binary is in PATH or the configured path is correct."
     )
 
 
@@ -76,7 +76,7 @@ def runtime_diagnostics_to_lines(diagnostics: RuntimeDiagnostics) -> list[str]:
             line = line.replace("edge_tts:", "edge-tts:", 1)
         if line.startswith("vieneu:"):
             line = line.replace("vieneu:", "VieNeu SDK:", 1)
-        rendered.append(line.replace(" missing", " chưa cài"))
+        rendered.append(line)
     return rendered
 
 

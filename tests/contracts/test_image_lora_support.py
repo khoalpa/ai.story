@@ -43,6 +43,57 @@ def test_image_provider_loads_lora_weights() -> None:
     assert "local_lora_enabled" in content
 
 
+def test_local_lora_loader_skips_missing_adapter_registration() -> None:
+    from image.provider_runtime import _load_local_lora_weights
+
+    class Pipe:
+        def __init__(self) -> None:
+            self.loaded: list[tuple[str, str]] = []
+            self.set_calls: list[tuple[list[str], list[float]]] = []
+
+        def load_lora_weights(self, ref: str, *, adapter_name: str) -> None:
+            self.loaded.append((ref, adapter_name))
+
+        def get_list_adapters(self) -> dict[str, list[str]]:
+            return {}
+
+        def set_adapters(self, names: list[str], adapter_weights: list[float]) -> None:
+            self.set_calls.append((names, adapter_weights))
+            raise ValueError("Adapter name(s) {'local_lora'} not in the list of present adapters: set().")
+
+    pipe = Pipe()
+
+    _load_local_lora_weights(pipe, lora_ref="style.safetensors", lora_scale=0.7)
+
+    assert pipe.loaded == [("style.safetensors", "local_lora")]
+    assert pipe.set_calls == [(["local_lora"], [0.7])]
+
+
+def test_local_lora_loader_sets_scale_when_adapter_is_present() -> None:
+    from image.provider_runtime import _load_local_lora_weights
+
+    class Pipe:
+        def __init__(self) -> None:
+            self.set_calls: list[tuple[list[str], list[float]]] = []
+
+        def load_lora_weights(self, ref: str, *, adapter_name: str) -> None:
+            self.ref = ref
+            self.adapter_name = adapter_name
+
+        def get_list_adapters(self) -> dict[str, list[str]]:
+            return {"unet": ["local_lora"]}
+
+        def set_adapters(self, names: list[str], adapter_weights: list[float]) -> None:
+            self.set_calls.append((names, adapter_weights))
+
+    pipe = Pipe()
+
+    _load_local_lora_weights(pipe, lora_ref="style.safetensors", lora_scale=1.2)
+
+    assert pipe.adapter_name == "local_lora"
+    assert pipe.set_calls == [(["local_lora"], [1.2])]
+
+
 def test_comfyui_workflow_injection_updates_lora_loader_nodes() -> None:
     from image.provider_runtime import _inject_comfyui_workflow
 

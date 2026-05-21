@@ -307,7 +307,7 @@ def local_model_candidates(model_ref: str, *, provider: str, module_file: str | 
 def resolve_model_reference(model_ref: str, *, provider: str, module_file: str | Path | None = None, allow_network: bool = False) -> tuple[str, bool]:
     raw = str(model_ref or "").strip()
     if not raw:
-        raise ValueError("Model reference không được để trống.")
+        raise ValueError("Model reference cannot be empty.")
     for candidate in local_model_candidates(raw, provider=provider, module_file=module_file):
         if candidate.exists():
             return str(candidate), False

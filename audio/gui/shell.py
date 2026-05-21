@@ -23,6 +23,26 @@ from .workspace_handoff import workspace_handoff_state
 from .workspace_source_outputs import workspace_source_outputs
 
 OverviewRenderer = Callable[[], None]
+WORKSPACE_SIDEBAR_EXPANDED_KEY = "workspace_sidebar_expanded"
+
+
+def _workspace_sidebar_initial_state() -> str:
+    st.session_state.setdefault(WORKSPACE_SIDEBAR_EXPANDED_KEY, True)
+    return "expanded" if st.session_state[WORKSPACE_SIDEBAR_EXPANDED_KEY] else "collapsed"
+
+
+def _collapse_workspace_sidebar() -> None:
+    st.session_state[WORKSPACE_SIDEBAR_EXPANDED_KEY] = False
+    rerun_fn = getattr(st, "rerun", None)
+    if callable(rerun_fn):
+        rerun_fn()
+
+
+def _expand_workspace_sidebar() -> None:
+    st.session_state[WORKSPACE_SIDEBAR_EXPANDED_KEY] = True
+    rerun_fn = getattr(st, "rerun", None)
+    if callable(rerun_fn):
+        rerun_fn()
 
 
 def _path_exists(value: str) -> bool:
@@ -326,22 +346,32 @@ def _render_handoff_readiness_table() -> None:
 
 
 def _render_pipeline_readiness_block() -> None:
-    st.markdown("### Pipeline readiness")
     readiness = [
         ("Story", *_story_ready_detail()),
         ("Audio", *_audio_ready_detail()),
         ("Image", *_image_ready_detail()),
         ("Video", *_video_ready_detail()),
     ]
+    ready_count = sum(1 for _, status, _ in readiness if status in {"ready", "set", "rendered"})
+    missing_count = len(readiness) - ready_count
+
+    st.caption(f"Pipeline readiness: {ready_count}/{len(readiness)} ready, {missing_count} need attention")
+    cols = st.columns(len(readiness))
     rows = []
-    for app, status, missing in readiness:
+    for col, (app, status, missing) in zip(cols, readiness):
+        detail = ", ".join(missing) if missing else "Ready to continue."
+        col.markdown(f"**{app}**")
+        col.write(_readiness_badge(status))
+        col.caption(detail)
         rows.append({
             "app": app,
             "status": _readiness_badge(status),
-            "missing_or_pending": ", ".join(missing) if missing else "Ready to continue.",
+            "missing_or_pending": detail,
         })
-    st.dataframe(rows, width="stretch", height=215)
-    _render_handoff_readiness_table()
+
+    with st.expander("Readiness details and handoff fixes", expanded=False):
+        st.dataframe(rows, width="stretch", height=150)
+        _render_handoff_readiness_table()
 
 
 def _apply_pending_navigation_before_widgets(app_options: list[str]) -> None:
@@ -655,12 +685,25 @@ def render_workspace_shell(
     overview_renderer: OverviewRenderer,
     app_renderers: dict[str, Callable[[], None]],
 ) -> None:
-    st.set_page_config(page_title=title, page_icon=":material/tune:", layout="wide")
+    st.set_page_config(
+        page_title=title,
+        page_icon=":material/tune:",
+        layout="wide",
+        initial_sidebar_state=_workspace_sidebar_initial_state(),
+    )
     ensure_workspace_shell_state()
     sync_pipeline_handoff_state()
 
     options = ["Overview", *app_renderers.keys()]
     _apply_pending_navigation_before_widgets(options)
+
+    if not st.session_state.get(WORKSPACE_SIDEBAR_EXPANDED_KEY, True):
+        if st.button(
+            ":material/left_panel_open: Open sidebar",
+            key="workspace_sidebar_expand_button",
+            help="Expand the workspace sidebar",
+        ):
+            _expand_workspace_sidebar()
 
     st.title(title)
     st.caption(caption)
@@ -670,12 +713,15 @@ def render_workspace_shell(
     _render_global_run_timeline()
 
     with st.sidebar:
-        st.header("Workspace")
-        runtime_slot = st.empty()
-        set_runtime_usage_container(runtime_slot)
-        render_runtime_usage_compact(container=runtime_slot)
-        st.divider()
-
+        title_cols = st.columns([1.0, 0.22])
+        title_cols[0].header("Workspace")
+        if title_cols[1].button(
+            ":material/left_panel_close:",
+            key="workspace_sidebar_collapse_button",
+            help="Collapse sidebar",
+            width="stretch",
+        ):
+            _collapse_workspace_sidebar()
         navigation = workspace_navigation_state(st.session_state)
         current = navigation.active_app
         if current not in options:
@@ -697,6 +743,10 @@ def render_workspace_shell(
         _render_handoff_status_sidebar()
 
         st.divider()
+        with st.expander("Runtime", expanded=False):
+            runtime_slot = st.empty()
+            set_runtime_usage_container(runtime_slot)
+            render_runtime_usage_compact(container=runtime_slot)
 
     if selection == "Overview":
         overview_renderer()

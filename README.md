@@ -14,6 +14,50 @@ The repository is organized as a modular monorepo with focused packages:
 - `image`
 - `video`
 - `common`
+- `studio`
+
+## Current status
+
+As of 2026-05-21, this repository is a unified AI Story Studio codebase with:
+
+- Story, Audio, Image, Video, and unified Studio Streamlit launchers.
+- Canonical GUI modules under `*/gui/app.py` plus package launchers in `*_entry.py`.
+- Audio BGM assets packaged under `audio/assets/bgm` with `audio/assets/bgm_config.json`.
+- Story-to-Audio, Story-to-Image, Audio-to-Video, and Image-to-Video handoff support in the unified GUI.
+- Local/remote image provider plumbing, including Stable Diffusion and ComfyUI provider paths.
+- Smoke and contract coverage for package contents, dependency direction, GUI state contracts, image workflows, audio rendering contracts, and handoff behavior.
+
+## Quick start
+
+Run the unified Studio GUI:
+
+```bash
+python -m streamlit run studio/gui_entry.py
+```
+
+Or use the installed console command:
+
+```bash
+ai-studio-gui
+```
+
+Recommended workflow:
+
+1. Generate a story in Story.
+2. Send the plain script to Audio and render narration/subtitles.
+3. Send the image prompt bundle to Image and render cover/scenes.
+4. Send Audio/Image outputs to Video and render the final MP4.
+
+## Donation
+
+If this project is useful to you, you can support continued development via VietQR:
+
+- Account holder: **LE PHAM ANH KHOA**
+- Bank: **MB Bank**
+- Account number: **0914030780**
+- QR image: [`docs/assets/donation-mbb-0914030780.jpg`](docs/assets/donation-mbb-0914030780.jpg)
+
+![Donation VietQR](docs/assets/donation-mbb-0914030780.jpg)
 
 ## Install
 
@@ -57,6 +101,24 @@ python -m pip install .[all,image-local]
 - base `project.dependencies` covers the runtime and GUI packages needed by the shipped launchers
 - optional extras in `pyproject.toml` remain available for package installs, while `requirements.txt` is the single pip requirements file for this repo
 - `.[image-local]` keeps heavyweight local image-generation dependencies optional
+
+## Quality checks
+
+The standard local/CI checks are:
+
+```bash
+python -m pytest -q
+python -m ruff check .
+python -m mypy
+python scripts/check_dependency_direction.py
+python scripts/check_wheel_contents.py
+```
+
+`mypy` is configured to scan the shipped packages (`audio`, `story`, `image`, `video`, `common`, `studio`) plus `scripts`. Modules with existing type debt are listed explicitly in the `pyproject.toml` mypy override baseline; remove modules from that list as their annotations are cleaned up.
+
+## Audio assets
+
+Bundled audio BGM assets live under `audio/assets/bgm`, with runtime defaults resolved through `audio.paths.DEFAULT_BGM_DIR`. The packaged wheel is expected to include `audio/assets/bgm_config.json` and representative BGM files checked by `scripts/check_wheel_contents.py`.
 
 ## Consolidated project notes
 
@@ -110,8 +172,10 @@ and the supported Streamlit launcher modules:
 ## Current release notes
 
 - Wheel packaging now includes `image*` packages.
+- Wheel packaging checks include bundled audio BGM config and BGM files under `audio/assets`.
 - Console scripts now cover Story, Audio, Image, Video, and the unified Studio shell.
 - Runtime, GUI, test, and dev dependencies are consolidated in the single `requirements.txt` file.
+- Mypy runs across shipped packages, with an explicit override baseline for modules that still carry type debt.
 - Repository hygiene checks are hardened to avoid false positives caused by the current pytest run itself.
 
 

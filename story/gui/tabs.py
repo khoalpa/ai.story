@@ -11,6 +11,7 @@ import yaml
 from story.testing import llm_config_fingerprint, run_llm_smoke_test
 from story.audio_story_spec import render_plain_script, validate_canonical_authoring
 from story.convert_raw_to_script import SpeakerConfig, convert_text
+from story.validate_canonical_authoring import extract_auto_repair_log, validate_script_length_rule
 from story.validate_plain_script import validate_script
 
 from story.gui.handoff_utils import HandoffAction, render_handoff_action_row
@@ -43,6 +44,7 @@ from story.gui.briefs import (
 from story.gui.errors import build_error_context, format_runtime_error, split_runtime_error_details, summarize_settings_for_logs
 from story.gui.history import append_draft_history, append_history, append_outline_history, estimate_draft_seconds, estimate_outline_seconds
 from story.gui.image_prompts import dumps_json
+from story.gui.output_paths import resolve_story_output_base, save_story_step_json
 from story.gui.diagnostics import collect_runtime_diagnostics
 from story.gui.llm_test import _build_test_cfg, current_llm_status, current_test_prompts, render_llm_test_panel
 from story.gui.prompts import (
@@ -208,7 +210,7 @@ def _render_recommended_pair_notice(
 ) -> None:
     chosen_brief_path = selected_brief_path(brief_label, brief_paths, project_root=project_root)
     chosen_prompt_path = selected_system_prompt_path(prompt_label, prompt_paths, project_root=project_root)
-    msg_parts = [f"G?i ý theo mode hi?n t?i: Brief = {brief_label}; Prompt = {prompt_label}"]
+    msg_parts = [f"Suggestion for the current mode: Brief = {brief_label}; Prompt = {prompt_label}"]
     if chosen_brief_path is None and chosen_prompt_path is None:
         render_user_message(UserMessage(level="info", title="Story presets", body=msg_parts[0]))
         return
@@ -217,12 +219,12 @@ def _render_recommended_pair_notice(
     if chosen_brief_path is not None:
         cols[0].code(str(chosen_brief_path))
     else:
-        cols[0].write("Không tìm th?y brief m?u phù h?p.")
+        cols[0].write("No matching sample brief found.")
     if chosen_prompt_path is not None:
         cols[1].code(str(chosen_prompt_path))
     else:
-        cols[1].write("Không tìm th?y prompt m?u phù h?p.")
-    if st.button("N?p c?p m?u theo mode", width="stretch"):
+        cols[1].write("No matching sample prompt found.")
+    if st.button("Load sample pair for mode", width="stretch"):
         if chosen_brief_path is not None:
             st.session_state.story_brief_text = load_brief_text(chosen_brief_path)
             st.session_state.story_selected_brief = str(chosen_brief_path)
@@ -271,21 +273,21 @@ def render_inputs_tab(settings: dict[str, Any], *, project_root: Path | None = N
         prompt_paths=prompt_paths,
         project_root=project_root,
     )
-    selected_brief_label = st.selectbox("Ch?n Brief YAML", brief_labels, key="story_selected_brief_label")
+    selected_brief_label = st.selectbox("Choose Brief YAML", brief_labels, key="story_selected_brief_label")
     chosen_brief_path = selected_brief_path(selected_brief_label, brief_paths, project_root=project_root)
     if chosen_brief_path is not None:
         cols = st.columns(2)
         cols[0].code(str(chosen_brief_path))
-        if cols[1].button("N?p Brief dã ch?n", width="stretch"):
+        if cols[1].button("Load selected Brief", width="stretch"):
             st.session_state.story_brief_text = load_brief_text(chosen_brief_path)
             st.session_state.story_selected_brief = str(chosen_brief_path)
 
-    selected_prompt_label = st.selectbox("Ch?n System Prompt", prompt_labels, key="story_selected_system_prompt_label")
+    selected_prompt_label = st.selectbox("Choose System Prompt", prompt_labels, key="story_selected_system_prompt_label")
     chosen_prompt_path = selected_system_prompt_path(selected_prompt_label, prompt_paths, project_root=project_root)
     if chosen_prompt_path is not None:
         cols = st.columns(2)
         cols[0].code(str(chosen_prompt_path))
-        if cols[1].button("N?p Prompt dã ch?n", width="stretch"):
+        if cols[1].button("Load selected Prompt", width="stretch"):
             st.session_state.story_system_prompt_text = load_system_prompt_text(chosen_prompt_path)
             st.session_state.story_selected_system_prompt = str(chosen_prompt_path)
 
@@ -295,9 +297,9 @@ def render_inputs_tab(settings: dict[str, Any], *, project_root: Path | None = N
         brief = yaml.safe_load(brief_text) or {}
     except Exception as exc:
         brief = {}
-        show_missing_input("Brief YAML h?p l?", hint="Hãy s?a l?i cú pháp YAML tru?c khi ch?y.", actions=[f"Chi ti?t l?i: {exc}"])
+        show_missing_input("valid Brief YAML", hint="Fix the YAML syntax before running.", actions=[f"Error details: {exc}"])
     render_json_summary_expander(
-        "Tóm t?t c?u hình ch?y",
+        "Run configuration summary",
         {"settings": summarize_settings_for_logs(settings), "brief_summary": build_story_run_summary(settings, brief)},
         expanded=False,
     )
@@ -368,15 +370,34 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
     badge = {"ok": "[OK]", "error": "[ERROR]", "stale": "[STALE]", "unknown": "[UNKNOWN]"}.get(status["state"], "[UNKNOWN]")
     st.caption(f"{badge} {status['label']} - {status['detail']}")
     if settings.get("test_before_generate"):
-        render_user_message(UserMessage(level="info", title="Story preflight", body="Preflight dang b?t: app s? ch?y Test LLM ng?n tru?c khi generate."))
+        render_user_message(UserMessage(level="info", title="Story preflight", body="Preflight is enabled: the app will run a short Test LLM before generation."))
+
+    def _save_story_outputs(result: dict[str, Any]) -> tuple[str, str]:
+        output_base = resolve_story_output_base(settings.get("output_base"))
+        txt_path = output_base.with_suffix(".txt")
+        json_path = output_base.with_suffix(".json")
+        txt_path.parent.mkdir(parents=True, exist_ok=True)
+        txt_path.write_text(str(result.get("plain_script") or ""), encoding="utf-8", newline="\n")
+        json_path.write_text(
+            json.dumps(result.get("authoring") or {}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+            newline="\n",
+        )
+        result["plain_script_path"] = str(txt_path)
+        result["canonical_json_path"] = str(json_path)
+        return str(txt_path), str(json_path)
+
     def _commit_story_result(result: dict[str, Any]) -> None:
+        plain_script_path, canonical_json_path = _save_story_outputs(result)
         st.session_state.story_last_result = result
         st.session_state.story_last_failed_result = None
         st.session_state.story_last_error_context = None
         st.session_state.story_last_error = ""
         clear_story_visual_handoffs(st.session_state)
-        workspace_source_outputs(st.session_state).story_plain_script_path = "Plain script s?n sàng trong Studio"
+        workspace_source_outputs(st.session_state).story_plain_script_path = plain_script_path
         set_story_handoff(plain_script_text=result.get("plain_script") or "")
+        workspace_handoff_state(st.session_state).last_story_output = plain_script_path
+        st.session_state.story_last_canonical_json_path = canonical_json_path
         append_history(result)
 
     step_cols = st.columns([1.0, 1.0, 1.0])
@@ -392,9 +413,11 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
                 state=st.session_state,
             )
             st.session_state.story_outline_result = outline
+            outline_path = save_story_step_json(outline.get("outline_payload") or {}, output_base=settings.get("output_base"), step="outline")
+            outline["outline_path"] = str(outline_path)
             reset_story_outputs_after_outline(st.session_state)
             st.session_state.story_last_error = ""
-            st.success("T?o outline thành công")
+            st.success("Outline generated successfully")
         except Exception as exc:
             friendly_error = format_runtime_error(exc)
             st.session_state.story_last_error = friendly_error
@@ -404,8 +427,8 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
                 "Story outline",
                 problem=friendly_problem,
                 actions=[
-                    "Ki?m tra brief, system prompt, và c?u hình LLM.",
-                    "N?u model local v?n tr? r?ng, th? tang Max tokens ho?c ch?y l?i Test LLM.",
+                    "Check the brief, system prompt, and LLM configuration.",
+                    "If the local model still returns empty output, increase Max tokens or rerun Test LLM.",
                 ],
                 technical_details=technical_details,
                 show_details=bool(technical_details),
@@ -432,25 +455,27 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
                 state=st.session_state,
             )
             st.session_state.story_authoring_draft = draft
+            draft_path = save_story_step_json(draft.get("authoring") or {}, output_base=settings.get("output_base"), step="draft")
+            draft["draft_path"] = str(draft_path)
             st.session_state.story_last_error = ""
-            st.success("T?o draft thành công")
+            st.success("Draft generated successfully")
         except Exception as exc:
             friendly_error = format_runtime_error(exc)
             st.session_state.story_last_error = friendly_error
-            show_provider_error("Story draft", problem=friendly_error, actions=["Ki?m tra outline hi?n t?i và ch?y l?i Generate draft."])
+            show_provider_error("Story draft", problem=friendly_error, actions=["Check the current outline and rerun Generate draft."])
 
     if step_cols[2].button("Validate + render", width="stretch", disabled=not bool(st.session_state.get("story_authoring_draft"))):
         try:
             draft = st.session_state.get("story_authoring_draft") or {}
             result = validate_and_render_story_result(draft=draft, settings=settings)
             _commit_story_result(result)
-            st.success("Validate và render story thành công")
+            st.success("Story validated and rendered successfully")
         except Exception as exc:
             friendly_error = format_runtime_error(exc)
             error_context = build_error_context(exc)
             st.session_state.story_last_error = friendly_error
             st.session_state.story_last_error_context = error_context
-            show_provider_error("Story validate", problem=friendly_error, actions=["Ki?m tra draft hi?n t?i và ch?y l?i Validate + render."])
+            show_provider_error("Story validate", problem=friendly_error, actions=["Check the current draft and rerun Validate + render."])
 
     if st.button("Generate all story steps", type="primary", width="stretch"):
         try:
@@ -496,6 +521,7 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
                 result=result,
                 state=st.session_state,
             )
+            plain_script_path, canonical_json_path = _save_story_outputs(result)
             st.session_state.story_last_result = result
             st.session_state.story_last_failed_result = None
             st.session_state.story_last_error_context = None
@@ -514,10 +540,12 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
             )
             append_global_run_event(app="Story", stage="Generate", status="completed", message=f"title={(((result.get('authoring') or {}).get('meta') or {}).get('title') or '-')}")
             clear_story_visual_handoffs(st.session_state)
-            workspace_source_outputs(st.session_state).story_plain_script_path = "Plain script s?n sàng trong Studio"
+            workspace_source_outputs(st.session_state).story_plain_script_path = plain_script_path
+            st.session_state.story_last_canonical_json_path = canonical_json_path
             set_story_handoff(plain_script_text=plain_script_text)
+            workspace_handoff_state(st.session_state).last_story_output = plain_script_path
             progress.progress(1.0, text=format_progress_text(100, "Complete", [f"mode={result.get('mode') or settings.get('mode') or '-'}"]))
-            st.success("T?o story thành công")
+            st.success("Story generated successfully")
             append_history(result)
         except Exception as exc:
             friendly_error = format_runtime_error(exc)
@@ -538,10 +566,10 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
                 st.session_state.story_llm_test_cfg_fingerprint = llm_config_fingerprint(_build_test_cfg(settings))
             update_global_run_monitor(app="Story", stage="Generate", status="failed", progress=100, error_text=friendly_error, summary={"mode": settings.get("mode")})
             append_global_run_event(app="Story", stage="Generate", status="failed", message="Story generation failed", error_text=friendly_error)
-            show_provider_error("Story generation", problem=friendly_error, actions=["Ki?m tra l?i brief, system prompt, và c?u hình LLM.", "Xem ph?n log ho?c Test LLM d? xác nh?n endpoint ho?t d?ng."])
+            show_provider_error("Story generation", problem=friendly_error, actions=["Check the brief, system prompt, and LLM configuration again.", "Check the logs or Test LLM to confirm the endpoint is working."])
             if error_context.get("item_index") is not None:
                 item_index = error_context.get("item_index")
-                render_user_message(UserMessage(level="info", title="Story diagnostics", body=f"Ðã xác d?nh item l?i: script[{item_index}]. M? tab Preview & Logs d? xem item và dòng dã highlight."))
+                render_user_message(UserMessage(level="info", title="Story diagnostics", body=f"Detected the failing item: script[{item_index}]. Open Preview & Logs to inspect the item and highlighted line."))
     can_generate_image_prompts = bool(st.session_state.get("story_last_result"))
     if st.button("Generate image prompts", width="stretch", disabled=not can_generate_image_prompts):
         try:
@@ -564,12 +592,12 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
                 },
             )
             append_global_run_event(app="Story", stage="Image prompts", status="completed", message=f"prompts={len(result.get('image_prompts') or {})}", output_path=str(bundle_dir))
-            st.success("T?o image prompts thành công")
+            st.success("Image prompts generated successfully")
         except Exception as exc:
             friendly_error = format_runtime_error(exc)
             update_global_run_monitor(app="Story", stage="Image prompts", status="failed", progress=100, error_text=friendly_error)
             append_global_run_event(app="Story", stage="Image prompts", status="failed", message="Image prompt generation failed", error_text=friendly_error)
-            show_provider_error("Story image prompts", problem=friendly_error, actions=["Ki?m tra canonical story hi?n t?i.", "Ch?y l?i Generate image prompts sau khi story h?p l?."])
+            show_provider_error("Story image prompts", problem=friendly_error, actions=["Check the current canonical story.", "Rerun Generate image prompts after the story is valid."])
     render_last_result_summary()
 
 
@@ -582,7 +610,7 @@ def render_last_result_summary() -> None:
     if not result:
         return
     st.divider()
-    st.subheader("K?t qu? g?n nh?t")
+    st.subheader("Latest result")
     meta = (result.get("authoring") or {}).get("meta") or {}
     mode_title = result.get("mode_label") or result.get("mode") or "-"
     base_mode = result.get("base_mode") or "-"
@@ -595,13 +623,15 @@ def render_last_result_summary() -> None:
 
     bundle_bytes = _build_output_bundle(result)
     image_handoff_dir = str(result.get("image_handoff_dir") or "")
+    plain_script_path = str(result.get("plain_script_path") or "")
+    canonical_json_path = str(result.get("canonical_json_path") or "")
     prompts_ready = image_prompt_handoff_ready(result)
     handoff_actions = [
         HandoffAction(
             label="Send to Audio",
             key="send_story_to_audio_btn",
             callback=lambda: send_story_to_audio(plain_script_text=result.get("plain_script") or ""),
-            success_message="Ðã g?i plain script sang Audio và b?t lock theo handoff.",
+            success_message="Sent the plain script to Audio and enabled the handoff lock.",
         )
     ]
     if prompts_ready:
@@ -610,7 +640,7 @@ def render_last_result_summary() -> None:
                 label="Send to Image",
                 key="send_story_to_image_btn",
                 callback=lambda: send_story_to_image(handoff_dir=image_handoff_dir),
-                success_message="Ðã g?i prompt bundle sang Image.",
+                success_message="Sent the prompt bundle to Image.",
             ),
             HandoffAction(
                 label="Send to Video",
@@ -620,7 +650,7 @@ def render_last_result_summary() -> None:
                     scene_images_dir=str(Path(image_handoff_dir) / "scene_images"),
                     manifest_path=str(Path(image_handoff_dir) / "manifest.json"),
                 ),
-                success_message="Ðã g?i handoff naming bundle sang Video.",
+                success_message="Sent the handoff naming bundle to Video.",
             ),
         ])
     render_handoff_action_row(handoff_actions, column_spec=[1.0] * len(handoff_actions))
@@ -628,14 +658,14 @@ def render_last_result_summary() -> None:
     render_download_button_row(
         [
             DownloadSpec(
-                "T?i canonical JSON",
+                "Download canonical JSON",
                 data=json.dumps(result.get("authoring"), ensure_ascii=False, indent=2).encode("utf-8"),
                 file_name="story_authoring.json",
                 mime="application/json",
                 key="download_story_canonical_json_btn",
             ),
             DownloadSpec(
-                "T?i gói ZIP k?t qu?",
+                "Download result ZIP",
                 data=bundle_bytes,
                 file_name="story_output_bundle.zip",
                 mime="application/zip",
@@ -649,14 +679,14 @@ def render_last_result_summary() -> None:
         render_download_button_row(
             [
                 DownloadSpec(
-                    "T?i cover prompt",
+                    "Download cover prompt",
                     data=dumps_json((result.get("image_prompts") or {}).get("cover") or {}),
                     file_name="cover_prompt.json",
                     mime="application/json",
                     key="download_story_cover_prompt_btn",
                 ),
                 DownloadSpec(
-                    "T?i scene overview prompt",
+                    "Download scene overview prompt",
                     data=dumps_json((result.get("image_prompts") or {}).get("scene") or {}),
                     file_name="scene_prompt.json",
                     mime="application/json",
@@ -666,7 +696,9 @@ def render_last_result_summary() -> None:
             column_spec=[1.0, 1.0],
         )
     else:
-        st.info("Image prompts chua du?c t?o. Ch?y Generate image prompts d? m? handoff Image/Video.")
+        st.info("Image prompts have not been created yet. Run Generate image prompts to enable Image/Video handoff.")
+    if plain_script_path or canonical_json_path:
+        st.caption(f"Saved outputs: {plain_script_path or '-'} | {canonical_json_path or '-'}")
     st.caption(f"Handoff bundle: {image_handoff_dir or '-'}")
 
 def render_preview_tab() -> None:
@@ -687,16 +719,16 @@ def render_preview_tab() -> None:
         st.json(preview_result.get("authoring"))
         if error_context.get("script_item") is not None:
             item_index = error_context.get("item_index")
-            st.subheader(f"Item l?i - script[{item_index}]")
+            st.subheader(f"Failed item - script[{item_index}]")
             st.json(error_context.get("script_item"))
             if error_context.get("preview"):
-                st.caption(f"Preview text l?i: {error_context.get('preview')}")
+                st.caption(f"Failed text preview: {error_context.get('preview')}")
             if error_context.get("script_excerpt"):
                 st.code("\n".join(error_context.get("script_excerpt") or []))
         st.subheader("Plain script")
         st.code(preview_result.get("plain_script") or "")
         if error_context.get("plain_excerpt"):
-            st.subheader("Dòng l?i dã highlight")
+            st.subheader("Highlighted failed line")
             st.code("\n".join(error_context.get("plain_excerpt") or []))
         if error_context.get("raw_response_excerpt"):
             st.subheader("Raw LLM response excerpt")
@@ -719,7 +751,7 @@ def _render_validation_result(result: Any) -> None:
     if errors:
         st.error("\n".join(errors[:40]))
     else:
-        st.success("Không có l?i validate.")
+        st.success("No validation errors.")
     if warnings:
         st.warning("\n".join(warnings[:40]))
     stats = getattr(result, 'stats', None)
@@ -730,10 +762,16 @@ def _render_validation_result(result: Any) -> None:
 
 def render_tools_tab(settings: dict[str, Any]) -> None:
     del settings
-    tab_convert, tab_canonical, tab_validate = st.tabs(["Convert raw -> plain", "Canonical -> plain", "Validate plain"])
+    tab_convert, tab_canonical, tab_validate_canonical, tab_validate = st.tabs([
+        "Convert raw -> plain",
+        "Canonical -> plain",
+        "Validate canonical",
+        "Validate plain",
+    ])
 
     with tab_convert:
         raw_text = st.text_area("Raw story text", key="story_tool_raw_text", height=260)
+        title_hint = st.text_input("Title hint", key="story_tool_title_hint")
         col1, col2, col3 = st.columns(3)
         default_voice = col1.selectbox("Default voice", ["NARRATOR", "FEMALE", "MALE"], key="story_tool_default_voice")
         default_speed = col2.selectbox("Default speed", ["NORMAL", "SLOW", "FAST"], key="story_tool_default_speed")
@@ -744,12 +782,12 @@ def render_tools_tab(settings: dict[str, Any]) -> None:
         strip_prefix = opt3.checkbox("Strip speaker prefix", value=True, key="story_tool_strip_prefix")
         if st.button("Convert raw -> plain", key="story_tool_convert_btn", width="stretch"):
             if not str(raw_text or "").strip():
-                show_missing_input("raw story text", hint="Hãy dán n?i dung thô tru?c khi convert.")
+                show_missing_input("raw story text", hint="Paste raw content before converting.")
             else:
                 output = convert_text(
                     raw_text,
                     add_header_if_missing=bool(add_header),
-                    title_hint="",
+                    title_hint=str(title_hint or ""),
                     default_voice_role=str(default_voice).lower(),
                     default_speed=str(default_speed).upper(),
                     default_lang=str(default_lang).upper(),
@@ -758,7 +796,7 @@ def render_tools_tab(settings: dict[str, Any]) -> None:
                     strip_prefix=bool(strip_prefix),
                 )
                 st.session_state["story_tool_plain_output"] = output
-                st.success("Ðã convert raw text sang plain script.")
+                st.success("Converted raw text to plain script.")
         converted = st.session_state.get("story_tool_plain_output", "")
         if converted:
             st.text_area("Converted plain script", value=converted, height=260, key="story_tool_plain_output_view")
@@ -767,7 +805,7 @@ def render_tools_tab(settings: dict[str, Any]) -> None:
         canonical_text = st.text_area("Canonical JSON", key="story_tool_canonical_text", height=260)
         if st.button("Canonical -> plain", key="story_tool_canonical_btn", width="stretch"):
             if not str(canonical_text or "").strip():
-                show_missing_input("canonical JSON", hint="Hãy dán canonical JSON tru?c khi convert.")
+                show_missing_input("canonical JSON", hint="Paste canonical JSON before converting.")
             else:
                 try:
                     authoring = json.loads(canonical_text)
@@ -777,18 +815,57 @@ def render_tools_tab(settings: dict[str, Any]) -> None:
                     else:
                         plain_text = render_plain_script(authoring)
                         st.session_state["story_tool_canonical_plain_output"] = plain_text
-                        st.success("Ðã convert canonical JSON sang plain script.")
+                        st.success("Converted canonical JSON to plain script.")
                 except Exception as exc:
-                    render_user_message(UserMessage(level="error", title="Canonical -> plain th?t b?i", body="Không th? d?c ho?c convert canonical JSON hi?n t?i.", technical_details=str(exc)), show_details=True)
+                    render_user_message(UserMessage(level="error", title="Canonical -> plain failed", body="Could not read or convert the current canonical JSON.", technical_details=str(exc)), show_details=True)
         converted = st.session_state.get("story_tool_canonical_plain_output", "")
         if converted:
             st.text_area("Plain script from canonical", value=converted, height=260, key="story_tool_canonical_plain_view")
 
+    with tab_validate_canonical:
+        canonical_text = st.text_area("Canonical JSON to validate", key="story_tool_validate_canonical_text", height=300)
+        show_repair_log = st.checkbox("Show repair log", key="story_tool_validate_canonical_show_repair_log")
+        if st.button("Validate canonical JSON", key="story_tool_validate_canonical_btn", width="stretch"):
+            if not str(canonical_text or "").strip():
+                show_missing_input("canonical JSON", hint="Paste canonical JSON before validating.")
+            else:
+                try:
+                    authoring = json.loads(canonical_text)
+                    errors = validate_canonical_authoring(authoring)
+                    errors.extend(validate_script_length_rule(authoring))
+                    repair_log = extract_auto_repair_log(authoring)
+                    st.session_state["story_tool_validate_canonical_result"] = {
+                        "ok": not errors,
+                        "errors": errors,
+                        "auto_repair_log_count": len(repair_log),
+                        "auto_repair_log": repair_log,
+                    }
+                except Exception as exc:
+                    render_user_message(
+                        UserMessage(
+                            level="error",
+                            title="Canonical validation failed",
+                            body="Could not read the current canonical JSON.",
+                            technical_details=str(exc),
+                        ),
+                        show_details=True,
+                    )
+        canonical_result = st.session_state.get("story_tool_validate_canonical_result")
+        if isinstance(canonical_result, dict):
+            if canonical_result.get("ok"):
+                st.success("Canonical authoring is valid.")
+            else:
+                st.error("\n".join([str(item) for item in canonical_result.get("errors", [])][:40]))
+            st.metric("Auto-repair entries", int(canonical_result.get("auto_repair_log_count") or 0))
+            if show_repair_log and canonical_result.get("auto_repair_log"):
+                with st.expander("Auto-repair log", expanded=True):
+                    st.json(canonical_result.get("auto_repair_log"))
+
     with tab_validate:
-        plain_text = st.text_area("Plain script c?n validate", key="story_tool_validate_plain_text", height=320)
+        plain_text = st.text_area("Plain script to validate", key="story_tool_validate_plain_text", height=320)
         if st.button("Validate plain script", key="story_tool_validate_btn", width="stretch"):
             if not str(plain_text or "").strip():
-                show_missing_input("plain script", hint="Hãy dán plain script tru?c khi validate.")
+                show_missing_input("plain script", hint="Paste plain script before validating.")
             else:
                 st.session_state["story_tool_validate_result"] = validate_script(str(plain_text).splitlines())
         result = st.session_state.get("story_tool_validate_result")
@@ -819,9 +896,9 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
         st.warning(message)
 
     rows = [
-        {"check": "Brief text", "status": "OK" if str(st.session_state.get("story_brief_text") or "").strip() else "missing", "detail": "Ðã nh?p brief" if str(st.session_state.get("story_brief_text") or "").strip() else "Chua có brief text."},
-        {"check": "System prompt", "status": "OK" if str(st.session_state.get("story_system_prompt_text") or "").strip() else "missing", "detail": "Ðã nh?p system prompt" if str(st.session_state.get("story_system_prompt_text") or "").strip() else "Chua có system prompt."},
-        {"check": "Story output", "status": "OK" if str(handoff.story_plain_script_path or "").strip() else "missing", "detail": str(handoff.story_plain_script_path or "Chua có file plain script output g?n nh?t.")},
+        {"check": "Brief text", "status": "OK" if str(st.session_state.get("story_brief_text") or "").strip() else "missing", "detail": "Brief entered" if str(st.session_state.get("story_brief_text") or "").strip() else "No brief text yet."},
+        {"check": "System prompt", "status": "OK" if str(st.session_state.get("story_system_prompt_text") or "").strip() else "missing", "detail": "System prompt entered" if str(st.session_state.get("story_system_prompt_text") or "").strip() else "No system prompt yet."},
+        {"check": "Story output", "status": "OK" if str(handoff.story_plain_script_path or "").strip() else "missing", "detail": str(handoff.story_plain_script_path or "No latest plain script output file yet.")},
     ]
     st.markdown("#### Story readiness")
     st.dataframe(rows, width="stretch", height=180)
@@ -848,7 +925,7 @@ def render_history_tab() -> None:
     items = st.session_state.get("story_last_history", [])
     render_session_history(
         items,
-        empty_message="Chua có l?ch s? generate trong session hi?n t?i.",
+        empty_message="No generation history in the current session yet.",
         title_builder=lambda idx, item: f"#{idx} - {item.get('title')}",
     )
 

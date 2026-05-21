@@ -58,7 +58,22 @@ def _maybe_preload_local_runtime(settings: dict[str, object]) -> None:
         else:
             _preload_local_pipeline_cached(settings_json)
     except Exception as exc:
-        render_user_message(UserMessage(level="warning", title="Image local preload skipped", body="The local image provider was not preloaded in this session.", actions=(GuidanceAction("You can still continue with a remote provider or reconfigure the local runtime."), GuidanceAction("Open Diagnostics or run Test in the sidebar to continue checking."),), technical_details=f"{exc.__class__.__name__}: {exc}"), show_details=False)
+        render_user_message(
+            UserMessage(
+                level="info",
+                title="Image local preload skipped",
+                body=(
+                    "The local image provider was not preloaded in this session. "
+                    "Preload is optional; Generate or Test can still initialize the provider when needed."
+                ),
+                actions=(
+                    GuidanceAction("Turn off startup preload if you do not need local warm-up."),
+                    GuidanceAction("Open Doctor or run Test to check the local runtime."),
+                ),
+                technical_details=f"{exc.__class__.__name__}: {exc}",
+            ),
+            show_details=False,
+        )
 
 
 def render_image_workspace(*, embedded: bool = False) -> None:

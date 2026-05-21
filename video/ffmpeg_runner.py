@@ -81,13 +81,13 @@ def run_ffmpeg(
 
     if config.FFMPEG_STREAM_LOG or not config.SHOW_PROGRESS:
         if progress_callback is not None:
-            progress_callback(0.0, "Bắt đầu render...")
+            progress_callback(0.0, "Starting render...")
         proc = subprocess.Popen(cmd, stdout=None, stderr=None)
         rc = proc.wait()
         if rc != 0:
             raise FfmpegExecutionError(f"ffmpeg failed, return code={rc}")
         if progress_callback is not None:
-            progress_callback(100.0, "Hoàn tất 100%")
+            progress_callback(100.0, "Complete 100%")
         return
 
     cmd2 = cmd.copy()
@@ -123,7 +123,7 @@ def run_ffmpeg(
     current_out_s = 0.0
 
     if proc.stdout is None:
-        raise FfmpegExecutionError("Không đọc được stdout progress từ ffmpeg.")
+        raise FfmpegExecutionError("Could not read ffmpeg progress from stdout.")
 
     for line in proc.stdout:
         line = line.strip()
@@ -184,6 +184,6 @@ def run_ffmpeg(
             + "\n".join(stderr_tail)
         )
     if progress_callback is not None:
-        progress_callback(100.0, "Hoàn tất 100%")
+        progress_callback(100.0, "Complete 100%")
     if not line_ended:
         print("", file=sys.stderr)

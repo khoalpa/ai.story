@@ -85,7 +85,7 @@ class ProfileManifestSchema:
     ) -> "ProfileManifestSchema":
         unknown = set(raw) - PROFILE_MANIFEST_ALLOWED_KEYS - PROFILE_MANIFEST_FOREIGN_KEYS
         if unknown:
-            raise ValueError(f"Manifest chứa key không hỗ trợ: {sorted(unknown)}")
+            raise ValueError(f"Manifest contains unsupported keys: {sorted(unknown)}")
         ignored = set(raw) & PROFILE_MANIFEST_FOREIGN_KEYS
         if ignored:
             logger.debug("Ignoring foreign manifest keys for render_audio: %s", sorted(ignored))
@@ -101,16 +101,16 @@ class ProfileManifestSchema:
             voices_raw = {}
         if not isinstance(voices_raw, Mapping):
             raise ValueError(
-                f"Manifest voices phải là object: {source_path}" if source_path else "Manifest voices phải là object"
+                f"Manifest voices must be an object: {source_path}" if source_path else "Manifest voices must be an object"
             )
         voice_unknown = set(voices_raw) - PROFILE_MANIFEST_ALLOWED_VOICE_KEYS
         if voice_unknown:
-            raise ValueError(f"Manifest voices chứa key không hỗ trợ: {sorted(voice_unknown)}")
+            raise ValueError(f"Manifest voices contains unsupported keys: {sorted(voice_unknown)}")
         voices: Dict[str, str] = {}
         for key, value in voices_raw.items():
             text = _normalize_optional_string(value)
             if text is None:
-                raise ValueError(f"Manifest voices.{key} phải là chuỗi không rỗng")
+                raise ValueError(f"Manifest voices.{key} must be a non-empty string")
             voices[str(key)] = text
 
         schema = cls(
@@ -130,11 +130,11 @@ class ProfileManifestSchema:
         if self.bgm_config is not None:
             bgm_config_path = self.resolve_bgm_config_path(profile_dir)
             if not bgm_config_path.is_file():
-                raise FileNotFoundError(f"Profile bgm_config không tồn tại: {bgm_config_path}")
+                raise FileNotFoundError(f"Profile bgm_config does not exist: {bgm_config_path}")
         if self.bgm_dir is not None:
             bgm_dir_path = self.resolve_bgm_dir_path(profile_dir)
             if not bgm_dir_path.is_dir():
-                raise FileNotFoundError(f"Profile bgm dir không tồn tại: {bgm_dir_path}")
+                raise FileNotFoundError(f"Profile BGM directory does not exist: {bgm_dir_path}")
 
     def resolve_bgm_config_path(self, profile_dir: Path) -> Optional[Path]:
         if self.bgm_config is None:
@@ -170,14 +170,14 @@ class ProfileManifestSchema:
 
 def load_profile_manifest_schema(path: Path, *, expected_profile_id: Optional[str] = None) -> ProfileManifestSchema:
     if not path.is_file():
-        raise FileNotFoundError(f"Không tìm thấy manifest của asset profile: {path}")
+        raise FileNotFoundError(f"Asset profile manifest not found: {path}")
     try:
         with path.open("r", encoding="utf-8") as handle:
             raw = json.load(handle)
     except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Không đọc được manifest của asset profile: {path}: {exc}") from exc
+        raise ValueError(f"Could not read asset profile manifest: {path}: {exc}") from exc
     if not isinstance(raw, Mapping):
-        raise ValueError(f"Manifest tại {path} phải là object")
+        raise ValueError(f"Manifest at {path} must be an object")
     schema = ProfileManifestSchema.from_mapping(raw, source_path=path, expected_profile_id=expected_profile_id)
     logger.debug("Loaded profile manifest schema from %s", path)
     return schema

@@ -19,6 +19,8 @@ POST_FX_PRESET_NONE = "none"
 POST_FX_PRESET_STORYTELLING_VI = "storytelling_vi"
 SUPPORTED_AUDIO_FORMATS = {"wav", "mp3"}
 DEFAULT_AUDIO_FORMAT = "wav"
+FINAL_OUTPUT_GAIN_DB = 3.0
+FINAL_OUTPUT_LIMITER = "alimiter=limit=0.97"
 
 logger = get_logger(__name__)
 
@@ -67,6 +69,18 @@ def build_post_fx_filter_chain(preset: str) -> Optional[str]:
         "aecho=1.0:0.10:35|55:0.05|0.03",
         "volume=-1dB",
     ])
+
+
+def build_final_output_filter_chain(preset: str) -> Optional[str]:
+    """Return the final ffmpeg filter chain applied to exported audio."""
+    filter_parts = []
+    preset_chain = build_post_fx_filter_chain(preset)
+    if preset_chain:
+        filter_parts.append(preset_chain)
+    if abs(float(FINAL_OUTPUT_GAIN_DB)) >= 1e-9:
+        filter_parts.append(f"volume={float(FINAL_OUTPUT_GAIN_DB)}dB")
+        filter_parts.append(FINAL_OUTPUT_LIMITER)
+    return ",".join(filter_parts) if filter_parts else None
 
 
 def get_output_codec_args(audio_format: str) -> list[str]:
@@ -119,7 +133,7 @@ def apply_post_fx(
     sample_rate: int = 48000,
     progress_callback: Optional[Callable[[dict], None]] = None,
 ) -> Path:
-    filter_chain = build_post_fx_filter_chain(preset)
+    filter_chain = build_final_output_filter_chain(preset)
     codec_args = get_output_codec_args(audio_format)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     fd, staged_output_name = tempfile.mkstemp(

@@ -22,7 +22,7 @@ _MODULE_MODEL_BRANCHES = {"audio", "story", "image", "video"}
 
 
 def _branch_models_dir(root: Path, branch: str) -> Path:
-    dirname = "models" if branch == "audio" else "local_models"
+    dirname = "models" if branch == "audio" else "models"
     return (root / branch / dirname).resolve()
 
 
@@ -291,7 +291,7 @@ def local_model_candidates(model_ref: str, *, provider: str, module_file: str | 
     raw_parts = raw_path.parts
     if len(raw_parts) >= 3 and raw_parts[0] == "models" and raw_parts[1] in _MODULE_MODEL_BRANCHES:
         candidates.append((_branch_models_dir(project_root(module_file or __file__), raw_parts[1]) / Path(*raw_parts[2:])).resolve())
-    if len(raw_parts) >= 3 and raw_parts[0] in _MODULE_MODEL_BRANCHES and raw_parts[1] in {"models", "local_models"}:
+    if len(raw_parts) >= 3 and raw_parts[0] in _MODULE_MODEL_BRANCHES and raw_parts[1] in {"models"}:
         candidates.append((_branch_models_dir(project_root(module_file or __file__), raw_parts[0]) / Path(*raw_parts[2:])).resolve())
     seen: set[str] = set()
     deduped: list[Path] = []

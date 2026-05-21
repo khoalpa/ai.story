@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from audio.gui.project_tools import render_project_tools_workspace
 from audio.gui.workspace_state import (
     prepare_embedded_view_selection,
     sync_embedded_view_selection,
@@ -9,7 +10,7 @@ from audio.gui.workspace_state import (
 
 from .tabs import render_batch_tab, render_doctor_tab, render_input_tab, render_preview_logs_tab, render_run_tab, render_test_tts_tab
 
-_AUDIO_VIEWS = ["Input", "Run", "Batch", "Doctor", "Test TTS", "Preview & Logs"]
+_AUDIO_VIEWS = ["Input", "Run", "Batch", "Doctor", "Test TTS", "Preview & Logs", "Project Tools"]
 
 
 def render_audio_main_panel(settings: dict, *, embedded: bool = False) -> None:
@@ -54,11 +55,14 @@ def _render_embedded_audio_panel(settings: dict) -> None:
     if selected_view == "Test TTS":
         render_test_tts_tab(settings)
         return
+    if selected_view == "Project Tools":
+        render_project_tools_workspace(embedded=True)
+        return
     render_preview_logs_tab(settings)
 
 
 def _render_tabbed_audio_panel(settings: dict) -> None:
-    tab_input, tab_run, tab_batch, tab_doctor, tab_test_tts, tab_preview = st.tabs(_AUDIO_VIEWS)
+    tab_input, tab_run, tab_batch, tab_doctor, tab_test_tts, tab_preview, tab_project_tools = st.tabs(_AUDIO_VIEWS)
     with tab_input:
         render_input_tab(settings)
     with tab_run:
@@ -71,3 +75,5 @@ def _render_tabbed_audio_panel(settings: dict) -> None:
         render_test_tts_tab(settings)
     with tab_preview:
         render_preview_logs_tab(settings)
+    with tab_project_tools:
+        render_project_tools_workspace(embedded=True)

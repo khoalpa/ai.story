@@ -26,6 +26,14 @@ def test_image_sidebar_uses_sd_provider_registry_for_dropdown() -> None:
     assert 'provider_options = [\n            "stable_diffusion_local"' not in content
 
 
+def test_comfyui_remote_exposes_workflow_preview_option_group() -> None:
+    from image.providers import get_sd_provider
+
+    provider = get_sd_provider("comfyui_remote")
+
+    assert "workflow_preview" in provider.option_groups
+
+
 def test_render_dispatch_uses_provider_renderer_metadata() -> None:
     content = Path("image/provider_runtime.py").read_text(encoding="utf-8")
 

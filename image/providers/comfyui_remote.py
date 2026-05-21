@@ -13,6 +13,6 @@ def get_provider() -> SDProvider:
         default_base_url="http://127.0.0.1:8188",
         uses_api_key=True,
         is_comfyui=True,
-        option_groups=("remote_endpoint", "comfyui_routing", "comfyui_lora"),
+        option_groups=("remote_endpoint", "comfyui_routing", "comfyui_lora", "workflow_preview"),
     )
 

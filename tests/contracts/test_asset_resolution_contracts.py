@@ -2,6 +2,10 @@
 
 from pathlib import Path
 
+from audio.paths import DEFAULT_BGM_DIR
+from audio.profile_config import PROFILE_CONFIG_DEFAULTS
+from audio.render_audio_app import REQUEST_DEFAULTS
+from audio.render_cli_adapter import build_render_audio_arg_parser
 from story.runtime import resolve_assets_root_for_module
 from story.paths import resolve_assets_root
 
@@ -30,4 +34,17 @@ def test_runtime_assets_resolution_prefers_bundled_module_assets_outside_source_
 
     resolved = resolve_assets_root_for_module(module_file, project_root=tmp_path / "not-a-repo")
     assert resolved == package_assets.resolve()
+
+
+def test_audio_default_bgm_dir_uses_bundled_assets() -> None:
+    expected = str(DEFAULT_BGM_DIR)
+
+    assert DEFAULT_BGM_DIR == (ROOT / "audio" / "assets" / "bgm").resolve()
+    assert (DEFAULT_BGM_DIR / "bgm_lofi.mp3").is_file()
+    assert PROFILE_CONFIG_DEFAULTS["bgmdir"] == expected
+    assert REQUEST_DEFAULTS["bgmdir"] == expected
+
+    parser = build_render_audio_arg_parser()
+    args = parser.parse_args([])
+    assert args.bgmdir == expected
 

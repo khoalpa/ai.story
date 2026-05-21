@@ -21,6 +21,7 @@ from story.generate_script_runner import (
     generate_chunked_authoring_from_outline,
 )
 from story.gui.errors import StoryGenerationError, StoryLLMOutputError
+from story.gui.output_paths import resolve_story_output_base
 from story.service import (
     LLMClient,
     build_meta_outline_prompt,
@@ -39,7 +40,7 @@ def _validate_outline_payload(payload: dict[str, Any]) -> list[str]:
     allowed_root = {"meta", "outline", "script", "_auto_repair_log"}
     extra_root = sorted(set(payload.keys()) - allowed_root)
     if extra_root:
-        errors.append(f"Root JSON có field không hợp lệ: {extra_root}.")
+        errors.append(f"Root JSON has unsupported fields: {extra_root}.")
 
     meta = payload.get("meta")
     if not isinstance(meta, dict):
@@ -47,27 +48,27 @@ def _validate_outline_payload(payload: dict[str, Any]) -> list[str]:
     else:
         extra_meta = sorted(set(meta.keys()) - set(REQUIRED_META_KEYS))
         if extra_meta:
-            errors.append(f"meta có field không hợp lệ: {extra_meta}.")
+            errors.append(f"meta has unsupported fields: {extra_meta}.")
         missing_meta = [key for key in REQUIRED_META_KEYS if key not in meta]
         if missing_meta:
-            errors.append(f"meta thiếu field bắt buộc: {missing_meta}.")
+            errors.append(f"meta is missing required fields: {missing_meta}.")
         for key in REQUIRED_META_KEYS:
             if key not in meta:
                 continue
             value = meta.get(key)
             if key in ("length_min", "length_max"):
                 if not isinstance(value, int):
-                    errors.append(f"meta.{key} phải là integer.")
+                    errors.append(f"meta.{key} must be an integer.")
             elif key == "tags":
                 if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-                    errors.append("meta.tags phải là array[string].")
+                    errors.append("meta.tags must be an array[string].")
             elif not isinstance(value, str):
-                errors.append(f"meta.{key} phải là string.")
+                errors.append(f"meta.{key} must be a string.")
             elif key not in {"series", "episode"} and not value.strip():
-                errors.append(f"meta.{key} phải là string không rỗng.")
+                errors.append(f"meta.{key} must be a non-empty string.")
         lang = str(meta.get("language", "")).strip().lower()
         if lang and lang not in {"vi", "en"}:
-            errors.append("meta.language chỉ được là 'vi' hoặc 'en'.")
+            errors.append("meta.language must be 'vi' or 'en'.")
 
     outline = payload.get("outline")
     if not isinstance(outline, dict):
@@ -76,20 +77,20 @@ def _validate_outline_payload(payload: dict[str, Any]) -> list[str]:
         normalized_outline = {normalize_outline_key(key): value for key, value in outline.items()}
         extra_outline = sorted(set(normalized_outline.keys()) - set(OUTLINE_KEYS))
         if extra_outline:
-            errors.append(f"outline có field không hợp lệ: {extra_outline}.")
+            errors.append(f"outline has unsupported fields: {extra_outline}.")
         outline_keys = [normalize_outline_key(key) for key in outline.keys()]
         if tuple(outline_keys) != OUTLINE_KEYS:
-            errors.append(f"outline phải có đúng 8 key theo thứ tự: {list(OUTLINE_KEYS)}.")
+            errors.append(f"outline must have exactly 8 keys in order: {list(OUTLINE_KEYS)}.")
         for key in OUTLINE_KEYS:
             value = normalized_outline.get(key)
             if not isinstance(value, str) or not value.strip():
-                errors.append(f"outline.{key} phải là string không rỗng.")
+                errors.append(f"outline.{key} must be a non-empty string.")
 
     script = payload.get("script")
     if not isinstance(script, list):
-        errors.append("script phải là array rỗng khi Generate outline.")
+        errors.append("script must be an empty array when generating an outline.")
     elif script:
-        errors.append("script phải rỗng khi Generate outline.")
+        errors.append("script must be empty when generating an outline.")
     return errors
 
 
@@ -140,9 +141,16 @@ def _build_runtime_context(
     system_prompt: str,
     mode: str,
     llm_config: LLMConfig,
+    settings: dict[str, Any],
 ) -> RuntimeContext:
     duration_min = int((brief.get("goals") or {}).get("target_duration_min", 0) or 0)
     min_lines = duration_min * 12 if duration_min > 0 else 120
+    try:
+        min_lines_override = int(settings.get("min_lines") or 0)
+    except (TypeError, ValueError):
+        min_lines_override = 0
+    if min_lines_override > 0:
+        min_lines = min_lines_override
     return RuntimeContext(
         mode=mode,
         brief=brief,
@@ -151,7 +159,7 @@ def _build_runtime_context(
             repo_root=Path.cwd(),
             brief_path=Path("<memory:brief>"),
             system_prompt_path=Path("<memory:system_prompt>"),
-            output_base=Path("output/story"),
+            output_base=resolve_story_output_base(settings.get("output_base")),
         ),
         llm_config=llm_config,
         min_lines=min_lines,
@@ -181,6 +189,7 @@ def build_story_run_context(*, brief_text: str, system_prompt: str, settings: di
         system_prompt=system_prompt,
         mode=base_mode,
         llm_config=llm_config,
+        settings=settings,
     )
     return {
         "brief": brief,
@@ -197,6 +206,8 @@ def build_story_run_context(*, brief_text: str, system_prompt: str, settings: di
             "max_tokens": int(settings.get("max_tokens") or 4096),
             "temperature": float(settings.get("temperature") or 0.0),
             "story_seed": story_seed,
+            "min_lines": context.min_lines,
+            "output_base": str(context.paths.output_base),
         },
     }
 
@@ -328,18 +339,21 @@ def validate_and_render_story_result(
     if not isinstance(authoring, dict):
         raise ValueError("Story draft authoring must be an object")
 
-    ok, msg = validate_authoring(authoring)
-    if not ok:
-        _raise_story_generation_error(authoring, msg)
+    validate_generated_output = bool(settings.get("validate_generated_output", True))
+    if validate_generated_output:
+        ok, msg = validate_authoring(authoring)
+        if not ok:
+            _raise_story_generation_error(authoring, msg)
 
     plain_script = render_plain_script(authoring)
-    canonical_errors = validate_canonical_authoring(authoring)
+    canonical_errors = validate_canonical_authoring(authoring) if validate_generated_output else []
     selected_mode = str(settings.get("mode") or "trend").strip()
     return {
         "brief": draft.get("brief") or {},
         "authoring": authoring,
         "plain_script": plain_script,
         "canonical_errors": canonical_errors,
+        "validated": validate_generated_output,
         "mode": draft.get("mode") or selected_mode,
         "base_mode": draft.get("base_mode") or normalize_story_mode(settings.get("base_mode") or selected_mode),
         "mode_label": draft.get("mode_label") or settings.get("mode_label") or selected_mode,

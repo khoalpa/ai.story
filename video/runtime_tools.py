@@ -92,14 +92,14 @@ def format_runtime_diagnostics(ffmpeg_exe: str, ffprobe_exe: str) -> str:
 
 
 MISSING_FFMPEG_GUIDANCE = (
-    "Không tìm thấy ffmpeg executable. Hãy cài ffmpeg, thêm ffmpeg vào PATH, "
-    "hoặc đặt biến môi trường FFMPEG_EXE trỏ tới file ffmpeg thực tế."
+    "ffmpeg executable not found. Install ffmpeg, add it to PATH, "
+    "or set the FFMPEG_EXE environment variable to the actual ffmpeg binary."
 )
 
 
 WARNING_FFPROBE_GUIDANCE = (
-    "Không tìm thấy ffprobe executable. Dự án vẫn có thể render, nhưng việc "
-    "dò duration sẽ kém chính xác hơn. Hãy cài ffprobe hoặc đặt FFPROBE_EXE nếu cần."
+    "ffprobe executable not found. The project can still render, but duration "
+    "detection will be less accurate. Install ffprobe or set FFPROBE_EXE if needed."
 )
 
 

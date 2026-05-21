@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from video import config
+import video.render_static as render_static_module
 from video.asset_profile_utils import apply_profile_runtime_defaults, resolve_profile_defaults
 from video.config import get_ffmpeg_exe, get_ffprobe_exe
 from video.error_handling import USER_FACING_EXCEPTIONS
@@ -36,6 +38,35 @@ class RenderVideoRequest:
     ffprobe_exe: Optional[str] = None
     asset_profile: Optional[str] = None
     profile_root: Optional[str] = None
+    video_codec: Optional[str] = None
+    audio_codec: Optional[str] = None
+    audio_bitrate: Optional[str] = None
+    video_preset: Optional[str] = None
+    video_crf: Optional[int] = None
+    video_fps: Optional[int] = None
+    video_tune: Optional[str] = None
+    video_movflags: Optional[str] = None
+    slideshow_match_audio: Optional[bool] = None
+    audio_match_epsilon: Optional[float] = None
+    keep_concat_list: Optional[bool] = None
+    subtitle_font_size: Optional[int] = None
+    subtitle_outline: Optional[int] = None
+    subtitle_shadow: Optional[int] = None
+    subtitle_position: Optional[str] = None
+    subtitle_alignment: Optional[int] = None
+    subtitle_margin_l: Optional[int] = None
+    subtitle_margin_r: Optional[int] = None
+    subtitle_margin_v: Optional[int] = None
+    subtitle_force_style: Optional[str] = None
+    ffmpeg_loglevel: Optional[str] = None
+    ffmpeg_stream_log: Optional[bool] = None
+    ffmpeg_stats: Optional[bool] = None
+    show_progress: Optional[bool] = None
+    stderr_tail_lines: Optional[int] = None
+    print_ffmpeg_version: Optional[bool] = None
+    debug_ffmpeg_exe: Optional[bool] = None
+    render_video_history_dir: Optional[str] = None
+    render_video_history_file: Optional[str] = None
 
 
 @contextlib.contextmanager
@@ -58,6 +89,90 @@ def _runtime_tool_env(ffmpeg_exe: Optional[str], ffprobe_exe: Optional[str]):
                 os.environ[key] = value
 
 
+def _optional_env_value(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    raw = str(value).strip()
+    return raw or None
+
+
+@contextlib.contextmanager
+def _render_runtime_overrides(request: RenderVideoRequest):
+    env_overrides = {
+        "DEBUG_FFMPEG_EXE": _optional_env_value(request.debug_ffmpeg_exe),
+        "SUB_FONT_SIZE": _optional_env_value(request.subtitle_font_size),
+        "SUB_OUTLINE": _optional_env_value(request.subtitle_outline),
+        "SUB_SHADOW": _optional_env_value(request.subtitle_shadow),
+        "SUB_POSITION": _optional_env_value(request.subtitle_position),
+        "SUB_ALIGNMENT": _optional_env_value(request.subtitle_alignment),
+        "SUB_MARGIN_L": _optional_env_value(request.subtitle_margin_l),
+        "SUB_MARGIN_R": _optional_env_value(request.subtitle_margin_r),
+        "SUB_MARGIN_V": _optional_env_value(request.subtitle_margin_v),
+        "SUB_FORCE_STYLE": _optional_env_value(request.subtitle_force_style),
+        "RENDER_VIDEO_HISTORY_DIR": _optional_env_value(request.render_video_history_dir),
+        "RENDER_VIDEO_HISTORY_FILE": _optional_env_value(request.render_video_history_file),
+    }
+    config_overrides = {
+        "DEFAULT_VIDEO_CODEC": request.video_codec,
+        "DEFAULT_AUDIO_CODEC": request.audio_codec,
+        "DEFAULT_AUDIO_BITRATE": request.audio_bitrate,
+        "DEFAULT_PRESET": request.video_preset,
+        "DEFAULT_CRF": request.video_crf,
+        "DEFAULT_FPS": request.video_fps,
+        "DEFAULT_TUNE_STILLIMAGE": request.video_tune,
+        "DEFAULT_MOVFLAGS": request.video_movflags,
+        "SLIDESHOW_MATCH_AUDIO": request.slideshow_match_audio,
+        "AUDIO_MATCH_EPSILON": request.audio_match_epsilon,
+        "KEEP_CONCAT_LIST": request.keep_concat_list,
+        "FFMPEG_LOGLEVEL": request.ffmpeg_loglevel,
+        "FFMPEG_STREAM_LOG": request.ffmpeg_stream_log,
+        "FFMPEG_STATS": request.ffmpeg_stats,
+        "SHOW_PROGRESS": request.show_progress,
+        "STDERR_TAIL_LINES": request.stderr_tail_lines,
+        "PRINT_FFMPEG_VERSION": request.print_ffmpeg_version,
+    }
+    static_overrides = {
+        "DEFAULT_VIDEO_CODEC": request.video_codec,
+        "DEFAULT_AUDIO_CODEC": request.audio_codec,
+        "DEFAULT_AUDIO_BITRATE": request.audio_bitrate,
+        "DEFAULT_PRESET": request.video_preset,
+        "DEFAULT_CRF": request.video_crf,
+        "DEFAULT_FPS": request.video_fps,
+        "DEFAULT_TUNE_STILLIMAGE": request.video_tune,
+        "DEFAULT_MOVFLAGS": request.video_movflags,
+    }
+    previous_env = {key: os.environ.get(key) for key in env_overrides}
+    previous_config = {key: getattr(config, key) for key in config_overrides if hasattr(config, key)}
+    previous_static = {
+        key: getattr(render_static_module, key)
+        for key in static_overrides
+        if hasattr(render_static_module, key)
+    }
+    try:
+        for key, value in env_overrides.items():
+            if value is not None:
+                os.environ[key] = value
+        for key, value in config_overrides.items():
+            if value is not None and hasattr(config, key):
+                setattr(config, key, value)
+        for key, value in static_overrides.items():
+            if value is not None and hasattr(render_static_module, key):
+                setattr(render_static_module, key, value)
+        yield
+    finally:
+        for key, value in previous_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        for key, value in previous_config.items():
+            setattr(config, key, value)
+        for key, value in previous_static.items():
+            setattr(render_static_module, key, value)
+
+
 def resolve_asset_profile_runtime(
     *,
     profile_root: Optional[str],
@@ -78,19 +193,19 @@ def resolve_asset_profile_runtime(
 
 def validate_render_request(request: RenderVideoRequest) -> None:
     if request.mode not in {"static", "slideshow"}:
-        raise ValueError("mode phải là 'static' hoặc 'slideshow'.")
+        raise ValueError("mode must be 'static' or 'slideshow'.")
     if request.aspect not in {"9x16", "16x9"}:
-        raise ValueError("aspect phải là '9x16' hoặc '16x9'.")
+        raise ValueError("aspect must be '9x16' or '16x9'.")
     if request.duration_per_image <= 0:
-        raise ValueError("duration_per_image phải > 0.")
+        raise ValueError("duration_per_image must be > 0.")
     if request.audio is None or not str(request.audio).strip():
-        raise ValueError("audio path không được để trống.")
+        raise ValueError("audio path cannot be empty.")
     if request.output is None or not str(request.output).strip():
-        raise ValueError("output path không được để trống.")
+        raise ValueError("output path cannot be empty.")
     if request.mode == "static" and request.cover is None:
-        raise ValueError("Mode static cần cover image hoặc asset profile có default_cover.")
+        raise ValueError("Static mode needs a cover image or an asset profile with default_cover.")
     if request.mode == "slideshow" and request.scenes_dir is None:
-        raise ValueError("Mode slideshow cần scenes directory hoặc asset profile có default_scenes_dir.")
+        raise ValueError("Slideshow mode needs a scenes directory or an asset profile with default_scenes_dir.")
         
 
 def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], dict[str, Optional[Path]]]:
@@ -131,7 +246,7 @@ def execute_render_request(
     status = "ok"
     validate_render_request(request)
     try:
-        with _runtime_tool_env(request.ffmpeg_exe, request.ffprobe_exe):
+        with _runtime_tool_env(request.ffmpeg_exe, request.ffprobe_exe), _render_runtime_overrides(request):
             with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
                 logger.info(
                     "Render request mode=%s aspect=%s output=%s",
@@ -167,7 +282,7 @@ def execute_render_request(
                         progress_callback=progress_callback,
                     )
                 else:
-                    raise ValueError("mode phải là 'static' hoặc 'slideshow'.")
+                    raise ValueError("mode must be 'static' or 'slideshow'.")
     except USER_FACING_EXCEPTIONS + (RuntimeError, TypeError, AssertionError):
         status = "error"
         raise

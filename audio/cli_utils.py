@@ -67,7 +67,7 @@ class UsedFilesTracker:
             self._seen.add(item)
             self.entries.append(item)
 
-    def print_summary(self, title: str = "Các tệp/thư mục đã dùng") -> None:
+    def print_summary(self, title: str = "Files/directories used") -> None:
         if not self.entries:
             return
         print(f"\n=== {title} ===")

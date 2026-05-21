@@ -301,6 +301,33 @@ def _resolve_result_output_for_entry(result: Any, entry: dict[str, Any]) -> Path
     )
 
 
+def _batch_variant_paths(primary_output: Path) -> list[Path]:
+    outputs: list[Path] = []
+    if primary_output.is_file():
+        outputs.append(primary_output)
+    for candidate in sorted(primary_output.parent.glob(f"{primary_output.stem}_batch*{primary_output.suffix}")):
+        if candidate.is_file() and candidate not in outputs:
+            outputs.append(candidate)
+    return outputs
+
+
+def _resolve_result_outputs_for_entry(result: Any, entry: dict[str, Any]) -> list[Path]:
+    primary_output = _resolve_result_output_for_entry(result, entry)
+    outputs = _batch_variant_paths(primary_output)
+    if outputs:
+        return outputs
+
+    generated_files = []
+    for value in list(getattr(result, "generated_files", []) or []):
+        try:
+            path = Path(value)
+        except Exception:
+            continue
+        if path.is_file() and (path.stem == primary_output.stem or path.stem.startswith(f"{primary_output.stem}_batch")):
+            generated_files.append(path)
+    return sorted(generated_files)
+
+
 def _resolve_latest_run_cover_preview(result: Any) -> Path | None:
     expected_cover = _expected_output_path(result, kind="cover")
     if expected_cover.is_file():
@@ -533,6 +560,17 @@ def _render_double_click_image(path: Path, *, caption: str, tooltip: str = "Open
     components.html(html, height=height, scrolling=False)
 
 
+def _render_generated_image_gallery(paths: list[Path], *, key_prefix: str, caption_prefix: str = "Generated") -> None:
+    existing_paths = [path for path in paths if path.is_file()]
+    if not existing_paths:
+        return
+    columns = st.columns(min(3, max(1, len(existing_paths))))
+    for index, path in enumerate(existing_paths):
+        with columns[index % len(columns)]:
+            st.image(str(path), caption=f"{caption_prefix}: {path.name}", width="stretch")
+            st.caption(str(path))
+
+
 def _output_status_for_entry(result: Any, entry: dict[str, Any]) -> tuple[str, str, Path]:
     output_path = _resolve_result_output_for_entry(result, entry)
     temp_cover = _current_temp_cover_path()
@@ -705,6 +743,10 @@ def _render_result_preview_panel(result: Any, *, settings: dict[str, Any] | None
                 st.caption(f"Temporary cover available for the next run: {source_label}")
 
                 _persist_temp_cover_to_result(result)
+        generated_gallery = [Path(path) for path in list(getattr(result, "generated_files", []) or []) if Path(path).is_file()]
+        if len(generated_gallery) > 2:
+            st.markdown("### Generated images")
+            _render_generated_image_gallery(generated_gallery, key_prefix=f"{key_prefix}::generated_gallery")
         _render_result_action_panel(result, key_prefix=f"{key_prefix}::actions")
     with logs_tab:
         logs = list(getattr(result, "logs", None) or st.session_state.get("image_last_logs") or [])
@@ -763,6 +805,7 @@ def _render_prompt_cards_in_run(settings: dict[str, Any], prompt_dir: Path | Non
         output_path = None
         if result is not None:
             status_text, status_level, output_path = _output_status_for_entry(result, entry)
+        output_paths = _resolve_result_outputs_for_entry(result, entry) if result is not None else []
         expected_path = _versioned_expected_output_path(result, entry, fallback_path=output_path if output_path is not None else None)
         with st.container(border=True):
             head_col, action_col = st.columns([1.5, 1.0])
@@ -799,8 +842,7 @@ def _render_prompt_cards_in_run(settings: dict[str, Any], prompt_dir: Path | Non
                 st.caption(_prompt_card_meta_text(kind=kind, rel_path=str(entry["rel_path"]), image_key=image_key, output_path=expected_path, actual_path=output_path))
                 st.caption(_expected_output_location_text(kind=kind, output_path=output_path, prompt_name=image_key))
                 if output_path is not None and output_path.is_file():
-                    st.image(str(output_path), caption=output_path.name, width="stretch")
-                    st.caption(str(output_path))
+                    _render_generated_image_gallery(output_paths or [output_path], key_prefix=f"run_card::{entry['rel_path']}", caption_prefix="Output")
                 else:
                     show_preview_warning("generated image", actions=["Run Generate images or check the image_key/output mapping."])
 

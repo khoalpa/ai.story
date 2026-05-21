@@ -82,3 +82,45 @@ def test_ffmpeg_mix_audio_removes_temp_dir_after_failure(monkeypatch, tmp_path: 
 
     assert not (tmp_path / "story_mix_tmp").exists()
 
+
+def test_final_output_filter_increases_volume_for_plain_output() -> None:
+    filter_chain = mixer.build_final_output_filter_chain(mixer.POST_FX_PRESET_NONE)
+
+    assert filter_chain == "volume=3.0dB,alimiter=limit=0.97"
+
+
+def test_final_output_filter_keeps_storytelling_fx_and_adds_output_gain() -> None:
+    filter_chain = mixer.build_final_output_filter_chain(mixer.POST_FX_PRESET_STORYTELLING_VI)
+
+    assert filter_chain is not None
+    assert filter_chain.startswith("afftdn=nr=8:nf=-32:tn=1")
+    assert filter_chain.endswith("volume=3.0dB,alimiter=limit=0.97")
+
+
+def test_apply_post_fx_uses_final_output_gain_filter(monkeypatch, tmp_path: Path) -> None:
+    input_wav = tmp_path / "input.wav"
+    output_file = tmp_path / "story.mp3"
+    captured_cmds: list[list[str]] = []
+    input_wav.write_bytes(b"wav")
+
+    def fake_run_ffmpeg_with_progress(cmd, *_args, **_kwargs):  # noqa: ANN001
+        captured_cmds.append(cmd)
+        Path(cmd[-1]).write_bytes(b"louder")
+
+    monkeypatch.setattr(mixer, "get_audio_duration_seconds", lambda *_args, **_kwargs: 1.0)
+    monkeypatch.setattr(mixer, "run_ffmpeg_with_progress", fake_run_ffmpeg_with_progress)
+
+    final_out = mixer.apply_post_fx(
+        input_wav=input_wav,
+        output_file=output_file,
+        ffmpeg_exe="ffmpeg",
+        ffprobe_exe="ffprobe",
+        preset=mixer.POST_FX_PRESET_NONE,
+        audio_format="mp3",
+    )
+
+    assert final_out == output_file
+    assert output_file.read_bytes() == b"louder"
+    assert captured_cmds
+    assert captured_cmds[0][captured_cmds[0].index("-af") + 1] == "volume=3.0dB,alimiter=limit=0.97"
+

@@ -48,11 +48,42 @@ def test_validate_and_render_story_result_turns_draft_into_final_result() -> Non
     assert result["authoring"] == draft["authoring"]
     assert "CÃ¢u chuyá»‡n á»Ÿ pháº§n 1." in result["plain_script"]
     assert result["mode"] == "trend"
+    assert result["validated"] is True
+
+
+def test_validate_and_render_story_result_can_skip_generated_output_validation() -> None:
+    from story.gui.service import validate_and_render_story_result
+
+    draft = {
+        "authoring": {
+            "meta": {"title": "Draft Preview"},
+            "script": [
+                {
+                    "zone": "GIỚI THIỆU",
+                    "environment": "",
+                    "voice": "NARRATOR",
+                    "speed": "NORMAL",
+                    "lang": "VI",
+                    "text": "Bản nháp vẫn có thể được render để kiểm tra.",
+                }
+            ],
+        },
+    }
+
+    result = validate_and_render_story_result(
+        draft=draft,
+        settings={"mode": "trend", "base_mode": "trend", "validate_generated_output": False},
+    )
+
+    assert result["validated"] is False
+    assert result["canonical_errors"] == []
+    assert "Bản nháp vẫn có thể được render" in result["plain_script"]
 
 
 def test_generate_story_outline_uses_sidebar_max_tokens(monkeypatch) -> None:
     from story.audio_story_spec import OUTLINE_KEYS
     from story.gui import service
+    from story.paths import PROJECT_ROOT
 
     captured = {}
 
@@ -86,6 +117,7 @@ def test_generate_story_outline_uses_sidebar_max_tokens(monkeypatch) -> None:
             )
 
     monkeypatch.setattr(service, "LLMClient", FakeLLMClient)
+    monkeypatch.chdir(PROJECT_ROOT / "studio")
 
     result = service.generate_story_outline(
         brief_text="genre: Drama\naudience: General\ntheme: Speed\ntone: Warm\n",
@@ -106,6 +138,107 @@ def test_generate_story_outline_uses_sidebar_max_tokens(monkeypatch) -> None:
     assert captured["cfg"].max_tokens == 32768
     assert captured["cfg"].retry_attempts == service.OUTLINE_FAST_RETRY_ATTEMPTS
     assert result["settings_summary"]["outline_max_tokens"] == 32768
+    assert result["settings_summary"]["output_base"] == str(PROJECT_ROOT / "output" / "story" / "story")
+
+
+def test_generate_story_outline_accepts_json_with_trailing_model_text(monkeypatch) -> None:
+    from story.audio_story_spec import OUTLINE_KEYS
+    from story.gui import service
+
+    class ChattyLLMClient:
+        def __init__(self, cfg):
+            self.cfg = cfg
+
+        def chat(self, system: str, user: str) -> str:
+            payload = {
+                "meta": {
+                    "title": "Recovered Outline",
+                    "series": "",
+                    "episode": "",
+                    "author": "Audio Story",
+                    "channel": "Audio Story",
+                    "target": "Test",
+                    "length_min": 3,
+                    "length_max": 5,
+                    "language": "vi",
+                    "genre": "Drama",
+                    "audience": "General",
+                    "tone": "Warm",
+                    "tags": ["recover"],
+                },
+                "outline": {key: f"{key} beat" for key in OUTLINE_KEYS},
+                "script": [],
+            }
+            return f"Here is the JSON:\n{json.dumps(payload)}\nDone."
+
+    monkeypatch.setattr(service, "LLMClient", ChattyLLMClient)
+
+    result = service.generate_story_outline(
+        brief_text="genre: Drama\naudience: General\ntheme: Speed\ntone: Warm\n",
+        system_prompt="System",
+        settings={
+            "mode": "trend",
+            "base_mode": "trend",
+            "base_url": "http://localhost:1234/v1",
+            "model": "auto",
+            "api_key": "not-needed",
+            "timeout_s": 360,
+            "max_tokens": 1600,
+            "temperature": 0.7,
+            "retries": 2,
+        },
+    )
+
+    assert result["outline_payload"]["meta"]["title"] == "Recovered Outline"
+    assert result["outline_payload"]["outline"]["greeting"] == "greeting beat"
+
+
+def test_story_step_output_base_is_project_root_relative(monkeypatch) -> None:
+    from story.gui import service
+    from story.paths import PROJECT_ROOT
+
+    monkeypatch.chdir(PROJECT_ROOT / "studio")
+
+    run = service.build_story_run_context(
+        brief_text="genre: Drama\naudience: General\ntheme: Root output\ntone: Warm\n",
+        system_prompt="System",
+        settings={
+            "mode": "trend",
+            "base_mode": "trend",
+            "base_url": "http://localhost:1234/v1",
+            "model": "auto",
+            "api_key": "not-needed",
+            "timeout_s": 360,
+            "max_tokens": 32768,
+            "temperature": 0.7,
+            "retries": 3,
+            "output_base": "output/story/story",
+        },
+    )
+
+    assert run["context"].paths.output_base == PROJECT_ROOT / "output" / "story" / "story"
+    assert run["settings_summary"]["output_base"] == str(PROJECT_ROOT / "output" / "story" / "story")
+
+
+def test_story_step_json_saves_under_project_root_output(monkeypatch) -> None:
+    from story.gui.output_paths import save_story_step_json
+    from story.paths import PROJECT_ROOT
+
+    monkeypatch.chdir(PROJECT_ROOT / "studio")
+    path = PROJECT_ROOT / "output" / "story" / "codex-test-story-output-path_outline.json"
+    path.unlink(missing_ok=True)
+    try:
+        actual = save_story_step_json(
+            {"ok": True},
+            output_base="output/story/codex-test-story-output-path",
+            step="outline",
+        )
+
+        assert actual == path
+        assert json.loads(path.read_text(encoding="utf-8")) == {"ok": True}
+        assert not str(actual).startswith(str(PROJECT_ROOT / "studio" / "output"))
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def test_generate_story_outline_fails_fast_on_empty_llm_content(monkeypatch) -> None:

@@ -2,6 +2,76 @@
 
 from typing import Iterable
 
+from image.providers.registry import SDProvider
+
+
+def test_advanced_payload_json_parser_accepts_objects() -> None:
+    import image.gui.settings as settings
+
+    payload, error = settings._parse_advanced_payload_json('{"guidance_scale": 5.5, "eta": 0.2}')
+
+    assert error == ""
+    assert payload == {"guidance_scale": 5.5, "eta": 0.2}
+
+
+def test_advanced_payload_json_parser_rejects_non_objects() -> None:
+    import image.gui.settings as settings
+
+    payload, error = settings._parse_advanced_payload_json("[1, 2, 3]")
+
+    assert payload == {}
+    assert error == "Advanced payload JSON must be a JSON object."
+
+
+def test_advanced_payload_json_is_limited_to_a1111_and_diffusers() -> None:
+    import image.gui.settings as settings
+
+    assert settings._provider_supports_advanced_payload(
+        SDProvider(provider_id="stable_diffusion_remote", label="", renderer="a1111_remote")
+    )
+    assert settings._provider_supports_advanced_payload(
+        SDProvider(provider_id="stable_diffusion_local", label="", renderer="diffusers_local")
+    )
+    assert not settings._provider_supports_advanced_payload(
+        SDProvider(provider_id="comfyui_remote", label="", renderer="comfyui_remote")
+    )
+
+
+def test_comfyui_workflow_preview_supports_remote_and_local() -> None:
+    import image.gui.settings as settings
+
+    assert settings._provider_supports_comfyui_workflow_preview(
+        SDProvider(provider_id="comfyui_local", label="", renderer="comfyui_local", is_comfyui=True, is_local=True)
+    )
+    assert settings._provider_supports_comfyui_workflow_preview(
+        SDProvider(provider_id="comfyui_remote", label="", renderer="comfyui_remote", is_comfyui=True)
+    )
+    assert not settings._provider_supports_comfyui_workflow_preview(
+        SDProvider(provider_id="stable_diffusion_remote", label="", renderer="a1111_remote")
+    )
+
+
+def test_image_settings_merges_advanced_payload_after_builtin_payload() -> None:
+    from pathlib import Path
+
+    content = Path("image/gui/settings.py").read_text(encoding="utf-8")
+
+    assert "Advanced payload JSON" in content
+    assert "provider_payload.update(advanced_provider_payload)" in content
+
+
+def test_image_settings_exposes_num_images_per_prompt_after_gallery_support() -> None:
+    from pathlib import Path
+
+    settings_content = Path("image/gui/settings.py").read_text(encoding="utf-8")
+    service_content = Path("image/gui/service.py").read_text(encoding="utf-8")
+    result_ui_content = Path("image/gui/result_ui.py").read_text(encoding="utf-8")
+
+    assert "Images per prompt" in settings_content
+    assert '"num_images_per_prompt"' in settings_content
+    assert "_generated_output_variants" in service_content
+    assert "_render_generated_image_gallery" in result_ui_content
+
 
 def test_image_refresh_action_handles_non_sd_local_providers(monkeypatch) -> None:
     import image.gui.settings as settings

@@ -22,19 +22,19 @@ def is_user_facing_exception(exc: Exception) -> bool:
 
 def format_user_facing_error(exc: Exception) -> str:
     if isinstance(exc, RuntimeDependencyError):
-        return f"Lỗi môi trường chạy: {exc}"
+        return f"Runtime environment error: {exc}"
     if isinstance(exc, ProfileError):
-        return f"Lỗi asset profile: {exc}"
+        return f"Asset profile error: {exc}"
     if isinstance(exc, FfmpegExecutionError):
-        return f"Lỗi ffmpeg khi render: {exc}"
+        return f"ffmpeg render error: {exc}"
     if isinstance(exc, FileNotFoundError):
         return str(exc)
     if isinstance(exc, ValueError):
-        return f"Giá trị đầu vào không hợp lệ: {exc}"
+        return f"Invalid input value: {exc}"
     if isinstance(exc, OSError):
-        return f"Lỗi hệ thống tệp: {exc}"
+        return f"File system error: {exc}"
     return str(exc)
 
 
 def format_unexpected_error(exc: Exception) -> str:
-    return f"Lỗi không mong đợi: {exc}"
+    return f"Unexpected error: {exc}"

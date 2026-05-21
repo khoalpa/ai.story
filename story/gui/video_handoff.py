@@ -6,6 +6,10 @@ from typing import Any
 
 from story.gui.image_prompts import build_story_slug
 from story.image_sequence import ZONE_IMAGE_SEQUENCE
+from story.paths import PROJECT_ROOT
+
+
+DEFAULT_OUTPUT_BASE = Path("output/story/video_handoff")
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
@@ -13,8 +17,15 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def materialize_story_handoff_bundle(*, authoring: dict[str, Any], image_prompts: dict[str, dict[str, Any]], output_base: str = "output/story/video_handoff") -> Path:
-    bundle_dir = Path(output_base) / build_story_slug(authoring)
+def _resolve_output_base(output_base: str | Path = DEFAULT_OUTPUT_BASE) -> Path:
+    base = Path(output_base)
+    if not base.is_absolute():
+        base = PROJECT_ROOT / base
+    return base.resolve()
+
+
+def materialize_story_handoff_bundle(*, authoring: dict[str, Any], image_prompts: dict[str, dict[str, Any]], output_base: str | Path = DEFAULT_OUTPUT_BASE) -> Path:
+    bundle_dir = _resolve_output_base(output_base) / build_story_slug(authoring)
     scene_prompt_dir = bundle_dir / "scene_prompts"
     scene_images_dir = bundle_dir / "scene_images"
     scene_prompt_dir.mkdir(parents=True, exist_ok=True)

@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 import streamlit as st
 
+from video import config
 from video.asset_profile_utils import (
     list_asset_profiles,
     pick_default_asset_profile,
@@ -20,6 +21,10 @@ from common.gui.sidebar_sections import SidebarSection
 from common.gui.user_messages import show_path_warning
 
 
+_LOGLEVEL_OPTIONS = ["quiet", "panic", "fatal", "error", "warning", "info", "verbose", "debug", "trace"]
+_SUBTITLE_POSITION_OPTIONS = ["bottom", "top", "middle"]
+
+
 def _render_dependency_diagnostics(provider: VideoProviderDescriptor, settings: dict[str, Any]) -> None:
     collector = provider.collect_runtime_diagnostics
     report = collector(settings) if collector is not None else collect_runtime_diagnostics()
@@ -31,6 +36,117 @@ def _safe_ui_call(name: str, *args, **kwargs):
     if callable(fn):
         return fn(*args, **kwargs)
     return None
+
+
+def _option_index(options: list[str], value: object, default: int = 0) -> int:
+    try:
+        return options.index(str(value))
+    except ValueError:
+        return default
+
+
+def _render_advanced_encoding_settings() -> dict[str, Any]:
+    with st.expander("Advanced encoding", expanded=False):
+        video_codec = st.text_input("Video codec", value=str(config.DEFAULT_VIDEO_CODEC))
+        audio_codec = st.text_input("Audio codec", value=str(config.DEFAULT_AUDIO_CODEC))
+        audio_bitrate = st.text_input("Audio bitrate", value=str(config.DEFAULT_AUDIO_BITRATE))
+        video_preset = st.text_input("Video preset", value=str(config.DEFAULT_PRESET))
+        video_crf = st.number_input("CRF", min_value=0, max_value=63, value=int(config.DEFAULT_CRF), step=1)
+        video_fps = st.number_input("FPS (static mode)", min_value=1, max_value=120, value=int(config.DEFAULT_FPS), step=1)
+        video_tune = st.text_input("Video tune", value=str(config.DEFAULT_TUNE_STILLIMAGE))
+        video_movflags = st.text_input("MP4 movflags", value=str(config.DEFAULT_MOVFLAGS))
+    return {
+        "video_codec": video_codec,
+        "audio_codec": audio_codec,
+        "audio_bitrate": audio_bitrate,
+        "video_preset": video_preset,
+        "video_crf": int(video_crf),
+        "video_fps": int(video_fps),
+        "video_tune": video_tune,
+        "video_movflags": video_movflags,
+    }
+
+
+def _render_subtitle_style_settings() -> dict[str, Any]:
+    with st.expander("Subtitle styling", expanded=False):
+        subtitle_position = st.selectbox(
+            "Subtitle position",
+            options=_SUBTITLE_POSITION_OPTIONS,
+            index=_option_index(_SUBTITLE_POSITION_OPTIONS, "bottom"),
+        )
+        subtitle_font_size = st.number_input("Subtitle font size", min_value=1, max_value=200, value=8, step=1)
+        subtitle_outline = st.number_input("Subtitle outline", min_value=0, max_value=20, value=2, step=1)
+        subtitle_shadow = st.number_input("Subtitle shadow", min_value=0, max_value=20, value=0, step=1)
+        subtitle_alignment_raw = st.text_input("Subtitle alignment override", value="")
+        subtitle_margin_l = st.number_input("Subtitle margin left", min_value=0, max_value=1000, value=40, step=5)
+        subtitle_margin_r = st.number_input("Subtitle margin right", min_value=0, max_value=1000, value=40, step=5)
+        subtitle_margin_v = st.number_input("Subtitle margin vertical", min_value=0, max_value=1000, value=240, step=5)
+        subtitle_force_style = st.text_input("Subtitle force style override", value="")
+    subtitle_alignment = int(subtitle_alignment_raw) if subtitle_alignment_raw.strip().isdigit() else None
+    return {
+        "subtitle_position": subtitle_position,
+        "subtitle_font_size": int(subtitle_font_size),
+        "subtitle_outline": int(subtitle_outline),
+        "subtitle_shadow": int(subtitle_shadow),
+        "subtitle_alignment": subtitle_alignment,
+        "subtitle_margin_l": int(subtitle_margin_l),
+        "subtitle_margin_r": int(subtitle_margin_r),
+        "subtitle_margin_v": int(subtitle_margin_v),
+        "subtitle_force_style": subtitle_force_style.strip() or None,
+    }
+
+
+def _render_slideshow_behavior_settings() -> dict[str, Any]:
+    with st.expander("Slideshow behavior", expanded=False):
+        slideshow_match_audio = st.checkbox("Match slideshow length to audio", value=bool(config.SLIDESHOW_MATCH_AUDIO))
+        audio_match_epsilon = st.number_input(
+            "Audio match epsilon",
+            min_value=0.0,
+            max_value=10.0,
+            value=float(config.AUDIO_MATCH_EPSILON),
+            step=0.1,
+        )
+        keep_concat_list = st.checkbox("Keep temporary ffconcat list", value=bool(config.KEEP_CONCAT_LIST))
+    return {
+        "slideshow_match_audio": bool(slideshow_match_audio),
+        "audio_match_epsilon": float(audio_match_epsilon),
+        "keep_concat_list": bool(keep_concat_list),
+    }
+
+
+def _render_ffmpeg_debug_settings() -> dict[str, Any]:
+    with st.expander("FFmpeg logging/debug", expanded=False):
+        ffmpeg_loglevel = st.selectbox(
+            "FFmpeg loglevel",
+            options=_LOGLEVEL_OPTIONS,
+            index=_option_index(_LOGLEVEL_OPTIONS, config.FFMPEG_LOGLEVEL, default=4),
+        )
+        ffmpeg_stats = st.checkbox("Show FFmpeg stats", value=bool(config.FFMPEG_STATS))
+        ffmpeg_stream_log = st.checkbox("Stream FFmpeg log directly", value=bool(config.FFMPEG_STREAM_LOG))
+        show_progress = st.checkbox("Parse FFmpeg progress", value=bool(config.SHOW_PROGRESS))
+        stderr_tail_lines = st.number_input("stderr tail lines", min_value=1, max_value=500, value=int(config.STDERR_TAIL_LINES), step=1)
+        print_ffmpeg_version = st.checkbox("Print FFmpeg version during tool check", value=bool(config.PRINT_FFMPEG_VERSION))
+        debug_ffmpeg_exe = st.checkbox("Debug FFmpeg executable path", value=False)
+    return {
+        "ffmpeg_loglevel": ffmpeg_loglevel,
+        "ffmpeg_stats": bool(ffmpeg_stats),
+        "ffmpeg_stream_log": bool(ffmpeg_stream_log),
+        "show_progress": bool(show_progress),
+        "stderr_tail_lines": int(stderr_tail_lines),
+        "print_ffmpeg_version": bool(print_ffmpeg_version),
+        "debug_ffmpeg_exe": bool(debug_ffmpeg_exe),
+    }
+
+
+def _render_persistent_history_settings() -> dict[str, Any]:
+    with st.expander("Persistent history", expanded=False):
+        history_dir = st.text_input("History directory override", value="")
+        history_file = st.text_input("History file override", value="")
+        st.caption("Leave both empty to use the default ~/.render_video history and logs.")
+    return {
+        "render_video_history_dir": history_dir.strip(),
+        "render_video_history_file": history_file.strip(),
+    }
 
 
 def get_video_settings() -> dict[str, Any]:
@@ -92,9 +208,16 @@ def get_video_settings() -> dict[str, Any]:
         duration_per_image = st.number_input(
             "Duration per image (slideshow)", min_value=1.0, value=60.0, step=1.0
         )
+        advanced_settings = {
+            **_render_advanced_encoding_settings(),
+            **_render_subtitle_style_settings(),
+            **_render_slideshow_behavior_settings(),
+            **_render_ffmpeg_debug_settings(),
+            **_render_persistent_history_settings(),
+        }
 
-        st.header(SidebarSection.RUNTIME)
-        _render_dependency_diagnostics(provider_descriptor, provider_values)
+        with st.expander(SidebarSection.RUNTIME, expanded=True):
+            _render_dependency_diagnostics(provider_descriptor, provider_values)
 
     return {
         **provider_values,
@@ -108,6 +231,7 @@ def get_video_settings() -> dict[str, Any]:
         "mode": mode,
         "aspect": aspect,
         "duration_per_image": float(duration_per_image),
+        **advanced_settings,
     }
 
 

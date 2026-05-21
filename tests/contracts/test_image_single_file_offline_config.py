@@ -69,6 +69,24 @@ def test_prepare_single_file_kwargs_auto_infers_local_diffusers_repo(monkeypatch
     assert kwargs["config"] == str(inferred_repo.resolve())
 
 
+def test_prepare_single_file_kwargs_resolves_project_relative_original_config(monkeypatch, tmp_path: Path) -> None:
+    import image.provider_runtime as providers
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(providers, "_infer_local_diffusers_config_repo", lambda: None)
+
+    kwargs = providers._prepare_single_file_kwargs(
+        load_kwargs={"torch_dtype": "float16"},
+        original_config="image/models/configs/v1-inference.yaml",
+        diffusers_config_repo="",
+        allow_online_load=False,
+    )
+
+    assert kwargs["original_config"].endswith("image\\models\\configs\\v1-inference.yaml") or kwargs[
+        "original_config"
+    ].endswith("image/models/configs/v1-inference.yaml")
+
+
 def test_prepare_prompt_pair_for_clip_can_disable_auto_shorten() -> None:
     import image.provider_runtime as providers
 

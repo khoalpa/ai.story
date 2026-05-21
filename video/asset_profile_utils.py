@@ -24,13 +24,13 @@ def _warn(message: str, path: Path, exc: Exception | None) -> None:
 
 def _missing(profile_dir: Path, manifest_path: Path) -> Exception:
     if not profile_dir.is_dir():
-        return ProfileNotFoundError(f"Không tìm thấy asset profile: {profile_dir}")
-    return ProfileNotFoundError(f"Không tìm thấy manifest của asset profile: {manifest_path}")
+        return ProfileNotFoundError(f"Asset profile not found: {profile_dir}")
+    return ProfileNotFoundError(f"Asset profile manifest not found: {manifest_path}")
 
 
 def _invalid(manifest_path: Path) -> Exception:
     return ProfileManifestError(
-        f"Manifest của asset profile không hợp lệ hoặc không đọc được: {manifest_path}"
+        f"Asset profile manifest is invalid or could not be read: {manifest_path}"
     )
 
 

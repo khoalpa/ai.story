@@ -55,6 +55,7 @@ def _parse_jsonish(candidate: str) -> Any:
 
 def extract_json(llm_text: str) -> Dict[str, Any]:
     t = _strip_fence(llm_text)
+    dec = json.JSONDecoder()
     try:
         obj = _parse_jsonish(t)
         if not isinstance(obj, dict):
@@ -62,6 +63,21 @@ def extract_json(llm_text: str) -> Dict[str, Any]:
         return obj
     except (TypeError, ValueError, json.JSONDecodeError):
         pass
+    for seg in _iter_json_segments(t):
+        try:
+            obj = _parse_jsonish(seg)
+            if isinstance(obj, dict):
+                return obj
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+    start = t.find("{")
+    if start != -1:
+        try:
+            obj, _ = dec.raw_decode(_normalize_jsonish_text(t[start:]))
+            if isinstance(obj, dict):
+                return obj
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
     start = t.find("{")
     end = t.rfind("}")
     if start != -1 and end != -1 and end > start:

@@ -31,8 +31,21 @@ def _ui_info(message: str) -> None:
 
 def _normalize_exc(exc: Exception) -> str:
     name = exc.__class__.__name__
-    detail = str(exc).strip() or repr(exc)
+    detail = _repair_mojibake(str(exc).strip() or repr(exc))
     return f"{name}: {detail}"
+
+
+def _repair_mojibake(value: str) -> str:
+    text = str(value or "")
+    for _ in range(3):
+        try:
+            repaired = text.encode("cp1252").decode("utf-8")
+        except UnicodeError:
+            break
+        if repaired == text:
+            break
+        text = repaired
+    return text
 
 
 def _open_output_folder(path_value: str) -> None:

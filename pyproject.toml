@@ -158,8 +158,20 @@ select = ["E9", "F63", "F7", "F82"]
 
 [tool.mypy]
 python_version = "3.10"
-files = ["scripts"]
+# Run mypy across the shipped packages so new modules are type-checked by default.
+# Modules listed in the override below are the current type-debt baseline and
+# should be removed from that list as they are cleaned up.
+files = [
+  "audio",
+  "story",
+  "image",
+  "video",
+  "common",
+  "studio",
+  "scripts",
+]
 ignore_missing_imports = true
+follow_imports = "silent"
 exclude = [
   '(^|/)build/',
   '(^|/)dist/',
@@ -167,3 +179,65 @@ exclude = [
   '(^|/)audio/models/',
   '(^|/)[^/]+/local_models/',
 ]
+
+[[tool.mypy.overrides]]
+# Baseline of modules with known mypy debt. Keep this list explicit so CI still
+# covers the rest of the package tree and new modules do not silently opt out.
+module = [
+  "audio.adapters.edge_tts",
+  "audio.adapters.ffmpeg_audio_mixer",
+  "audio.adapters.tts_core",
+  "audio.gui.app",
+  "audio.gui.batch",
+  "audio.gui.diagnostics_blocks",
+  "audio.gui.helpers",
+  "audio.gui.history_utils",
+  "audio.gui.panel_utils",
+  "audio.gui.run_panel",
+  "audio.gui.service",
+  "audio.gui.settings",
+  "audio.gui.shell",
+  "audio.gui.workspace_state",
+  "audio.pipeline.segment_planner",
+  "audio.profile_manifest_schema",
+  "audio.providers.vieneu",
+  "audio.render_batch_manifest",
+  "audio.render_batch_runner",
+  "audio.render_job_store",
+  "audio.services.tts_render",
+  "audio.validate_plain_script",
+  "common.gui.diagnostics_blocks",
+  "common.gui.history_utils",
+  "common.gui.panel_utils",
+  "common.gui.shell",
+  "common.gui.state",
+  "image.gui.detector_ui",
+  "image.gui.inpaint_utils",
+  "image.gui.result_ui",
+  "image.gui.service",
+  "image.gui.settings",
+  "image.gui.tabs",
+  "image.provider_runtime",
+  "story.client",
+  "story.common",
+  "story.gui.diagnostics_blocks",
+  "story.gui.history_utils",
+  "story.gui.image_prompts",
+  "story.gui.llm_test",
+  "story.gui.panel_utils",
+  "story.gui.service",
+  "story.gui.shell",
+  "story.gui.tabs",
+  "story.gui.workspace_state",
+  "story.llm_providers",
+  "studio._shared.gui.diagnostics_blocks",
+  "studio._shared.gui.history_utils",
+  "studio._shared.gui.panel_utils",
+  "studio._shared.gui.shell",
+  "studio._shared.gui.state",
+  "video.app_api",
+  "video.cli_entry",
+  "video.ffmpeg_runner",
+  "video.gui.tabs",
+]
+ignore_errors = true

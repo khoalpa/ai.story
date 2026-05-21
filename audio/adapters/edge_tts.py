@@ -65,12 +65,12 @@ def is_edge_tts_version_older_than(min_version: str) -> bool:
 def build_edge_tts_upgrade_hint() -> str:
     detected = get_installed_edge_tts_version() or "unknown"
     return (
-        "Dịch vụ Edge TTS đang trả 403 handshake. "
-        f"Bản edge-tts đang cài: {detected}. "
-        "Repo này đang pin edge-tts==7.2.7, nhưng lỗi 403 kiểu này thường xảy ra khi endpoint/protocol đã đổi. "
-        "Hãy nâng edge-tts lên bản mới hơn rồi chạy lại, ví dụ:\n"
+        "The Edge TTS service is returning a 403 handshake error. "
+        f"Installed edge-tts version: {detected}. "
+        "This repo pins edge-tts==7.2.7, but this kind of 403 error often happens when the endpoint/protocol has changed. "
+        "Upgrade edge-tts and run again, for example:\n"
         "  pip install -U edge-tts\n"
-        "hoặc pin bản mới rõ ràng:\n"
+        "or pin an explicit newer version:\n"
         "  pip install -U edge-tts==7.2.7"
     )
 
@@ -194,7 +194,7 @@ async def tts_segment_to_file(
     rate = seg.rate or "0%"
 
     if edge_tts is None:
-        raise TtsDependencyError("edge_tts chưa được cài đặt. Hãy pip install edge-tts")
+        raise TtsDependencyError("edge_tts is not installed. Run: pip install edge-tts")
 
     text_for_tts = apply_abbreviation_mapping(seg.text, abbr_map) if effective_lang == "en" else seg.text
     safe_text = _sanitize_for_edge_tts(text_for_tts)

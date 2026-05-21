@@ -694,6 +694,92 @@ def render_settings_sidebar() -> GuiConfigBundle:
                 vieneu_api_base = str(vieneu_api_base or "")
                 st.caption("The local/headless core does not use an API base; the engine is called directly in-process.")
 
+            with _expander("VieNeu generation tuning", expanded=False):
+                st.caption("These controls are passed to the VieNeu adapter for preview and full render calls.")
+                preview_col, render_col = st.columns(2)
+                with preview_col:
+                    st.markdown("#### Preview")
+                    vieneu_preview_temperature = float(
+                        st.number_input(
+                            "Preview temperature",
+                            min_value=0.0,
+                            max_value=2.0,
+                            value=float(vieneu_preview_temperature),
+                            step=0.05,
+                            key="vieneu_preview_temperature",
+                        )
+                    )
+                    vieneu_preview_max_chars_chunk = int(
+                        st.number_input(
+                            "Preview max chars/chunk",
+                            min_value=1,
+                            max_value=2000,
+                            value=int(vieneu_preview_max_chars_chunk),
+                            step=10,
+                            key="vieneu_preview_max_chars_chunk",
+                        )
+                    )
+                    vieneu_preview_text_max_len = int(
+                        st.number_input(
+                            "Preview text max length",
+                            min_value=1,
+                            max_value=2000,
+                            value=int(vieneu_preview_text_max_len),
+                            step=10,
+                            key="vieneu_preview_text_max_len",
+                        )
+                    )
+                    vieneu_preview_use_batch = bool(
+                        st.checkbox("Preview batch generation", value=bool(vieneu_preview_use_batch), key="vieneu_preview_use_batch")
+                    )
+                    vieneu_preview_max_batch_size_run = int(
+                        st.number_input(
+                            "Preview batch size",
+                            min_value=1,
+                            max_value=64,
+                            value=int(vieneu_preview_max_batch_size_run),
+                            step=1,
+                            key="vieneu_preview_max_batch_size_run",
+                            disabled=not bool(vieneu_preview_use_batch),
+                        )
+                    )
+                with render_col:
+                    st.markdown("#### Full render")
+                    vieneu_render_temperature = float(
+                        st.number_input(
+                            "Render temperature",
+                            min_value=0.0,
+                            max_value=2.0,
+                            value=float(vieneu_render_temperature),
+                            step=0.05,
+                            key="vieneu_render_temperature",
+                        )
+                    )
+                    vieneu_render_max_chars_chunk = int(
+                        st.number_input(
+                            "Render max chars/chunk",
+                            min_value=1,
+                            max_value=4000,
+                            value=int(vieneu_render_max_chars_chunk),
+                            step=10,
+                            key="vieneu_render_max_chars_chunk",
+                        )
+                    )
+                    vieneu_render_use_batch = bool(
+                        st.checkbox("Render batch generation", value=bool(vieneu_render_use_batch), key="vieneu_render_use_batch")
+                    )
+                    vieneu_render_max_batch_size_run = int(
+                        st.number_input(
+                            "Render batch size",
+                            min_value=1,
+                            max_value=64,
+                            value=int(vieneu_render_max_batch_size_run),
+                            step=1,
+                            key="vieneu_render_max_batch_size_run",
+                            disabled=not bool(vieneu_render_use_batch),
+                        )
+                    )
+
             col_test, col_refresh, col_update = st.columns([1, 1, 1])
             with col_test:
                 if st.button("Test", width="stretch"):
@@ -786,18 +872,18 @@ def render_settings_sidebar() -> GuiConfigBundle:
             st.subheader("History & Batch")
             store_path = st.text_input("Job store path", value=str(DEFAULT_STORE_PATH))
 
-        st.header(SidebarSection.RUNTIME)
-        ffmpeg_exe = st.text_input("ffmpeg executable", value=find_binary(str(app_defaults["ffmpeg_exe"])))
-        ffprobe_exe = st.text_input("ffprobe executable", value=find_binary(str(app_defaults["ffprobe_exe"])))
-        diagnostics = collect_runtime_diagnostics_for_settings(
-            ffmpeg_exe,
-            ffprobe_exe,
-            tts_provider=tts_provider,
-            vieneu_mode=resolve_vieneu_runtime_mode(vieneu_core, vieneu_mode, st.session_state.get("vieneu_device")),
-        )
-        st.caption("Runtime checks")
-        for line in runtime_diagnostics_to_lines(diagnostics):
-            st.caption(f"- {line}")
+        with _expander(SidebarSection.RUNTIME, expanded=True):
+            ffmpeg_exe = st.text_input("ffmpeg executable", value=find_binary(str(app_defaults["ffmpeg_exe"])))
+            ffprobe_exe = st.text_input("ffprobe executable", value=find_binary(str(app_defaults["ffprobe_exe"])))
+            diagnostics = collect_runtime_diagnostics_for_settings(
+                ffmpeg_exe,
+                ffprobe_exe,
+                tts_provider=tts_provider,
+                vieneu_mode=resolve_vieneu_runtime_mode(vieneu_core, vieneu_mode, st.session_state.get("vieneu_device")),
+            )
+            st.caption("Runtime checks")
+            for line in runtime_diagnostics_to_lines(diagnostics):
+                st.caption(f"- {line}")
 
     vieneu_persisted_settings = _build_vieneu_persisted_settings(
         core=vieneu_core,

@@ -35,7 +35,7 @@ def main() -> int:
         with col1:
             st.info("""**1. Story**
 
-Tạo brief -> canonical -> plain script + prompt.""")
+Create brief -> canonical -> plain script + prompts.""")
         with col2:
             st.info("""**2. Audio**
 
@@ -53,17 +53,17 @@ Render audio/subtitle + cover/scenes -> MP4.""")
         st.subheader("Recommended workflow")
         st.markdown(
             """
-            - Mở **Story** để tạo plain script và handoff bundle cho ảnh.
-            - Chuyển sang **Audio** để render giọng đọc và subtitle.
-            - Chuyển sang **Image** để render cover/scenes từ prompt bundle.
-            - Chuyển sang **Video** để ghép audio và ảnh thành MP4.
-            - Theo dõi trạng thái handoff ở sidebar để biết output gần nhất của từng bước.
+            - Open **Story** to create the plain script and image handoff bundle.
+            - Switch to **Audio** to render narration and subtitles.
+            - Switch to **Image** to render cover/scenes from the prompt bundle.
+            - Switch to **Video** to combine audio and images into an MP4.
+            - Track handoff status in the sidebar to see the latest output from each step.
             """
         )
 
     render_workspace_shell(
         title=app_title,
-        caption="Workspace thống nhất cho pipeline Story -> Audio / Image -> Video trên cùng một giao diện.",
+        caption="Unified workspace for the Story -> Audio / Image -> Video pipeline in one interface.",
         overview_renderer=render_overview,
         app_renderers={
             "Story": lambda: render_story_workspace(embedded=True),

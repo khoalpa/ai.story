@@ -4,7 +4,7 @@ import inspect
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, cast
 
 from audio.adapters.edge_tts import load_abbreviation_map
 from audio.adapters.tts_core import (
@@ -17,7 +17,7 @@ from audio.adapters.tts_core import (
 )
 from audio.logging_utils import get_logger
 from audio.render_job import RenderJobArtifacts, RenderJobPaths, RuntimeContext, VoiceRuntimeMaps
-from audio.paths import ASSETS_ROOT, PACKAGE_PROFILE_ROOT
+from audio.paths import ASSETS_ROOT, DEFAULT_BGM_DIR, PACKAGE_PROFILE_ROOT
 from audio.render_events import (
     AppDebugSavedEvent,
     AppPathsResolvedEvent,
@@ -67,7 +67,7 @@ REQUEST_DEFAULTS: dict[str, Any] = {
     "asset_profile": None,
     "profile_root": str(PACKAGE_PROFILE_ROOT),
     "bgm": None,
-    "bgmdir": "audio/bgm",
+    "bgmdir": str(DEFAULT_BGM_DIR),
     "voice_narrator": "vi-VN-NamMinhNeural",
     "voice_female": "vi-VN-HoaiMyNeural",
     "voice_male": "vi-VN-NamMinhNeural",
@@ -311,6 +311,7 @@ class RenderAudioAppResult:
     mode: str
     runtime_ctx: RuntimeContext
     voice_maps: VoiceRuntimeMaps
+    voice_rate_map: dict[str, str]
     job_paths: RenderJobPaths
     abbr_map_path: Path
     abbr_map: dict[str, str]
@@ -436,6 +437,7 @@ def run_render_audio_app(
     runtime_ctx = resolve_runtime_context(args)
     voice_maps = build_voice_maps(args, runtime_ctx.profile_voice_defaults)
     voice_rate_map = build_voice_rate_map(args)
+    segment_voice_rate_map = cast(dict[str, object], voice_rate_map)
     job_paths = _resolve_job_paths_compat(request.input_path, request.output_dir, request.audio_format)
     logger.info("Render output directory resolved: %s", request.output_dir)
     logger.info(
@@ -496,6 +498,7 @@ def run_render_audio_app(
             mode="validate_only",
             runtime_ctx=runtime_ctx,
             voice_maps=voice_maps,
+            voice_rate_map=voice_rate_map,
             job_paths=job_paths,
             abbr_map_path=abbr_map_path,
             abbr_map=abbr_map,
@@ -511,7 +514,7 @@ def run_render_audio_app(
         AppPhaseStartedEvent(phase="parse", details={"input_path": request.input_path}),
     )
     full_text = load_text_file(request.input_path)
-    parse_script_to_segments(full_text, voice_rate_map=voice_rate_map)
+    parse_script_to_segments(full_text, voice_rate_map=segment_voice_rate_map)
     emit_render_event(
         event_sink,
         AppPhaseCompletedEvent(phase="parse", details={"input_path": request.input_path}),
@@ -526,7 +529,7 @@ def run_render_audio_app(
         bgm_fallback=request.bgm,
         runtime_ctx=runtime_ctx,
         sentiment_tone=request.sentiment_tone,
-        voice_rate_map=voice_rate_map,
+        voice_rate_map=segment_voice_rate_map,
     )
     emit_render_event(
         event_sink,
@@ -634,6 +637,7 @@ def run_render_audio_app(
         mode="render",
         runtime_ctx=runtime_ctx,
         voice_maps=voice_maps,
+        voice_rate_map=voice_rate_map,
         job_paths=job_paths,
         abbr_map_path=abbr_map_path,
         abbr_map=abbr_map,

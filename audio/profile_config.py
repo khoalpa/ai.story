@@ -7,12 +7,13 @@ from types import SimpleNamespace
 from typing import Any, Mapping, Optional
 
 from audio.asset_profile_utils import load_asset_profile_manifest
-from audio.paths import ASSETS_ROOT, PACKAGE_PROFILE_ROOT
+from audio.paths import ASSETS_ROOT, DEFAULT_BGM_DIR, PACKAGE_PROFILE_ROOT
 from audio.bgm_config_schema import BgmConfigSchema, load_bgm_config_schema
 from audio.profile_manifest_schema import ProfileManifestSchema, load_profile_manifest_schema
 from audio.tts_provider import DEFAULT_TTS_PROVIDER, normalize_tts_provider
 from audio.adapters.tts_core import get_default_vieneu_local_target, normalize_vieneu_backend, normalize_vieneu_device, resolve_vieneu_model_name
 DEFAULT_PROFILE_ROOT = str(PACKAGE_PROFILE_ROOT)
+DEFAULT_BGM_DIR_STR = str(DEFAULT_BGM_DIR)
 DEFAULT_VOICE_NARRATOR = "Thục Đoan"
 DEFAULT_VOICE_FEMALE = "Thục Đoan"
 DEFAULT_VOICE_MALE = "Phạm Tuyên"
@@ -24,7 +25,7 @@ PROFILE_CONFIG_DEFAULTS: dict[str, Any] = {
     "profile_root": str(DEFAULT_PROFILE_ROOT),
     "asset_profile": "demo",
     "bgm": None,
-    "bgmdir": "audio/bgm",
+    "bgmdir": DEFAULT_BGM_DIR_STR,
     "bgm_config": None,
     "abbr_map": str(ASSETS_ROOT / "abbreviation_map.json"),
     "tts_provider": DEFAULT_TTS_PROVIDER,
@@ -244,7 +245,7 @@ class ProfileConfig:
                 bgm_schema = load_bgm_config_schema(bgm_config_path)
                 bgm_dir = bgm_schema.resolve_base_dir(bgm_config_path)
             if not bgm_dir.is_dir():
-                raise FileNotFoundError(f"Profile bgm dir không tồn tại: {bgm_dir}")
+                raise FileNotFoundError(f"Profile BGM directory does not exist: {bgm_dir}")
         else:
             bgm_dir = Path(self.bgmdir)
 

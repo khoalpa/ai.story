@@ -10,7 +10,7 @@ from audio.render_batch_manifest import BatchManifestError, load_batch_manifest
 from audio.render_batch_runner import RenderBatchRunner
 from audio.render_job_repository import JobRepository
 
-from .helpers import save_uploaded_text
+from .helpers import make_request, save_uploaded_text
 from audio.gui.user_messages import UserMessage, render_user_message, show_empty_result, show_missing_input
 
 
@@ -31,6 +31,11 @@ def _build_temp_manifest(text: str) -> tuple[tempfile.TemporaryDirectory[str], P
     path = Path(tmp.name) / f"manifest{_guess_manifest_suffix(text)}"
     path.write_text(text, encoding="utf-8")
     return tmp, path
+
+
+def _build_current_settings_template(settings: dict):
+    output_dir = Path(str(settings.get("output_dir") or "__batch_out__"))
+    return make_request(input_path=Path("__batch__.txt"), output_dir=output_dir, settings=settings)
 
 
 def render_batch_tab(settings: dict, repository: JobRepository) -> None:
@@ -69,6 +74,12 @@ def render_batch_tab(settings: dict, repository: JobRepository) -> None:
             key="batch_continue_on_error",
             help="Continue running later manifest jobs after one job fails.",
         )
+        use_current_settings_template = st.checkbox(
+            "Use current sidebar settings as manifest defaults",
+            value=True,
+            key="batch_use_current_settings_template",
+            help="Apply the current provider, voices, BGM, format, and render options unless the manifest overrides them.",
+        )
 
         col1, col2 = st.columns(2)
 
@@ -93,6 +104,10 @@ def render_batch_tab(settings: dict, repository: JobRepository) -> None:
                     manifest = load_batch_manifest(path)
                     st.success("Manifest is valid.")
                     st.json(asdict(manifest))
+                    if use_current_settings_template:
+                        template = _build_current_settings_template(settings)
+                        st.caption("Current sidebar settings will be used as the batch template.")
+                        st.json(template.to_payload(serialize_paths=True))
                 except BatchManifestError as exc:
                     render_user_message(
                         UserMessage(
@@ -130,10 +145,12 @@ def render_batch_tab(settings: dict, repository: JobRepository) -> None:
                 try:
                     tmp_dir, path = _build_temp_manifest(text)
                     runner = RenderBatchRunner(repository=repository)
+                    template = _build_current_settings_template(settings) if use_current_settings_template else None
                     result = runner.run_manifest(
                         path,
                         ffmpeg_exe=str(settings.get("ffmpeg_exe") or ""),
                         ffprobe_exe=str(settings.get("ffprobe_exe") or ""),
+                        template=template,
                         continue_on_error=bool(continue_on_error),
                     )
                     st.success(

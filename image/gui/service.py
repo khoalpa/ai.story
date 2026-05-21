@@ -12,6 +12,27 @@ from image.workflow_routing import infer_prompt_kind
 
 ProgressCallback = Callable[[float, str], None]
 
+PROMPT_CARD_SEQUENCE: tuple[str, ...] = (
+    "cover",
+    "scene",
+    "intro",
+    "greeting",
+    "opening",
+    "introduction",
+    "development",
+    "climax",
+    "falling",
+    "ending",
+    "farewell",
+    "outro",
+)
+
+_PROMPT_CARD_SEQUENCE_INDEX = {slot: index for index, slot in enumerate(PROMPT_CARD_SEQUENCE)}
+_PROMPT_CARD_ALIASES = {
+    "intro_card": "intro",
+    "outro_card": "outro",
+}
+
 
 def _version_index_from_path(path: Path, *, stem: str) -> int | None:
     if path.suffix.lower() != ".png":
@@ -50,8 +71,40 @@ def _versioned_image_name(stem: str, version_index: int) -> str:
     return f"{stem}_{version_index}.png"
 
 
+def _generated_output_variants(primary_output: Path) -> list[Path]:
+    outputs: list[Path] = []
+    if primary_output.is_file():
+        outputs.append(primary_output)
+    for candidate in sorted(primary_output.parent.glob(f"{primary_output.stem}_batch*{primary_output.suffix}")):
+        if candidate.is_file() and candidate not in outputs:
+            outputs.append(candidate)
+    return outputs
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _image_key_from_prompt_file(prompt_file: Path) -> str:
+    stem = prompt_file.stem
+    if stem.endswith("_prompt"):
+        stem = stem[: -len("_prompt")]
+    return stem or prompt_file.stem
+
+
+def _prompt_sort_key(prompt_file: Path) -> tuple[int, str]:
+    slot = _image_key_from_prompt_file(prompt_file)
+    slot = _PROMPT_CARD_ALIASES.get(slot, slot)
+    return (_PROMPT_CARD_SEQUENCE_INDEX.get(slot, len(PROMPT_CARD_SEQUENCE)), prompt_file.name)
+
+
+def _iter_root_scene_prompt_files(handoff_dir: Path) -> Iterable[Path]:
+    reserved_names = {"cover_prompt.json", "scene_prompt.json"}
+    for prompt_file in sorted(handoff_dir.glob("*_prompt.json"), key=_prompt_sort_key):
+        if prompt_file.name in reserved_names:
+            continue
+        if prompt_file.is_file():
+            yield prompt_file
 
 
 def iter_prompt_files(handoff_dir: Path) -> Iterable[tuple[Path, dict[str, Any], Path]]:
@@ -67,6 +120,12 @@ def iter_prompt_files(handoff_dir: Path) -> Iterable[tuple[Path, dict[str, Any],
         prompt_data["kind"] = infer_prompt_kind(prompt_data, scene_prompt)
         image_key = str(prompt_data.get("image_key") or "scene").strip()
         yield scene_prompt, prompt_data, handoff_dir / "images" / f"{image_key}.png"
+
+    for prompt_file in _iter_root_scene_prompt_files(handoff_dir):
+        prompt_data = _load_json(prompt_file)
+        prompt_data["kind"] = infer_prompt_kind(prompt_data, prompt_file)
+        image_key = str(prompt_data.get("image_key") or _image_key_from_prompt_file(prompt_file)).strip()
+        yield prompt_file, prompt_data, handoff_dir / "images" / f"{image_key}.png"
 
     scene_prompt_dir = handoff_dir / "scene_prompts"
     if scene_prompt_dir.is_dir():
@@ -123,9 +182,15 @@ def run_image_job(request: RenderImageRequest, progress_callback: ProgressCallba
         manifest_data = _load_json(manifest_path)
 
     prompt_items = list(iter_prompt_files(handoff_dir))
+    if not prompt_items:
+        raise FileNotFoundError(
+            "Prompt directory does not contain any renderable prompt files. "
+            "Expected cover_prompt.json, scene_prompt.json, *_prompt.json, or scene_prompts/*.json."
+        )
     total_prompts = max(1, len(prompt_items))
     logs: list[str] = []
     generated: list[Path] = []
+    generated_prompt_files: list[dict[str, Any]] = []
 
     settings = {
         "provider": request.provider,
@@ -195,8 +260,18 @@ def run_image_job(request: RenderImageRequest, progress_callback: ProgressCallba
             ) if progress_callback is not None else None,
         )
         logs.extend(provider_logs)
-        generated.append(target)
-        _emit_progress(progress_callback, prompt_base + prompt_span * 0.98, f"Finished {prompt_detail} -> {target.name}")
+        prompt_outputs = _generated_output_variants(target)
+        generated.extend(prompt_outputs)
+        generated_prompt_files.append(
+            {
+                "prompt_file": str(prompt_path),
+                "rel_path": override_key,
+                "kind": str(prompt_data.get("kind") or ""),
+                "primary_output": str(target),
+                "generated_files": [str(path) for path in prompt_outputs],
+            }
+        )
+        _emit_progress(progress_callback, prompt_base + prompt_span * 0.98, f"Finished {prompt_detail} -> {len(prompt_outputs)} image(s)")
 
     runtime_manifest = output_dir / "image_result_manifest.json"
     runtime_manifest.write_text(
@@ -208,6 +283,7 @@ def run_image_job(request: RenderImageRequest, progress_callback: ProgressCallba
                 "cover_image": str(cover_output) if cover_output.is_file() else "",
                 "scene_images_dir": str(scenes_dir),
                 "generated_files": [str(p) for p in generated],
+                "generated_prompt_files": generated_prompt_files,
                 "source_manifest": manifest_data,
                 "prompt_overrides": request.prompt_overrides,
             },

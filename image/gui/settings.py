@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,7 @@ from image.providers import (
     get_sd_provider_choices,
     list_sd_provider_ids,
 )
+from image.runtime import package_root
 from image.workflow_routing import default_comfyui_workflow_file
 
 
@@ -52,10 +54,17 @@ def _index_or_zero(options: list[str], value: str) -> int:
 def _auto_original_config_for_family(pipeline_family: str) -> str:
     family = str(pipeline_family or "").strip().lower()
     mapping = {
-        "sd15": "image/local_models/configs/v1-inference.yaml",
-        "sdxl": "image/local_models/configs/sdxl-base-inference.yaml",
+        "sd15": "image/models/configs/v1-inference.yaml",
+        "sdxl": "image/models/configs/sdxl-base-inference.yaml",
     }
     return mapping.get(family, "")
+
+
+def _resolve_workspace_path(path_value: str) -> Path:
+    path = Path(str(path_value or "").strip()).expanduser()
+    if path.is_absolute():
+        return path
+    return (package_root(__file__).parent / path).resolve()
 
 
 
@@ -64,6 +73,61 @@ def _image_provider_message(level: str, message: str) -> None:
 
 
 _DEFAULT_LOCAL_SD_MODEL = get_sd_provider("stable_diffusion_local").default_model
+_ADVANCED_PAYLOAD_RENDERERS = {"a1111_remote", "diffusers_local"}
+
+
+def _provider_supports_advanced_payload(provider: SDProvider) -> bool:
+    return provider.renderer in _ADVANCED_PAYLOAD_RENDERERS
+
+
+def _provider_supports_comfyui_workflow_preview(provider: SDProvider) -> bool:
+    return provider.is_comfyui
+
+
+def _parse_advanced_payload_json(raw_value: str) -> tuple[dict[str, Any], str]:
+    text = str(raw_value or "").strip()
+    if not text:
+        return {}, ""
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return {}, f"Advanced payload JSON is invalid: {exc.msg} at line {exc.lineno}, column {exc.colno}."
+    if not isinstance(parsed, dict):
+        return {}, "Advanced payload JSON must be a JSON object."
+    return parsed, ""
+
+
+def _render_advanced_payload_json(provider_meta: SDProvider) -> tuple[str, dict[str, Any]]:
+    if not _provider_supports_advanced_payload(provider_meta):
+        st.session_state["image_advanced_payload_json_error"] = ""
+        return str(st.session_state.get("image_advanced_payload_json") or ""), {}
+
+    st.subheader("Advanced payload")
+    raw_value = st.text_area(
+        "Advanced payload JSON",
+        value=str(st.session_state.get("image_advanced_payload_json") or ""),
+        height=140,
+        key="image_advanced_payload_json",
+        help=(
+            "Optional JSON object merged into the provider payload for A1111 remote or Diffusers local. "
+            "Use this for provider-specific options that do not have dedicated controls yet."
+        ),
+    )
+    parsed, error = _parse_advanced_payload_json(raw_value)
+    st.session_state["image_advanced_payload_json_error"] = error
+    if error:
+        render_user_message(
+            UserMessage(
+                level="error",
+                title="Advanced payload JSON is invalid",
+                body=error,
+                actions=(GuidanceAction("Fix the JSON object or clear the field before generating."),),
+            )
+        )
+        return raw_value, {}
+    if parsed:
+        st.caption(f"Advanced payload keys: {', '.join(sorted(parsed.keys()))}")
+    return raw_value, parsed
 
 
 def _provider_has(provider: SDProvider, option_group: str) -> bool:
@@ -74,7 +138,7 @@ def _friendly_local_sd_missing_model_message() -> str:
     return (
         "Stable Diffusion local does not have a model available for testing yet. "
         "Fill in **Local model id / path** before running again. "
-        f"Quick suggestion: `{_DEFAULT_LOCAL_SD_MODEL}` or a local folder such as `image/local_models/sdxl`."
+        f"Quick suggestion: `{_DEFAULT_LOCAL_SD_MODEL}` or a local folder such as `image/models/sdxl`."
     )
 
 
@@ -140,7 +204,7 @@ def _model_target_selector(
 
     current_path = str(current_value or "").strip().replace("\\", "/")
     current_name = Path(current_path).name if current_path else ""
-    expected_prefix = f"{branch}/local_models/{provider_id}/"
+    expected_prefix = f"{branch}/models/{provider_id}/"
     legacy_expected_prefix = f"models/{branch}/{provider_id}/"
     current_relative = current_path
     if current_path.startswith(expected_prefix):
@@ -161,7 +225,7 @@ def _model_target_selector(
         selected_value = "(manual)"
 
     selected_value = st.selectbox(
-        f"{label} (scan {branch}/local_models/{provider_id})",
+        f"{label} (scan {branch}/models/{provider_id})",
         options=options,
         index=options.index(selected_value),
         key=selected_key,
@@ -169,7 +233,7 @@ def _model_target_selector(
 
     resolved_selected_path = ""
     if selected_value != "(manual)":
-        resolved_selected_path = f"{branch}/local_models/{provider_id}/{selected_value}".replace("\\", "/")
+        resolved_selected_path = f"{branch}/models/{provider_id}/{selected_value}".replace("\\", "/")
 
     manual_default = resolved_selected_path or current_path
     pending_manual_value = str(st.session_state.get(manual_pending_key) or "").strip()
@@ -501,6 +565,7 @@ def get_image_settings() -> dict[str, Any]:
             local_models = list_local_models("image", __file__)
             st.caption(f"Models dir: {models_dir}")
             st.caption(f"Local models: {', '.join(local_models[:6]) if local_models else '-'}")
+        _, advanced_provider_payload = _render_advanced_payload_json(provider_meta)
 
         st.header(SidebarSection.INPUTS_OUTPUTS)
         handoff_dir = st.text_input("Story handoff directory", value=str(st.session_state.get("image_handoff_dir") or ""))
@@ -533,7 +598,7 @@ def get_image_settings() -> dict[str, Any]:
         local_use_safetensors = bool(st.session_state.get("image_local_use_safetensors", True))
         local_enable_attention_slicing = bool(st.session_state.get("image_local_enable_attention_slicing", True))
         local_enable_model_cpu_offload = bool(st.session_state.get("image_local_enable_model_cpu_offload", False))
-        local_preload_model_on_startup = bool(st.session_state.get("image_local_preload_model_on_startup", True))
+        local_preload_model_on_startup = bool(st.session_state.get("image_local_preload_model_on_startup", False))
         local_disable_safety_checker = bool(st.session_state.get("image_local_disable_safety_checker", False))
         local_auto_shorten_prompt = bool(st.session_state.get("image_local_auto_shorten_prompt", False))
         local_auto_shorten_negative_prompt = bool(st.session_state.get("image_local_auto_shorten_negative_prompt", False))
@@ -565,6 +630,7 @@ def get_image_settings() -> dict[str, Any]:
         local_lora_enabled = bool(st.session_state.get("image_local_lora_enabled", False))
         local_lora_model_id_or_path = str(st.session_state.get("image_local_lora_model_id_or_path") or "")
         local_lora_scale = float(st.session_state.get("image_local_lora_scale") or 1.0)
+        local_num_images_per_prompt = int(st.session_state.get("image_local_num_images_per_prompt") or 1)
         local_model_target_dir = str(provider_target_dir("image", provider_meta.model_scan_provider_id, __file__))
         local_controlnet_target_dir = str(provider_target_dir("image", "controlnet_local", __file__))
         local_lora_target_dir = str(provider_target_dir("image", "lora_local", __file__))
@@ -626,11 +692,11 @@ def get_image_settings() -> dict[str, Any]:
                 provider_id=provider_meta.model_scan_provider_id,
                 current_value=local_model_id_or_path,
                 key_prefix="image_local_model",
-                placeholder="runwayml/stable-diffusion-v1-5 or image/local_models/sdxl",
+                placeholder="runwayml/stable-diffusion-v1-5 or image/models/sdxl",
                 suggested_default=provider_meta.default_model,
                 help_text=(
                     "Enter a Hugging Face model id or a local path to a Stable Diffusion model. "
-                    "Example: runwayml/stable-diffusion-v1-5, stabilityai/sdxl-turbo, or image/local_models/sdxl"
+                    "Example: runwayml/stable-diffusion-v1-5, stabilityai/sdxl-turbo, or image/models/sdxl"
                 ),
                 preferred_suffixes=provider_meta.preferred_model_suffixes,
                 prefer_first_match_as_default=provider_meta.prefer_first_model_as_default,
@@ -647,7 +713,7 @@ def get_image_settings() -> dict[str, Any]:
                         ),
                         actions=(
                             GuidanceAction(f"Use the default model quickly: `{_DEFAULT_LOCAL_SD_MODEL}`."),
-                            GuidanceAction("Or choose a scanned local model under image/local_models/."),
+                            GuidanceAction("Or choose a scanned local model under image/models/."),
                         ),
                     )
                 )
@@ -675,6 +741,15 @@ def get_image_settings() -> dict[str, Any]:
                 value=local_resolve_bundle_assets,
                 help="Prefer resolving images from the prompt bundle/manifest first, and only use manual paths when you need an override.",
             )
+            if provider_meta.uses_diffusers_runtime:
+                local_num_images_per_prompt = st.number_input(
+                    "Images per prompt",
+                    min_value=1,
+                    max_value=8,
+                    value=int(local_num_images_per_prompt),
+                    step=1,
+                    help="Generate multiple output variants for each prompt. Extra images are saved with _batchNN suffixes and shown in result galleries.",
+                )
 
             if _provider_has(provider_meta, "lora"):
                 st.header("LoRA")
@@ -690,7 +765,7 @@ def get_image_settings() -> dict[str, Any]:
                         provider_id="lora_local",
                         current_value=local_lora_model_id_or_path,
                         key_prefix="image_local_lora_model",
-                        placeholder="image/local_models/lora_local/style.safetensors",
+                        placeholder="image/models/lora_local/style.safetensors",
                         help_text="Enter a local LoRA file/folder or a Hugging Face LoRA repo id.",
                         preferred_suffixes=(".safetensors", ".bin", ".pt"),
                         prefer_first_match_as_default=True,
@@ -729,7 +804,7 @@ def get_image_settings() -> dict[str, Any]:
 
             model_path_lower = str(local_model_id_or_path or "").strip().lower()
             is_single_file_model = model_path_lower.endswith((".safetensors", ".ckpt"))
-            resolved_original_config = Path(str(local_original_config_file or "").strip()) if str(local_original_config_file or "").strip() else None
+            resolved_original_config = _resolve_workspace_path(local_original_config_file) if str(local_original_config_file or "").strip() else None
             config_exists = bool(resolved_original_config and resolved_original_config.exists())
             if is_single_file_model and resolved_original_config is not None and not config_exists:
                 render_user_message(
@@ -742,8 +817,8 @@ def get_image_settings() -> dict[str, Any]:
                         ),
                         actions=(
                             GuidanceAction(f"Current path: `{local_original_config_file}`"),
-                            GuidanceAction("`sd15` -> `image/local_models/configs/v1-inference.yaml`"),
-                            GuidanceAction("`sdxl` -> `image/local_models/configs/sdxl-base-inference.yaml`"),
+                            GuidanceAction("`sd15` -> `image/models/configs/v1-inference.yaml`"),
+                            GuidanceAction("`sdxl` -> `image/models/configs/sdxl-base-inference.yaml`"),
                         ),
                     )
                 )
@@ -831,7 +906,7 @@ def get_image_settings() -> dict[str, Any]:
                         provider_id="lora_local",
                         current_value=local_lora_model_id_or_path,
                         key_prefix="image_comfy_lora_model",
-                        placeholder="image/local_models/lora_local/style.safetensors",
+                        placeholder="image/models/lora_local/style.safetensors",
                         help_text="Enter a local LoRA file/folder or the LoRA name used by the workflow.",
                         preferred_suffixes=(".safetensors", ".bin", ".pt"),
                         prefer_first_match_as_default=True,
@@ -845,7 +920,7 @@ def get_image_settings() -> dict[str, Any]:
                     )
                 local_lora_scale = st.slider("LoRA scale", min_value=0.0, max_value=2.0, value=float(local_lora_scale), step=0.05)
 
-            if provider_meta.is_local:
+            if _provider_supports_comfyui_workflow_preview(provider_meta):
                 _render_comfyui_workflow_preview(label="Fallback workflow", workflow_file=workflow_json_file, key_prefix="image_comfy_preview_fallback")
                 if cover_workflow_json_file and cover_workflow_json_file != workflow_json_file:
                     _render_comfyui_workflow_preview(label="Cover workflow", workflow_file=cover_workflow_json_file, key_prefix="image_comfy_preview_cover")
@@ -916,6 +991,7 @@ def get_image_settings() -> dict[str, Any]:
     st.session_state["image_local_lora_enabled"] = bool(local_lora_enabled)
     st.session_state["image_local_lora_model_id_or_path"] = local_lora_model_id_or_path
     st.session_state["image_local_lora_scale"] = float(local_lora_scale)
+    st.session_state["image_local_num_images_per_prompt"] = int(local_num_images_per_prompt)
     st.session_state["image_auto_select_workflow_by_kind"] = auto_select_workflow_by_kind
     st.session_state["image_workflow_json_file"] = workflow_json_file
     st.session_state["image_cover_workflow_json_file"] = cover_workflow_json_file
@@ -961,6 +1037,9 @@ def get_image_settings() -> dict[str, Any]:
         "local_lora_target_dir": local_lora_target_dir,
         "local_lora_scale": float(local_lora_scale),
     }
+    if provider_meta.uses_diffusers_runtime:
+        provider_payload["num_images_per_prompt"] = int(local_num_images_per_prompt)
+    provider_payload.update(advanced_provider_payload)
     return {
         "provider": provider,
         "base_url": base_url,

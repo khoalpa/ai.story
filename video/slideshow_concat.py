@@ -46,9 +46,9 @@ def write_concat_list(
     audio_match_epsilon: float = 0.2,
 ) -> None:
     if duration_per_image <= 0:
-        raise ValueError("--duration-per-image phải > 0")
+        raise ValueError("--duration-per-image must be > 0")
     if not images:
-        raise ValueError("Cần ít nhất 1 ảnh để tạo ffconcat list")
+        raise ValueError("At least 1 image is required to create an ffconcat list")
 
     last_duration = duration_per_image
     if match_audio and audio_duration and audio_duration > 0 and len(images) >= 1:

@@ -236,6 +236,56 @@ def test_prompt_card_scene_prefers_current_versioned_output(tmp_path) -> None:
                 sys.modules[name] = module
 
 
+def test_prompt_card_resolves_batch_outputs_for_entry(tmp_path) -> None:
+    original_modules = {name: sys.modules.get(name) for name in [
+        "streamlit",
+        "common.gui.handoff_utils",
+        "common.gui.state",
+        "common.gui.user_messages",
+        "common.gui.workspace_source_outputs",
+        "image.gui.common_ui",
+        "image.gui.prompt_state",
+        "image.workflow_routing",
+        "image.gui.result_ui",
+    ]}
+    state = SessionState()
+    _install_streamlit(state)
+    try:
+        result_ui = importlib.import_module("image.gui.result_ui")
+        scene_dir = tmp_path / "images"
+        scene_dir.mkdir()
+        primary = scene_dir / "scene_4.png"
+        batch_2 = scene_dir / "scene_4_batch02.png"
+        batch_3 = scene_dir / "scene_4_batch03.png"
+        for path in (primary, batch_2, batch_3):
+            path.write_bytes(path.name.encode("utf-8"))
+        cover_image = scene_dir / "cover_4.png"
+        cover_image.write_bytes(b"cover")
+        result = types.SimpleNamespace(
+            cover_image=cover_image,
+            output_dir=tmp_path,
+            scene_images_dir=scene_dir,
+            generated_files=[cover_image, primary, batch_2, batch_3],
+        )
+        entry = {
+            "kind": "scene",
+            "path": tmp_path / "scene_prompt.json",
+            "rel_path": "scene_prompt.json",
+            "slot": "scene",
+            "prompt_data": {"image_key": "scene"},
+        }
+
+        outputs = result_ui._resolve_result_outputs_for_entry(result, entry)
+
+        assert outputs == [primary, batch_2, batch_3]
+    finally:
+        for name, module in original_modules.items():
+            if module is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
+
+
 def test_prompt_card_scene_shows_actual_path_when_version_differs(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",

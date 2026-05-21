@@ -138,7 +138,7 @@ def _normalize_provider_profile_state() -> tuple[str, str]:
 def _restore_saved_provider_settings() -> str:
     loaded = load_user_llm_settings()
     if not loaded:
-        return f"Chưa có cấu hình đã lưu tại {user_llm_settings_path()}"
+        return f"No saved configuration found at {user_llm_settings_path()}"
     _queue_provider_profile_defaults(
         loaded["llm_provider"],
         loaded["llm_profile"],
@@ -147,14 +147,14 @@ def _restore_saved_provider_settings() -> str:
             "model": loaded["model"],
             "api_key": loaded["api_key"],
         },
-        status_message=f"Đã khôi phục provider/profile từ {user_llm_settings_path()}",
+        status_message=f"Restored provider/profile from {user_llm_settings_path()}",
     )
-    return f"Đang khôi phục provider/profile từ {user_llm_settings_path()}"
+    return f"Restoring provider/profile from {user_llm_settings_path()}"
 
 
 def _persist_current_provider_settings() -> str:
     path = save_user_llm_settings(_capture_current_provider_settings())
-    return f"Đã lưu cấu hình provider/profile vào {path}"
+    return f"Saved provider/profile configuration to {path}"
 
 
 
@@ -173,7 +173,7 @@ def _render_story_local_model_picker(*, provider_id: str, current_model: str) ->
         selected = current_model
     if selected not in options:
         selected = "(manual)"
-    selected = st.selectbox("Local model target", options=options, index=options.index(selected), key=key, help="Quét trực tiếp từ story/local_models/<provider>/. Chọn target local nếu model đã được đặt sẵn trong project.")
+    selected = st.selectbox("Local model target", options=options, index=options.index(selected), key=key, help="Scans story/models/<provider>/ directly. Choose a local target when the model is already placed in the project.")
     st.caption(f"Update target: {target_dir}")
     if local_targets:
         st.caption(f"Scanned local targets: {', '.join(local_targets[:6])}{' …' if len(local_targets) > 6 else ''}")
@@ -190,7 +190,7 @@ def _render_story_provider_actions(*, provider_id: str, profile_id: str, base_ur
         clear_provider_preset_cache()
         local_models = list_local_models("story", __file__)
         models_dir = provider_models_dir("story", __file__)
-        set_action_status(status_key, "success", f"Story: đã refresh provider {provider_label(provider_id)} • models dir={models_dir} • local assets={len(local_models)}")
+        set_action_status(status_key, "success", f"Story: refreshed provider {provider_label(provider_id)} - models dir={models_dir} - local assets={len(local_models)}")
 
     def _test() -> None:
         try:
@@ -209,16 +209,16 @@ def _render_story_provider_actions(*, provider_id: str, profile_id: str, base_ur
             st.session_state.story_llm_test_result = result
             st.session_state.story_llm_test_error = ""
             st.session_state.story_llm_test_cfg_fingerprint = llm_config_fingerprint(cfg)
-            set_action_status(status_key, "success", f"Story: test {provider_label(provider_id)} OK • latency={result.get('latency_ms')} ms")
+            set_action_status(status_key, "success", f"Story: test {provider_label(provider_id)} OK - latency={result.get('latency_ms')} ms")
         except Exception as exc:
             st.session_state.story_llm_test_result = None
             st.session_state.story_llm_test_error = str(exc)
             st.session_state.story_llm_test_cfg_fingerprint = llm_config_fingerprint(cfg)
-            set_action_status(status_key, "error", f"Story: test {provider_label(provider_id)} thất bại ({exc.__class__.__name__}: {exc})")
+            set_action_status(status_key, "error", f"Story: test {provider_label(provider_id)} failed ({exc.__class__.__name__}: {exc})")
 
     def _update() -> None:
         target_dir = provider_target_dir("story", provider_id, __file__)
-        set_action_status(status_key, "success", f"Story: Update target hiện tại = {target_dir}. Với provider remote, hãy đặt model/config local vào đây hoặc cập nhật từ runtime/provider ngoài app. Provider hiện tại: {provider_label(provider_id)} / {profile_id}")
+        set_action_status(status_key, "success", f"Story: Current update target = {target_dir}. For remote providers, place local model/config files here or update them from the external runtime/provider. Current provider: {provider_label(provider_id)} / {profile_id}")
 
     render_provider_action_row([
         ProviderAction("refresh", "Refresh", key=f"story_provider_refresh::{provider_id}", callback=_refresh),
@@ -246,10 +246,10 @@ def render_settings_sidebar() -> SettingsDict:
             story_modes,
             index=default_index,
             format_func=lambda mode_id: f"{story_mode_label(mode_id, project_root=project_root)} ({story_mode_base_mode(mode_id, project_root=project_root)})",
-            help="Preset mode dùng để chọn cặp brief/prompt gợi ý. Base mode là kiểu story cốt lõi mà engine dùng khi generate.",
+            help="Preset mode selects the suggested brief/prompt pair. Base mode is the core story type used by the generation engine.",
         )
         base_mode = story_mode_base_mode(mode, project_root=project_root)
-        st.caption(f"Preset đã chọn: {story_mode_label(mode, project_root=project_root)} • Base mode: {base_mode}")
+        st.caption(f"Selected preset: {story_mode_label(mode, project_root=project_root)} - Base mode: {base_mode}")
 
         st.header(SidebarSection.PROVIDER)
         provider_ids = list_provider_ids()
@@ -258,7 +258,7 @@ def render_settings_sidebar() -> SettingsDict:
             provider_ids,
             key=PROVIDER_KEY,
             format_func=provider_label,
-            help="Chọn provider để app gợi ý base URL, model và API key mặc định phù hợp.",
+            help="Choose a provider so the app can suggest matching base URL, model, and default API key settings.",
             on_change=_on_provider_changed,
         )
         provider = get_provider_preset(provider_id)
@@ -271,14 +271,14 @@ def render_settings_sidebar() -> SettingsDict:
             profile_ids,
             key=PROFILE_KEY,
             format_func=lambda item: model_profile_label(provider_id, item),
-            help="Profile gom các mặc định base URL / model / API key cho từng provider.",
+            help="Profiles group base URL, model, and API key defaults for each provider.",
             on_change=_on_profile_changed,
         )
 
         preset = get_provider_preset(provider_id)
         profile = get_model_profile(provider_id, profile_id)
         st.caption(provider_description(provider_id))
-        st.caption(f"Profile: {profile.label} — {model_profile_description(provider_id, profile_id)}")
+        st.caption(f"Profile: {profile.label} - {model_profile_description(provider_id, profile_id)}")
         st.caption(f"Models dir: {provider_models_dir('story', __file__)}")
         if st.button("Reset theo profile hiện tại", width="stretch"):
             _queue_provider_profile_defaults(provider_id, profile_id)
@@ -301,10 +301,36 @@ def render_settings_sidebar() -> SettingsDict:
             "API key",
             key=API_KEY_KEY,
             type="password",
-            help="LM Studio local thường không cần API key. Provider remote như OpenAI cần API key hợp lệ.",
+            help="Local LM Studio usually does not need an API key. Remote providers such as OpenAI require a valid API key.",
         )
         if preset.requires_api_key and not str(api_key or "").strip():
-            render_user_message(UserMessage(level="warning", title="Thiếu API key", body="Provider này cần API key để chạy request remote.", actions=(GuidanceAction("Điền API key trong sidebar trước khi chạy request remote."), GuidanceAction("Dùng Test hoặc Refresh để kiểm tra lại sau khi cập nhật."))))
+            render_user_message(UserMessage(level="warning", title="Missing API key", body="This provider needs an API key to run remote requests.", actions=(GuidanceAction("Enter an API key in the sidebar before running remote requests."), GuidanceAction("Use Test or Refresh to check again after updating."))))
+
+        with st.expander(SidebarSection.GENERATION, expanded=True):
+            if STORY_SEED_KEY not in st.session_state:
+                st.session_state[STORY_SEED_KEY] = random.randint(1, 2_147_483_647)
+            output_base = st.text_input(
+                "Output base path",
+                value="output/story/story",
+                help="Base path used when saving Story outputs. The GUI writes .txt and .json beside this base path.",
+            )
+            seed_cols = st.columns([2, 1])
+            story_seed = seed_cols[0].number_input("Story seed", min_value=1, max_value=2_147_483_647, value=int(st.session_state.get(STORY_SEED_KEY) or 1), step=1, key=STORY_SEED_KEY)
+            seed_cols[1].button("Random seed", width="stretch", on_click=_randomize_story_seed)
+            timeout_s = st.number_input("Timeout (s)", min_value=10, value=360, step=10)
+            max_tokens = st.number_input("Max tokens", min_value=256, value=32768, step=256)
+            temperature = st.slider("Temperature", min_value=0.0, max_value=1.5, value=0.7, step=0.1)
+            retries = st.slider("Retries", 0, 5, 2)
+            chunk_size = st.slider("Chunk size", 8, 120, 60)
+            chunked = st.checkbox("Chunked generation", value=True)
+            min_lines_override = st.number_input(
+                "Min script lines",
+                min_value=0,
+                value=0,
+                step=10,
+                help="0 uses target_duration_min from the brief. Set a value to override the generated script length target.",
+            )
+            validate_generated_output = st.checkbox("Validate generated output", value=True)
 
         _render_story_provider_actions(
             provider_id=provider_id,
@@ -313,25 +339,11 @@ def render_settings_sidebar() -> SettingsDict:
             model=model,
             story_update_target=local_update_target,
             api_key=api_key,
-            timeout_s=360,
-            max_tokens=256,
-            temperature=0.0,
-            retries=1,
+            timeout_s=int(timeout_s),
+            max_tokens=int(max_tokens),
+            temperature=float(temperature),
+            retries=int(retries),
         )
-
-        with st.expander(SidebarSection.GENERATION, expanded=True):
-            if STORY_SEED_KEY not in st.session_state:
-                st.session_state[STORY_SEED_KEY] = random.randint(1, 2_147_483_647)
-            seed_cols = st.columns([2, 1])
-            story_seed = seed_cols[0].number_input("Story seed", min_value=1, max_value=2_147_483_647, value=int(st.session_state.get(STORY_SEED_KEY) or 1), step=1, key=STORY_SEED_KEY)
-            seed_cols[1].button("Random seed", width="stretch", on_click=_randomize_story_seed)
-            timeout_s = st.number_input("Timeout (s)", min_value=10, value=180, step=10)
-            max_tokens = st.number_input("Max tokens", min_value=256, value=32768, step=256)
-            temperature = st.slider("Temperature", min_value=0.0, max_value=1.5, value=0.7, step=0.1)
-            retries = st.slider("Retries", 0, 5, 2)
-            chunk_size = st.slider("Chunk size", 8, 120, 60)
-            chunked = st.checkbox("Chunked generation", value=True)
-            validate_generated_output = st.checkbox("Validate generated output", value=True)
 
         preview_settings = {
             "base_url": base_url,
@@ -346,12 +358,12 @@ def render_settings_sidebar() -> SettingsDict:
             "retries": int(retries),
         }
         status = current_llm_status(preview_settings)
-        badge = {"ok": "🟢", "error": "🔴", "stale": "🟡", "unknown": "⚪"}.get(status["state"], "⚪")
-        st.caption(f"{badge} {status['label']} — {status['detail']}")
+        badge = {"ok": "[OK]", "error": "[ERROR]", "stale": "[STALE]", "unknown": "[UNKNOWN]"}.get(status["state"], "[UNKNOWN]")
+        st.caption(f"{badge} {status['label']} - {status['detail']}")
         test_before_generate = st.checkbox(
-            "Test LLM trước khi Generate",
+            "Test LLM before Generate",
             key="story_test_before_generate",
-            help="Chạy smoke test ngắn với endpoint hiện tại trước khi gọi pipeline generate.",
+            help="Run a short smoke test against the current endpoint before calling the generation pipeline.",
         )
     return {
         "llm_provider": provider_id,
@@ -363,6 +375,7 @@ def render_settings_sidebar() -> SettingsDict:
         "local_update_target": local_update_target,
         "local_update_target_dir": story_update_target,
         "api_key": api_key,
+        "output_base": output_base,
         "timeout_s": int(timeout_s),
         "max_tokens": int(max_tokens),
         "temperature": float(temperature),
@@ -372,6 +385,7 @@ def render_settings_sidebar() -> SettingsDict:
         "mode_label": story_mode_label(mode, project_root=project_root),
         "chunked": chunked,
         "chunk_size": int(chunk_size),
+        "min_lines": int(min_lines_override),
         "retries": int(retries),
         "validate_generated_output": validate_generated_output,
         "test_before_generate": bool(test_before_generate),

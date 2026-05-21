@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import zipfile
+import shutil
 from io import BytesIO
 from pathlib import Path
 
@@ -37,6 +38,26 @@ def test_image_prompt_job_attaches_prompts_and_handoff(monkeypatch, tmp_path: Pa
     assert result["image_prompts"] == prompts
     assert result["image_handoff_dir"] == str(tmp_path / "bundle")
     assert result["video_handoff_dir"] == str(tmp_path / "bundle")
+
+
+def test_story_handoff_bundle_output_is_project_root_relative(monkeypatch) -> None:
+    from story.gui.video_handoff import materialize_story_handoff_bundle
+    from story.paths import PROJECT_ROOT
+
+    monkeypatch.chdir(PROJECT_ROOT / "studio")
+
+    bundle_dir = PROJECT_ROOT / "output" / "story" / "video_handoff" / "root-output-story"
+    shutil.rmtree(bundle_dir, ignore_errors=True)
+    try:
+        actual_dir = materialize_story_handoff_bundle(
+            authoring={"meta": {"title": "Root Output Story"}},
+            image_prompts={"cover": {"prompt": "cover"}, "scene": {"prompt": "scene"}},
+        )
+
+        assert actual_dir == bundle_dir
+        assert not str(actual_dir).startswith(str(PROJECT_ROOT / "studio" / "output"))
+    finally:
+        shutil.rmtree(bundle_dir, ignore_errors=True)
 
 
 def test_story_image_prompts_use_canonical_outline_and_standard_payload() -> None:

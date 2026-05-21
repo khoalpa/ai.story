@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 
@@ -46,13 +47,22 @@ def test_no_cache_or_runtime_artifacts_in_repo() -> None:
     banned_dirs = {"__pycache__", ".pytest_cache"}
     banned_files = {"jobs.json"}
 
-    for base in [*SCANNED_DIRS, *SCANNED_FILES]:
-        if not base.exists():
-            continue
-        paths = [base] if base.is_file() else base.rglob("*")
-        for path in paths:
-            if any(part in banned_dirs for part in path.parts):
-                raise AssertionError(f"Unexpected cache directory artifact: {path}")
-            if path.name in banned_files and ".render_audio_gui" in path.parts:
-                raise AssertionError(f"Unexpected runtime artifact: {path}")
+    result = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=False,
+    )
+    tracked_paths = [
+        ROOT / rel_path.decode("utf-8")
+        for rel_path in result.stdout.split(b"\0")
+        if rel_path
+    ]
+
+    for path in tracked_paths:
+        if any(part in banned_dirs for part in path.parts):
+            raise AssertionError(f"Unexpected tracked cache artifact: {path}")
+        if path.name in banned_files and ".render_audio_gui" in path.parts:
+            raise AssertionError(f"Unexpected tracked runtime artifact: {path}")
 

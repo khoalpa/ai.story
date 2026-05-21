@@ -60,7 +60,15 @@ from image.gui.inpaint_utils import (
     _undo_canvas,
     _render_detector_preview,
 )
-from image.gui.prompt_state import _collect_prompt_override_payload, _ensure_prompt_edit_state, _get_effective_prompt_edit, _reset_prompt_edit_state, _store_prompt_edit_state
+from image.gui.prompt_state import (
+    _collect_prompt_override_payload,
+    _ensure_prompt_edit_state,
+    _format_provider_payload_json,
+    _get_effective_prompt_edit,
+    _parse_provider_payload_json,
+    _reset_prompt_edit_state,
+    _store_prompt_edit_state,
+)
 from image.gui.prompt_ui import _render_clip_token_estimate, _render_image_focus_hint, _render_prompt_autoshorten_status, _render_prompt_autoshorten_toggle, _render_prompt_trim_preview_block, _render_prompt_trim_status, _render_quick_input_previews
 from image.gui.result_ui import _build_existing_run_preview_result, _list_image_files, _render_prompt_cards_in_run, _render_result_preview_panel
 from image.gui.service import iter_prompt_files, run_image_job
@@ -70,7 +78,15 @@ from image.provider_runtime import (
     build_debug_preview_sheet,
     overlay_mask_preview,
 )
+from image.runtime import package_root
 from image.workflow_routing import infer_prompt_kind
+
+
+def _resolve_workspace_path(path_value: str) -> Path:
+    path = Path(str(path_value or "").strip()).expanduser()
+    if path.is_absolute():
+        return path
+    return (package_root(__file__).parent / path).resolve()
 
 
 def _prefill_from_story_handoff() -> None:
@@ -87,12 +103,12 @@ def _resolve_prompt_dir(settings: dict[str, Any]) -> Path | None:
         base_dir = str(settings.get("input_dir") or st.session_state.get("image_input_dir") or "").strip()
     if not base_dir:
         return None
-    return Path(base_dir)
+    return _resolve_workspace_path(base_dir)
 def _resolve_input_prompt_dir(settings: dict[str, Any]) -> Path | None:
     base_dir = str(settings.get("input_dir") or st.session_state.get("image_input_dir") or "").strip()
     if not base_dir:
         return None
-    return Path(base_dir)
+    return _resolve_workspace_path(base_dir)
 def _load_prompt_entries(prompt_dir: Path | None) -> list[dict[str, Any]]:
     if prompt_dir is None or not prompt_dir.is_dir():
         return []
@@ -144,41 +160,13 @@ def _resolve_test_prompt_bundle(settings: dict[str, Any]) -> tuple[Path | None, 
     if manifest_path.is_file():
         issues.append(
             "Prompt directory exists but no valid prompt file was found. "
-            "Expected cover_prompt.json, scene_prompt.json, or scene_prompts/*.json."
+            "Expected cover_prompt.json, scene_prompt.json, *_prompt.json, or scene_prompts/*.json."
         )
     else:
         issues.append(
             "Prompt directory exists but does not contain a valid prompt bundle, and manifest.json was not found either."
         )
     return prompt_dir, [], issues
-def _prompt_bundle_key(prompt_dir: Path | None) -> str:
-    return str(prompt_dir or "").strip()
-
-
-def _ensure_prompt_edit_state(entries: list[dict[str, Any]], prompt_dir: Path | None = None) -> dict[str, dict[str, Any]]:
-    bundle_key = _prompt_bundle_key(prompt_dir)
-    if bundle_key:
-        previous_bundle_key = str(st.session_state.get("image_prompt_edit_bundle_key") or "")
-        if previous_bundle_key and previous_bundle_key != bundle_key:
-            st.session_state["image_prompt_edit_map"] = {}
-            st.session_state["image_prompt_overrides"] = {}
-        st.session_state["image_prompt_edit_bundle_key"] = bundle_key
-
-    current = dict(st.session_state.get("image_prompt_edit_map") or {})
-    changed = False
-    for entry in entries:
-        rel_path = entry["rel_path"]
-        if rel_path in current and isinstance(current[rel_path], dict):
-            continue
-        prompt_data = dict(entry.get("prompt_data") or {})
-        current[rel_path] = {
-            "prompt": str(prompt_data.get("prompt") or ""),
-            "negative_prompt": str(prompt_data.get("negative_prompt") or ""),
-        }
-        changed = True
-    if changed:
-        st.session_state["image_prompt_edit_map"] = current
-    return current
 def render_inpaint_tab(settings: dict[str, Any]) -> None:
     ensure_session_defaults()
     _prefill_from_story_handoff()
@@ -634,7 +622,7 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
         )
     entries = _load_prompt_entries(prompt_dir)
     if not entries:
-        show_empty_result("prompt bundle", actions=["Check the source folder or Story handoff again.", "Make sure cover_prompt.json or scene_prompts/*.json already exists."])
+        show_empty_result("prompt bundle", actions=["Check the source folder or Story handoff again.", "Make sure cover_prompt.json, *_prompt.json, or scene_prompts/*.json already exists."])
         return
     _ensure_prompt_edit_state(entries, prompt_dir)
     st.caption(f"The current bundle contains {len(entries)} prompt(s). Use the Prompt tab to inspect or edit before rendering.")
@@ -654,7 +642,7 @@ def render_prompt_tab(settings: dict[str, Any]) -> None:
             "prompt bundle",
             actions=[
                 "Check the prompt source and prompt directory in the sidebar again.",
-                "Create cover_prompt.json or scene_prompts/*.json before editing.",
+                "Create cover_prompt.json, *_prompt.json, or scene_prompts/*.json before editing.",
             ],
         )
         return
@@ -688,6 +676,7 @@ def render_prompt_tab(settings: dict[str, Any]) -> None:
             kwargs={
                 "prompt": str(prompt_data.get("prompt") or ""),
                 "negative_prompt": str(prompt_data.get("negative_prompt") or ""),
+                "provider_payload_json": _format_provider_payload_json(prompt_data.get("provider_payload")),
             },
         )
         st.button(
@@ -698,6 +687,7 @@ def render_prompt_tab(settings: dict[str, Any]) -> None:
                     entry["rel_path"],
                     prompt=str((entry.get("prompt_data") or {}).get("prompt") or ""),
                     negative_prompt=str((entry.get("prompt_data") or {}).get("negative_prompt") or ""),
+                    provider_payload_json=_format_provider_payload_json((entry.get("prompt_data") or {}).get("provider_payload")),
                 )
                 for entry in entries
             ],
@@ -737,10 +727,27 @@ def render_prompt_tab(settings: dict[str, Any]) -> None:
         prompt_enabled=prompt_auto_shorten_enabled,
         negative_enabled=negative_auto_shorten_enabled,
     )
+    provider_payload_json_value = str(effective.get("provider_payload_json") or "")
+    with st.expander("Advanced provider payload override", expanded=bool(provider_payload_json_value)):
+        provider_payload_json_value = st.text_area(
+            "Provider payload JSON",
+            value=provider_payload_json_value,
+            height=150,
+            key=f"image_provider_payload_text::{selected_rel_path}",
+            help="Optional JSON object merged into this prompt's provider_payload during generation.",
+        )
+        provider_payload_preview, provider_payload_error = _parse_provider_payload_json(provider_payload_json_value)
+        if provider_payload_error:
+            _ui_error(provider_payload_error)
+        elif provider_payload_preview:
+            st.caption(f"Provider payload override keys: {', '.join(sorted(provider_payload_preview.keys()))}")
+        else:
+            st.caption("No provider payload override for this prompt.")
     _store_prompt_edit_state(
         selected_rel_path,
         prompt=prompt_value,
         negative_prompt=negative_value,
+        provider_payload_json=provider_payload_json_value,
     )
     with st.expander("Original prompt JSON", expanded=False):
         st.json(prompt_data)
@@ -783,7 +790,7 @@ def render_run_tab(settings: dict[str, Any]) -> None:
         request = RenderImageRequest(
             provider=str(settings.get("provider") or ""),
             handoff_dir=prompt_dir,
-            output_dir=Path(output_dir_raw),
+            output_dir=_resolve_workspace_path(output_dir_raw),
             base_url=str(settings.get("base_url") or ""),
             api_key=str(settings.get("api_key") or ""),
             workflow_json_file=str(settings.get("workflow_json_file") or ""),

@@ -4,7 +4,7 @@ import re
 from typing import Any
 
 _SCRIPT_ITEM_RE = re.compile(
-    r"script\[(?P<index>\d+)\]\.text phải chứa đúng 1 câu(?:\.\s*text=(?P<preview>.*))?",
+    r"script\[(?P<index>\d+)\]\.text must contain exactly 1 sentence(?:\.\s*text=(?P<preview>.*))?",
     re.IGNORECASE,
 )
 
@@ -24,7 +24,7 @@ class StoryLLMOutputError(ValueError):
 
 def split_runtime_error_details(message: str) -> tuple[str, str]:
     text = str(message or "").strip()
-    marker = "Chi tiết kỹ thuật:"
+    marker = "Technical details:"
     if marker not in text:
         return text, ""
     friendly, technical = text.split(marker, 1)
@@ -90,22 +90,22 @@ def format_runtime_error(exc: Exception) -> str:
     lower = text.lower()
 
     if "message content must be a non-empty string" in lower or "response was empty" in lower:
-        return f"Model không trả nội dung trong message response. Hãy thử chạy lại, kiểm tra model local có đang sinh output, hoặc tăng nhẹ Max tokens nếu cần. Chi tiết kỹ thuật: {text}"
+        return f"Model không trả nội dung trong message response. Hãy thử chạy lại, kiểm tra model local có đang sinh output, hoặc tăng nhẹ Max tokens nếu cần. Technical details: {text}"
     if "outline response is not valid json" in lower:
-        return f"Model trả về outline chưa đúng định dạng JSON. App đã yêu cầu JSON ngắn hơn; hãy thử chạy lại, hoặc tăng Max tokens lên 2048-3072 nếu model vẫn bị cắt output. Chi tiết kỹ thuật: {text}"
+        return f"Model trả về outline chưa đúng định dạng JSON. Ứng dụng đã yêu cầu JSON ngắn hơn; hãy thử chạy lại, hoặc tăng Max tokens lên 2048-3072 nếu output vẫn bị cắt cụt. Technical details: {text}"
     if "yaml" in lower or "mapping values are not allowed" in lower or "scannererror" in lower or "parsererror" in lower:
-        return f"Brief YAML chưa hợp lệ. Hãy kiểm tra lại thụt dòng, dấu ':' và cấu trúc danh sách. Chi tiết kỹ thuật: {text}"
+        return f"The brief YAML is not valid. Check indentation, ':' characters, and list structure. Technical details: {text}"
     if "timeout" in lower or "timed out" in lower:
-        return f"Hết thời gian chờ khi gọi model/endpoint. Hãy tăng Timeout hoặc kiểm tra máy chủ LLM. Chi tiết kỹ thuật: {text}"
+        return f"The model/endpoint request timed out. Increase Timeout or check the LLM server. Technical details: {text}"
     if "connection refused" in lower or "failed to establish a new connection" in lower or "name or service not known" in lower:
-        return f"Không kết nối được tới LLM base URL. Hãy kiểm tra địa chỉ máy chủ, cổng và tình trạng service. Chi tiết kỹ thuật: {text}"
+        return f"Could not connect to the LLM base URL. Check the host address, port, and service status. Technical details: {text}"
     if "could not extract json array" in lower:
-        return f"Model có phản hồi nhưng phần chunk không ra JSON array đúng schema. Hãy bật chunked nếu đang tắt, hoặc nếu đã bật thì giảm chunk size và thử lại. Chi tiết kỹ thuật: {text}"
+        return f"The model responded, but the chunk did not contain a JSON array matching the schema. Enable chunked generation if it is off, or reduce chunk size and try again if it is already on. Technical details: {text}"
     if "expecting" in lower or "json" in lower:
-        return f"Model trả về dữ liệu không đúng định dạng JSON mong đợi. Hãy thử prompt chặt hơn hoặc bật chế độ chunked. Chi tiết kỹ thuật: {text}"
-    if "không tạo được item hợp lệ" in lower:
-        return f"Model có phản hồi nhưng không tạo được script item hợp lệ cho một zone. Hãy giảm chunk size hoặc thử lại với mode khác. Chi tiết kỹ thuật: {text}"
-    return f"Đã xảy ra lỗi khi chạy pipeline. Chi tiết kỹ thuật: {text}"
+        return f"The model returned data that is not in the expected JSON format. Try a stricter prompt or enable chunked mode. Technical details: {text}"
+    if "khong tao duoc item hop le" in lower or "could not create a valid item" in lower:
+        return f"The model responded but could not create a valid script item for one zone. Reduce chunk size or try another mode. Technical details: {text}"
+    return f"An error occurred while running the pipeline. Technical details: {text}"
 
 
 def summarize_settings_for_logs(settings: dict[str, Any]) -> dict[str, Any]:

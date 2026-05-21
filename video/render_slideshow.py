@@ -69,7 +69,7 @@ def make_slideshow_video(
         raw_images = collect_scene_images(scenes_dir)
         if images != raw_images:
             logger.info(
-                "Slideshow zone-mode: đã map ảnh theo opening/zone/outro trước khi render."
+                "Slideshow zone mode: mapped images by opening/zone/outro before rendering."
             )
 
     vf_filter = build_vf_filter(aspect, subtitle)
@@ -77,8 +77,8 @@ def make_slideshow_video(
     ffprobe_available = is_available_tool(ffprobe_exe)
     if config.SLIDESHOW_MATCH_AUDIO and not ffprobe_available:
         logger.warning(
-            "SLIDESHOW_MATCH_AUDIO=1 nhưng không tìm thấy ffprobe; sẽ không thể match audio duration. "
-            "(Có thể cài ffprobe hoặc tắt SLIDESHOW_MATCH_AUDIO=0)"
+            "SLIDESHOW_MATCH_AUDIO=1 but ffprobe was not found; audio duration cannot be matched. "
+            "(Install ffprobe or disable this with SLIDESHOW_MATCH_AUDIO=0.)"
         )
 
     audio_dur = get_media_duration_seconds(audio)
@@ -113,7 +113,7 @@ def make_slideshow_video(
     finally:
         if tmp_list_path is not None:
             if config.KEEP_CONCAT_LIST:
-                logger.info("KEEP_CONCAT_LIST=1 -> giữ concat list: %s", tmp_list_path)
+                logger.info("KEEP_CONCAT_LIST=1 -> keeping concat list: %s", tmp_list_path)
             else:
                 try:
                     tmp_list_path.unlink(missing_ok=True)

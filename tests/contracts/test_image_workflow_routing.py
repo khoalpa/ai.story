@@ -44,3 +44,20 @@ def test_comfyui_remote_falls_back_when_output_node_id_missing() -> None:
 
     assert selected == ("3", {"filename": "preview.png"})
 
+
+def test_comfyui_inpaint_workflow_maps_load_image_to_inpaint_source() -> None:
+    from image.provider_runtime import parse_comfyui_workflow
+
+    parsed = parse_comfyui_workflow(
+        {
+            "1": {"class_type": "LoadImage", "inputs": {"image": "source.png"}},
+            "2": {"class_type": "LoadImageMask", "inputs": {"image": "mask.png"}},
+            "3": {"class_type": "InpaintModelConditioning", "inputs": {}},
+        }
+    )
+
+    assert parsed["detected_mode"] == "inpaint"
+    assert parsed["provider_payload"]["local_init_image"] == "source.png"
+    assert parsed["provider_payload"]["local_inpaint_image"] == "source.png"
+    assert parsed["provider_payload"]["local_inpaint_mask"] == "mask.png"
+

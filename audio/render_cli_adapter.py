@@ -20,102 +20,103 @@ from audio.services.render_runtime import (
     DEFAULT_VOICE_MALE,
     DEFAULT_VOICE_NARRATOR,
 )
-from audio.paths import ASSETS_ROOT
+from audio.paths import ASSETS_ROOT, DEFAULT_BGM_DIR
 from audio.tts_provider import get_tts_provider_choices, DEFAULT_TTS_PROVIDER
 
 DEFAULT_ABBR_MAP_FILE = str(ASSETS_ROOT / "abbreviation_map.json")
+DEFAULT_BGM_DIR_STR = str(DEFAULT_BGM_DIR)
 
 
 def build_render_audio_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Render audio từ renderer plain script bằng edge-tts + BGM runtime. Mặc định xuất WAV master.",
+        description="Render audio from a renderer plain script with edge-tts + BGM runtime. Defaults to a WAV master.",
     )
     parser.add_argument("-i", "--input", type=str, default=None, help="File renderer plain script .txt")
-    parser.add_argument("-o", "--output", type=str, default=None, help="Thư mục output audio/subtitle")
+    parser.add_argument("-o", "--output", type=str, default=None, help="Audio/subtitle output directory")
     parser.add_argument(
         "--batch-manifest",
         type=str,
         default=None,
-        help="Chạy batch jobs từ manifest JSON/YAML thay vì render 1 file đơn lẻ.",
+        help="Run batch jobs from a JSON/YAML manifest instead of rendering one file.",
     )
     parser.add_argument(
         "--continue-on-batch-error",
         action="store_true",
-        help="Ở batch mode, tiếp tục chạy các job còn lại nếu một job lỗi.",
+        help="In batch mode, continue running remaining jobs if one job fails.",
     )
     parser.add_argument(
         "--asset-profile",
         type=str,
         default=None,
         help=(
-            "Tên asset profile runtime, ví dụ: calm hoặc trend. "
-            "Audio renderer sẽ resolve manifest.json để lấy bgm_config/bgm dir/voice mặc định nếu có."
+            "Runtime asset profile name, for example: calm or trend. "
+            "The audio renderer resolves manifest.json to read bgm_config/BGM dir/default voices when available."
         ),
     )
     parser.add_argument(
         "--profile-root",
         type=str,
         default=DEFAULT_PROFILE_ROOT,
-        help=f"Thư mục gốc chứa asset profiles (mặc định: {DEFAULT_PROFILE_ROOT})",
+        help=f"Root directory containing asset profiles (default: {DEFAULT_PROFILE_ROOT})",
     )
-    parser.add_argument("--bgm", type=str, default=None, help="BGM fallback mặc định cho toàn audio (tên file trong bgm dir)")
-    parser.add_argument("--bgmdir", type=str, default="audio/bgm", help="Thư mục chứa file BGM khi không resolve từ asset profile")
-    parser.add_argument("--voice-narrator", type=str, default=DEFAULT_VOICE_NARRATOR, help="Giọng narrator (MC)")
-    parser.add_argument("--voice-female", type=str, default=DEFAULT_VOICE_FEMALE, help="Giọng nữ")
-    parser.add_argument("--voice-male", type=str, default=DEFAULT_VOICE_MALE, help="Giọng nam")
+    parser.add_argument("--bgm", type=str, default=None, help="Default BGM fallback for the full audio (file name inside the BGM directory)")
+    parser.add_argument("--bgmdir", type=str, default=DEFAULT_BGM_DIR_STR, help="Directory containing BGM files when not resolved from an asset profile")
+    parser.add_argument("--voice-narrator", type=str, default=DEFAULT_VOICE_NARRATOR, help="Narrator voice")
+    parser.add_argument("--voice-female", type=str, default=DEFAULT_VOICE_FEMALE, help="Female voice")
+    parser.add_argument("--voice-male", type=str, default=DEFAULT_VOICE_MALE, help="Male voice")
     parser.add_argument(
         "--voice-en-narrator",
         type=str,
         default=DEFAULT_EN_VOICE_NARRATOR,
-        help="Giọng English cho narrator (khi dùng tag [EN])",
+        help="English narrator voice (when using the [EN] tag)",
     )
     parser.add_argument(
         "--voice-en-female",
         type=str,
         default=DEFAULT_EN_VOICE_FEMALE,
-        help="Giọng English cho female (khi dùng tag [EN])",
+        help="English female voice (when using the [EN] tag)",
     )
     parser.add_argument(
         "--voice-en-male",
         type=str,
         default=DEFAULT_EN_VOICE_MALE,
-        help="Giọng English cho male (khi dùng tag [EN])",
+        help="English male voice (when using the [EN] tag)",
     )
     parser.add_argument(
         "--abbr-map",
         type=str,
         default=DEFAULT_ABBR_MAP_FILE,
-        help="File JSON mapping viết tắt tiếng Anh → text đọc (mặc định: abbreviation_map.json)",
+        help="JSON file mapping English abbreviations to spoken text (default: abbreviation_map.json)",
     )
     parser.add_argument(
         "--bgm-config",
         type=str,
         default=None,
         help=(
-            "File config BGM (JSON hoặc YAML) cho env_bgm_map + auto BGM theo zone. "
-            "Mặc định CLI không ép dùng file local nào; ưu tiên resolve từ asset profile nếu có. "
-            "Chuẩn âm lượng dùng gain_db (dB) qua config hoặc tag [BGM_DB=...]."
+            "BGM config file (JSON or YAML) for env_bgm_map + automatic zone BGM. "
+            "By default, the CLI does not force a local file; it prefers asset profile resolution when available. "
+            "Volume uses gain_db (dB) through config or the [BGM_DB=...] tag."
         ),
     )
     parser.add_argument(
         "--sentiment-tone",
         action="store_true",
-        help="Bật tinh chỉnh nhẹ tốc độ/emo theo cảm xúc câu thoại.",
+        help="Enable light speed/emotion tuning based on dialogue sentiment.",
     )
     parser.add_argument(
         "--validate-only",
         action="store_true",
-        help="Chỉ validate renderer plain script rồi thoát, không render audio.",
+        help="Validate the renderer plain script and exit without rendering audio.",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Không render audio; chỉ parse renderer plain script và lưu segments debug JSON.",
+        help="Do not render audio; only parse the renderer plain script and save debug segments JSON.",
     )
     parser.add_argument(
         "--auto-en-lines",
         action="store_true",
-        help="Tự nhận diện line tiếng Anh (nếu chưa có tag [EN]) để dùng voice_map_en.",
+        help="Automatically detect English lines (when they do not have [EN]) and use voice_map_en.",
     )
     parser.add_argument(
         "--post-fx-preset",
@@ -123,8 +124,8 @@ def build_render_audio_arg_parser() -> argparse.ArgumentParser:
         choices=[POST_FX_PRESET_NONE, POST_FX_PRESET_STORYTELLING_VI],
         default=POST_FX_PRESET_NONE,
         help=(
-            "Preset hậu kỳ chạy sau khi đã mix toàn bộ audio. "
-            "storytelling_vi áp chuỗi xử lý nhẹ: noise reduction, EQ, compressor, de-esser, reverb, normalize."
+            "Post-processing preset applied after the full audio mix. "
+            "storytelling_vi applies a light chain: noise reduction, EQ, compressor, de-esser, reverb, normalize."
         ),
     )
     parser.add_argument(
@@ -132,20 +133,20 @@ def build_render_audio_arg_parser() -> argparse.ArgumentParser:
         type=str,
         choices=get_tts_provider_choices(),
         default=DEFAULT_TTS_PROVIDER,
-        help="Chọn engine TTS: edge = cloud Edge TTS; vieneu = VieNeu TTS core (headless/local hoặc remote API).",
+        help="Choose TTS engine: edge = cloud Edge TTS; vieneu = VieNeu TTS core (headless/local or remote API).",
     )
     parser.add_argument(
         "--max-concurrent-tts",
         type=int,
         default=8,
-        help="Số request edge-tts chạy song song tối đa (mặc định: 8).",
+        help="Maximum number of parallel edge-tts requests (default: 8).",
     )
     parser.add_argument(
         "--audio-format",
         type=str,
         choices=["wav", "mp3"],
         default="wav",
-        help="Định dạng audio đầu ra. Mặc định wav để lưu master; chọn mp3 để giữ workflow phát hành cũ.",
+        help="Output audio format. Defaults to wav for the master; choose mp3 to keep the older publishing workflow.",
     )
     return parser
 

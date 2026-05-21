@@ -57,10 +57,14 @@ IMAGE_PROMPT_DEFAULTS: dict[str, object] = {
     IMAGE_LAST_PREVIEW_SHEET_KEY: "",
     "image_local_auto_shorten_prompt": True,
     "image_local_auto_shorten_negative_prompt": True,
+    "image_local_preload_model_on_startup": False,
     "image_local_adetailer_enabled": True,
     "image_local_lora_enabled": False,
     "image_local_lora_model_id_or_path": "",
     "image_local_lora_scale": 1.0,
+    "image_local_num_images_per_prompt": 1,
+    "image_advanced_payload_json": "",
+    "image_advanced_payload_json_error": "",
 }
 
 IMAGE_INPAINT_DEFAULTS: dict[str, object] = {

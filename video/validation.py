@@ -32,13 +32,13 @@ def autodetect_subtitle_from_audio(audio: Path | None):
 
 def validate_static_inputs(audio: Path | None, cover: Path | None) -> None:
     if audio is None:
-        raise ValueError("Audio file không được để trống.")
+        raise ValueError("Audio file cannot be empty.")
     if cover is None:
-        raise ValueError("Mode static cần cover image hoặc asset profile có default_cover.")
+        raise ValueError("Static mode needs a cover image or an asset profile with default_cover.")
     if not cover.is_file():
-        raise FileNotFoundError(f"Không tìm thấy cover image: {cover}")
+        raise FileNotFoundError(f"Cover image not found: {cover}")
     if not audio.is_file():
-        raise FileNotFoundError(f"Không tìm thấy audio: {audio}")
+        raise FileNotFoundError(f"Audio not found: {audio}")
 
 
 def _normalize_scene_stem(value: str) -> str:
@@ -97,15 +97,15 @@ def build_zone_slideshow_images(images: list[Path]) -> list[Path]:
 
 def validate_slideshow_inputs(audio: Path | None, scenes_dir: Path | None) -> list[Path]:
     if audio is None:
-        raise ValueError("Audio file không được để trống.")
+        raise ValueError("Audio file cannot be empty.")
     if scenes_dir is None:
-        raise ValueError("Mode slideshow yêu cầu tham số --scenes-dir (thư mục chứa ảnh).")
+        raise ValueError("Slideshow mode requires --scenes-dir (the image directory).")
     if not scenes_dir.is_dir():
-        raise FileNotFoundError(f"Không tìm thấy scenes dir: {scenes_dir}")
+        raise FileNotFoundError(f"Scenes directory not found: {scenes_dir}")
     if not audio.is_file():
-        raise FileNotFoundError(f"Không tìm thấy audio: {audio}")
+        raise FileNotFoundError(f"Audio not found: {audio}")
 
     images = collect_scene_images(scenes_dir)
     if not images:
-        raise ValueError(f"Không tìm thấy ảnh .jpg/.png trong: {scenes_dir}")
+        raise ValueError(f"No .jpg/.png images found in: {scenes_dir}")
     return build_zone_slideshow_images(images)

@@ -101,6 +101,88 @@ def test_image_test_tab_reports_missing_input_directory_clearly(tmp_path: Path) 
         _restore_modules(original_modules)
 
 
+def test_image_test_tab_resolves_relative_input_from_project_root(monkeypatch, tmp_path: Path) -> None:
+    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
+    state = SessionState(
+        {
+            "image_source_kind": "input",
+            "image_input_dir": "input",
+        }
+    )
+    monkeypatch.chdir(tmp_path)
+    _install_streamlit(state)
+    try:
+        tabs = importlib.import_module("image.gui.tabs")
+
+        prompt_dir, entries, issues = tabs._resolve_test_prompt_bundle({"handoff_dir": "", "input_dir": "input"})
+
+        assert prompt_dir is not None
+        assert prompt_dir.name == "input"
+        assert issues == []
+        assert "cover_prompt.json" in [entry["rel_path"] for entry in entries]
+    finally:
+        _restore_modules(original_modules)
+
+
+def test_image_test_tab_loads_root_input_prompts_like_handoff(tmp_path: Path) -> None:
+    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
+    prompt_dir = tmp_path / "input_prompts"
+    prompt_dir.mkdir()
+    for name in [
+        "cover_prompt.json",
+        "scene_prompt.json",
+        "intro_prompt.json",
+        "greeting_prompt.json",
+        "opening_prompt.json",
+        "introduction_prompt.json",
+        "development_prompt.json",
+        "climax_prompt.json",
+        "falling_prompt.json",
+        "ending_prompt.json",
+        "farewell_prompt.json",
+        "outro_prompt.json",
+    ]:
+        (prompt_dir / name).write_text(
+            json.dumps({"prompt": f"{name} prompt"}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    (prompt_dir / "story.json").write_text(json.dumps({"ignored": True}), encoding="utf-8")
+
+    state = SessionState(
+        {
+            "image_source_kind": "input",
+            "image_input_dir": str(prompt_dir),
+        }
+    )
+    _install_streamlit(state)
+    try:
+        tabs = importlib.import_module("image.gui.tabs")
+
+        resolved_dir, entries, issues = tabs._resolve_test_prompt_bundle(
+            {"handoff_dir": "", "input_dir": str(prompt_dir)}
+        )
+
+        assert resolved_dir == prompt_dir
+        assert issues == []
+        assert [entry["rel_path"] for entry in entries] == [
+            "cover_prompt.json",
+            "scene_prompt.json",
+            "intro_prompt.json",
+            "greeting_prompt.json",
+            "opening_prompt.json",
+            "introduction_prompt.json",
+            "development_prompt.json",
+            "climax_prompt.json",
+            "falling_prompt.json",
+            "ending_prompt.json",
+            "farewell_prompt.json",
+            "outro_prompt.json",
+        ]
+        assert len(entries) == 12
+    finally:
+        _restore_modules(original_modules)
+
+
 def test_image_test_tab_falls_back_to_input_when_handoff_is_missing(tmp_path: Path) -> None:
     original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
     prompt_dir = tmp_path / "input_prompts"
@@ -184,7 +266,7 @@ def test_image_test_tab_reports_invalid_prompt_bundle_structure(tmp_path: Path) 
         assert resolved_dir == prompt_dir
         assert entries == []
         assert issues == [
-            "Prompt directory exists but no valid prompt file was found. Expected cover_prompt.json, scene_prompt.json, or scene_prompts/*.json."
+            "Prompt directory exists but no valid prompt file was found. Expected cover_prompt.json, scene_prompt.json, *_prompt.json, or scene_prompts/*.json."
         ]
     finally:
         _restore_modules(original_modules)

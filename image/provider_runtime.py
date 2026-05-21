@@ -13,6 +13,7 @@ from typing import Any, Callable
 import requests
 from PIL import Image, ImageColor, ImageDraw, ImageOps
 
+from image.runtime import package_root
 from image.workflow_routing import resolve_workflow_file
 from common.model_store import (
     configure_hf_runtime,
@@ -356,7 +357,10 @@ def parse_comfyui_workflow(workflow: dict[str, Any], *, workflow_path: Path | No
     if summary["controlnet_models"]:
         provider_payload["local_controlnet_model_id_or_path"] = str(summary["controlnet_models"][0].get("name") or "")
     if summary["image_inputs"]:
-        provider_payload.setdefault("local_init_image", str(summary["image_inputs"][0].get("name") or ""))
+        first_image_input = str(summary["image_inputs"][0].get("name") or "")
+        provider_payload.setdefault("local_init_image", first_image_input)
+        if summary["detected_mode"] == "inpaint":
+            provider_payload.setdefault("local_inpaint_image", first_image_input)
     if summary["mask_inputs"]:
         provider_payload.setdefault("local_inpaint_mask", str(summary["mask_inputs"][0].get("name") or ""))
     summary["provider_payload"] = provider_payload
@@ -530,9 +534,13 @@ def _render_via_a1111(
     if not images:
         raise RuntimeError("A1111-compatible API khÃƒÂ´ng trÃ¡ÂºÂ£ vÃ¡Â»Â Ã¡ÂºÂ£nh nÃƒÂ o.")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_bytes(base64.b64decode(images[0]))
-    _emit_progress(progress_callback, 1.0, f"Saved {output_path.name}")
-    return [f"A1111 txt2img -> {output_path}"]
+    saved_paths: list[Path] = []
+    for index, encoded_image in enumerate(images, start=1):
+        target = output_path if index == 1 else output_path.with_name(f"{output_path.stem}_batch{index:02d}{output_path.suffix}")
+        target.write_bytes(base64.b64decode(encoded_image))
+        saved_paths.append(target)
+    _emit_progress(progress_callback, 1.0, f"Saved {len(saved_paths)} image(s) for {output_path.name}")
+    return [f"A1111 txt2img -> {path}" for path in saved_paths]
 
 
 # ---------- Local diffusers runtime ----------
@@ -613,6 +621,7 @@ def _resolve_path(path_like: str | Path | None, *, prompt_path: Path | None) -> 
         search_roots.append(prompt_path.parent)
         if prompt_path.parent.parent.exists():
             search_roots.append(prompt_path.parent.parent)
+    search_roots.append(package_root(__file__).parent)
     search_roots.append(Path.cwd())
     for root in search_roots:
         probe = (root / candidate).resolve()
@@ -1056,11 +1065,56 @@ def _load_local_lora_weights(pipe: Any, *, lora_ref: str, lora_scale: float) -> 
         raise RuntimeError("Pipeline hiÃ¡Â»â€¡n tÃ¡ÂºÂ¡i khÃƒÂ´ng hÃ¡Â»â€” trÃ¡Â»Â£ load_lora_weights().")
     path = Path(clean_ref)
     if path.is_file():
-        pipe.load_lora_weights(str(path.parent), weight_name=path.name, adapter_name="local_lora")
+        _load_lora_weights_compat(pipe, str(path.parent), weight_name=path.name)
     else:
-        pipe.load_lora_weights(clean_ref, adapter_name="local_lora")
-    if hasattr(pipe, "set_adapters"):
-        pipe.set_adapters(["local_lora"], adapter_weights=[float(lora_scale)])
+        _load_lora_weights_compat(pipe, clean_ref)
+    _set_lora_adapter_scale_if_present(pipe, adapter_name="local_lora", lora_scale=float(lora_scale))
+
+
+def _load_lora_weights_compat(pipe: Any, lora_ref: str, **kwargs: Any) -> None:
+    try:
+        pipe.load_lora_weights(lora_ref, adapter_name="local_lora", **kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "adapter_name" not in message and "unexpected keyword argument" not in message:
+            raise
+        pipe.load_lora_weights(lora_ref, **kwargs)
+
+
+def _present_lora_adapter_names(pipe: Any) -> set[str]:
+    names: set[str] = set()
+    get_list_adapters = getattr(pipe, "get_list_adapters", None)
+    if callable(get_list_adapters):
+        try:
+            adapters = get_list_adapters()
+        except Exception:
+            adapters = None
+        if isinstance(adapters, dict):
+            for value in adapters.values():
+                if isinstance(value, str):
+                    names.add(value)
+                elif isinstance(value, (list, tuple, set)):
+                    names.update(str(item) for item in value if str(item))
+        elif isinstance(adapters, (list, tuple, set)):
+            names.update(str(item) for item in adapters if str(item))
+    peft_config = getattr(pipe, "peft_config", None)
+    if isinstance(peft_config, dict):
+        names.update(str(key) for key in peft_config.keys() if str(key))
+    return names
+
+
+def _set_lora_adapter_scale_if_present(pipe: Any, *, adapter_name: str, lora_scale: float) -> None:
+    if not hasattr(pipe, "set_adapters"):
+        return
+    present = _present_lora_adapter_names(pipe)
+    if present and adapter_name not in present:
+        return
+    try:
+        pipe.set_adapters([adapter_name], adapter_weights=[float(lora_scale)])
+    except ValueError as exc:
+        message = str(exc)
+        if "not in the list of present adapters" not in message:
+            raise
 
 
 def _build_local_pipeline(*, model_ref: str, device: str, dtype: Any, variant: str, use_safetensors: bool, mode: str, pipeline_family: str = "auto", original_config: str = "", diffusers_config_repo: str = "", controlnet_model_ref: str = "", lora_model_ref: str = "", lora_scale: float = 1.0, allow_network: bool = False, warm_cache: bool = False, disable_safety_checker: bool = False) -> Any:
@@ -2092,13 +2146,15 @@ def _render_via_diffusers_local(
     if not images:
         raise RuntimeError("Local headless provider khÃƒÂ´ng trÃ¡ÂºÂ£ vÃ¡Â»Â Ã¡ÂºÂ£nh nÃƒÂ o.")
 
-    output_image = images[0]
-    output_image = _apply_local_adetailer(base_image=output_image, cfg=cfg, prompt_path=prompt_path, settings=settings, logs=logs)
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_image.save(output_path)
-    _emit_progress(progress_callback, 1.0, f"Saved {output_path.name}")
-    logs.append(f"Local headless output -> {output_path}")
+    saved_paths: list[Path] = []
+    for index, image in enumerate(images, start=1):
+        output_image = _apply_local_adetailer(base_image=image, cfg=cfg, prompt_path=prompt_path, settings=settings, logs=logs)
+        target = output_path if index == 1 else output_path.with_name(f"{output_path.stem}_batch{index:02d}{output_path.suffix}")
+        output_image.save(target)
+        saved_paths.append(target)
+        logs.append(f"Local headless output -> {target}")
+    _emit_progress(progress_callback, 1.0, f"Saved {len(saved_paths)} image(s) for {output_path.name}")
     return logs
 
 
