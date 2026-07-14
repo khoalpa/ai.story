@@ -592,6 +592,13 @@ def _render_global_run_timeline() -> None:
             st.code(str(latest_error.get("error") or ""))
 
 
+def _render_workspace_dashboard() -> None:
+    _render_pipeline_status_bar()
+    _render_pipeline_readiness_block()
+    _render_global_run_monitor()
+    _render_global_run_timeline()
+
+
 def _path_exists_safely(value: str) -> bool:
     try:
         return bool(value) and Path(value).exists()
@@ -705,13 +712,6 @@ def render_workspace_shell(
         ):
             _expand_workspace_sidebar()
 
-    st.title(title)
-    st.caption(caption)
-    _render_pipeline_status_bar()
-    _render_pipeline_readiness_block()
-    _render_global_run_monitor()
-    _render_global_run_timeline()
-
     with st.sidebar:
         title_cols = st.columns([1.0, 0.22])
         title_cols[0].header("Workspace")
@@ -748,12 +748,25 @@ def render_workspace_shell(
             set_runtime_usage_container(runtime_slot)
             render_runtime_usage_compact(container=runtime_slot)
 
+    st.title(title)
+    st.caption(caption)
+
     if selection == "Overview":
+        _render_workspace_dashboard()
         overview_renderer()
         return
 
     renderer = app_renderers[selection]
     renderer()
+
+    st.divider()
+    show_dashboard = st.checkbox(
+        "Show pipeline dashboard",
+        key="workspace_show_pipeline_dashboard",
+        help="Show readiness, global run monitor, and timeline below the current workspace.",
+    )
+    if show_dashboard:
+        _render_workspace_dashboard()
 
 
 def render_studio_shell(*args, **kwargs):

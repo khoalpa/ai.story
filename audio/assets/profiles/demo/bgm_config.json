@@ -92,6 +92,21 @@
       "gain_db": -24,
       "loop": true
     },
+    "bedroom_warm": {
+      "file": "bedroom_warm.mp3",
+      "gain_db": -24,
+      "loop": true
+    },	
+    "garden_morning": {
+      "file": "garden_morning.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "river_soft": {
+      "file": "river_soft.mp3",
+      "gain_db": -24,
+      "loop": true
+    },	
     "school_hallway": {
       "file": "school_hallway.mp3",
       "gain_db": -24,

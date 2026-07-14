@@ -3,7 +3,7 @@
   "base_dir": "bgm",
   "intro_clip": {
     "file": "intro_clip.mp3",
-    "gain_db": -12,
+    "gain_db": +12,
     "fade_in_ms": 800,
     "fade_out_ms": 800,
     "loop": false

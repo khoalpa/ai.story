@@ -99,6 +99,12 @@ def _render_subtitle_style_settings() -> dict[str, Any]:
 def _render_slideshow_behavior_settings() -> dict[str, Any]:
     with st.expander("Slideshow behavior", expanded=False):
         slideshow_match_audio = st.checkbox("Match slideshow length to audio", value=bool(config.SLIDESHOW_MATCH_AUDIO))
+        zone_aware_slideshow = st.checkbox(
+            "Use story zones to time images",
+            value=bool(config.SLIDESHOW_ZONE_AWARE),
+            key="zone_aware_slideshow",
+            help="When enabled, slideshow image durations come from story.json zones and subtitle timestamps.",
+        )
         audio_match_epsilon = st.number_input(
             "Audio match epsilon",
             min_value=0.0,
@@ -109,6 +115,7 @@ def _render_slideshow_behavior_settings() -> dict[str, Any]:
         keep_concat_list = st.checkbox("Keep temporary ffconcat list", value=bool(config.KEEP_CONCAT_LIST))
     return {
         "slideshow_match_audio": bool(slideshow_match_audio),
+        "zone_aware_slideshow": bool(zone_aware_slideshow),
         "audio_match_epsilon": float(audio_match_epsilon),
         "keep_concat_list": bool(keep_concat_list),
     }

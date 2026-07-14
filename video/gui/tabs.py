@@ -31,7 +31,7 @@ from video.gui.service import run_video_job
 from video.gui.state import ensure_session_defaults, video_session
 from video.gui.view_models import build_video_run_summary
 from video.runtime_tools import collect_runtime_diagnostics
-from video.validation import autodetect_subtitle_from_audio
+from video.validation import ImageReadinessReport, autodetect_subtitle_from_audio, inspect_video_image_readiness
 
 
 def validate_runtime_settings(*, ffmpeg_exe: str, ffprobe_exe: str) -> list[str]:
@@ -51,6 +51,8 @@ def validate_inputs(
     cover: Optional[Path],
     scenes_dir: Optional[Path],
     subtitle: Optional[Path],
+    story_json: Optional[Path],
+    zone_aware_slideshow: bool = False,
 ) -> list[str]:
     errors: list[str] = []
     if audio is None:
@@ -60,6 +62,9 @@ def validate_inputs(
 
     if subtitle is not None and not subtitle.is_file():
         errors.append(f"Subtitle file not found: {subtitle}")
+
+    if story_json is not None and not story_json.is_file():
+        errors.append(f"story.json not found: {story_json}")
 
     if mode == "static":
         if cover is None:
@@ -74,6 +79,11 @@ def validate_inputs(
             )
         elif not scenes_dir.is_dir():
             errors.append(f"Scenes directory not found: {scenes_dir}")
+        if zone_aware_slideshow:
+            if story_json is None:
+                errors.append("Zone-aware slideshow requires a story.json file.")
+            if subtitle is None:
+                errors.append("Zone-aware slideshow requires a subtitle .srt file with timestamps.")
 
     if output is None:
         errors.append("Enter an output MP4 path.")
@@ -86,6 +96,66 @@ def validate_inputs(
                 errors.append(f"Could not create output directory {parent}: {exc}")
 
     return errors
+
+
+def _image_readiness_rows(report: ImageReadinessReport) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for asset in report.assets:
+        rows.append(
+            {
+                "role": asset.role,
+                "status": asset.level,
+                "file": asset.path.name,
+                "zone": asset.zone or "",
+                "size": f"{asset.width}x{asset.height}" if asset.width and asset.height else "",
+                "detail": asset.message,
+            }
+        )
+    return rows
+
+
+def _image_readiness_summary(report: ImageReadinessReport) -> dict[str, Any]:
+    return {
+        "ready": report.ready,
+        "expected_resolution": f"{report.expected_width}x{report.expected_height}",
+        "scene_count": report.scene_count,
+        "mapped_zones": list(report.mapped_zones),
+        "missing_zones": list(report.missing_zones),
+        "unmatched_files": [path.name for path in report.unmatched_files],
+        "errors": report.errors,
+        "warnings": report.warnings,
+    }
+
+
+def _extend_unique(items: list[str], additions: list[str]) -> None:
+    for addition in additions:
+        if addition not in items:
+            items.append(addition)
+
+
+def _render_image_readiness_report(report: ImageReadinessReport) -> None:
+    if report.ready and not report.warnings:
+        st.success("Images are ready for video render.")
+    elif report.ready:
+        st.warning("Images can be rendered, but there are warnings to review.")
+    else:
+        st.error("Images are not ready for video render.")
+
+    if report.errors:
+        for error in report.errors:
+            st.error(error)
+    if report.warnings:
+        for warning in report.warnings:
+            st.warning(warning)
+
+    rows = _image_readiness_rows(report)
+    if rows:
+        st.dataframe(rows, width="stretch", height=min(360, 80 + len(rows) * 36))
+    render_json_summary_expander(
+        "Image readiness summary",
+        _image_readiness_summary(report),
+        expanded=False,
+    )
 
 
 def _guess_mp4_output_from_audio(audio_path: str, output_dir: str) -> str:
@@ -159,10 +229,12 @@ def _import_story_bundle_into_video(bundle_dir: Path, settings: dict[str, Any]) 
     manifest = _load_story_bundle_manifest(bundle_dir)
     scene_dir = bundle_dir / str(manifest.get("scene_images_dir") or "scene_images")
     cover_path = bundle_dir / str((manifest.get("cover_prompt") or {}).get("expected_image_file") or "cover.png")
+    story_json = bundle_dir / "story.json"
 
     changes: dict[str, str] = {
         "story_bundle": str(bundle_dir),
         "manifest": str(bundle_dir / "manifest.json"),
+        "story_json": str(story_json),
         "scenes_dir": str(scene_dir),
         "cover": str(cover_path),
     }
@@ -171,6 +243,8 @@ def _import_story_bundle_into_video(bundle_dir: Path, settings: dict[str, Any]) 
     st.session_state["video_scenes_source"] = "handoff"
     st.session_state["video_cover_input"] = str(cover_path)
     st.session_state["video_scenes_input"] = str(scene_dir)
+    if story_json.is_file():
+        st.session_state["video_story_json_input"] = str(story_json)
     if not str(st.session_state.get("video_output_input") or "").strip():
         st.session_state["video_output_input"] = str(Path(settings.get("output_dir") or "output") / "story.mp4")
     workspace_handoff_state(st.session_state).story_video_handoff_dir = str(bundle_dir)
@@ -189,6 +263,7 @@ def _ensure_video_input_defaults(settings: dict[str, Any]) -> None:
     st.session_state.setdefault("video_scenes_input", "")
     st.session_state.setdefault("video_cover_source", "handoff")
     st.session_state.setdefault("video_scenes_source", "handoff")
+    st.session_state.setdefault("video_story_json_input", "")
     st.session_state.setdefault("video_input_cover_path", str(Path(settings.get("input_root") or "input") / "cover.png"))
     st.session_state.setdefault("video_input_scenes_dir", str(Path(settings.get("input_root") or "input") / "scene_images"))
 
@@ -233,6 +308,28 @@ def _prepare_video_inputs(settings: dict[str, Any]) -> None:
     _ensure_video_input_defaults(settings)
 
 
+def _autodetect_story_json(settings: dict[str, Any], audio_path: Optional[Path]) -> Optional[Path]:
+    candidates: list[Path] = []
+    story_bundle = str(workspace_handoff_state(st.session_state).story_video_handoff_dir or "").strip()
+    if story_bundle:
+        candidates.append(Path(story_bundle) / "story.json")
+    if audio_path is not None:
+        candidates.extend(
+            [
+                audio_path.with_suffix(".json"),
+                audio_path.parent / "story.json",
+                audio_path.parent / "story" / "story.json",
+            ]
+        )
+    input_root = Path(str(settings.get("input_root") or ""))
+    if str(input_root):
+        candidates.extend([input_root / "story.json", input_root / "story" / "story.json"])
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
     _prepare_video_inputs(settings)
 
@@ -245,8 +342,17 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
     subtitle_path = normalize_optional_path(st.session_state.get("video_subtitle_input") or "")
     if subtitle_path is None and audio_path is not None:
         subtitle_path = autodetect_subtitle_from_audio(audio_path)
+    story_json_path = normalize_optional_path(st.session_state.get("video_story_json_input") or "")
+    if story_json_path is None:
+        story_json_path = _autodetect_story_json(settings, audio_path)
     cover_path = _resolve_cover_path(settings)
     scenes_dir = _resolve_scenes_dir(settings)
+    image_readiness = inspect_video_image_readiness(
+        mode=str(settings["mode"]),
+        aspect=str(settings["aspect"]),
+        cover=cover_path,
+        scenes_dir=scenes_dir,
+    )
 
     errors = validate_inputs(
         audio=audio_path,
@@ -255,6 +361,8 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
         cover=cover_path,
         scenes_dir=scenes_dir,
         subtitle=subtitle_path,
+        story_json=story_json_path,
+        zone_aware_slideshow=bool(settings.get("zone_aware_slideshow")),
     )
 
     errors.extend(
@@ -263,22 +371,27 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
             ffprobe_exe=str(settings["ffprobe_exe"]),
         )
     )
+    _extend_unique(errors, image_readiness.errors)
     summary = build_video_run_summary(
         audio=audio_path,
         output=output_path,
         subtitle=subtitle_path,
+        story_json=story_json_path,
         cover=cover_path,
         scenes_dir=scenes_dir,
         settings=settings,
     )
     summary["cover_source"] = str(st.session_state.get("video_cover_source") or "handoff")
     summary["scenes_source"] = str(st.session_state.get("video_scenes_source") or "handoff")
+    summary["image_readiness"] = _image_readiness_summary(image_readiness)
     return {
         "audio": audio_path,
         "output": output_path,
         "cover": cover_path,
         "scenes_dir": scenes_dir,
         "subtitle": subtitle_path,
+        "story_json": story_json_path,
+        "image_readiness": image_readiness,
         "errors": errors,
         "summary": summary,
     }
@@ -312,6 +425,9 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
     scenes_dir = _resolve_scenes_dir(settings)
     audio_path = normalize_optional_path(str(st.session_state.get("video_audio_input") or ""))
     subtitle_path = normalize_optional_path(str(st.session_state.get("video_subtitle_input") or ""))
+    story_json_path = normalize_optional_path(str(st.session_state.get("video_story_json_input") or ""))
+    if story_json_path is None:
+        story_json_path = _autodetect_story_json(settings, audio_path)
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Mode", str(settings.get("mode") or "-"))
@@ -321,11 +437,21 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
     rows = [
         {"check": "Audio input", "status": "OK" if audio_path and audio_path.is_file() else "missing", "detail": str(audio_path or "Audio input not set")},
         {"check": "Subtitle", "status": "OK" if subtitle_path and subtitle_path.is_file() else ("not set" if subtitle_path is None else "missing"), "detail": str(subtitle_path or "Leave empty for autodetect or optional subtitle")},
+        {"check": "Story JSON", "status": "OK" if story_json_path and story_json_path.is_file() else ("not set" if story_json_path is None else "missing"), "detail": str(story_json_path or "Leave empty for autodetect or zone-aware slideshow")},
         {"check": "Cover", "status": "OK" if cover_path and cover_path.is_file() else "missing", "detail": str(cover_path or "Cover not set")},
         {"check": "Scenes dir", "status": "OK" if scenes_dir and scenes_dir.is_dir() else "missing", "detail": str(scenes_dir or "Scenes directory not set")},
         {"check": "Story bundle", "status": "OK" if str(workspace_handoff_state(st.session_state).story_video_handoff_dir or "").strip() else "missing", "detail": str(workspace_handoff_state(st.session_state).story_video_handoff_dir or "Story bundle not set")},
     ]
     st.dataframe(rows, width="stretch", height=240)
+    st.subheader("Image readiness")
+    _render_image_readiness_report(
+        inspect_video_image_readiness(
+            mode=str(settings.get("mode") or ""),
+            aspect=str(settings.get("aspect") or ""),
+            cover=cover_path,
+            scenes_dir=scenes_dir,
+        )
+    )
     render_runtime_diagnostics_block({
         "settings": {
             "mode": settings.get("mode"),
@@ -339,6 +465,7 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
         "resolved_inputs": {
             "audio": str(audio_path or ""),
             "subtitle": str(subtitle_path or ""),
+            "story_json": str(story_json_path or ""),
             "cover": str(cover_path or ""),
             "scenes_dir": str(scenes_dir or ""),
         },
@@ -390,6 +517,10 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
         st.text_input(
             "Subtitle file (leave empty = autodetect from audio)",
             key="video_subtitle_input",
+        )
+        st.text_input(
+            "Story JSON (leave empty = autodetect)",
+            key="video_story_json_input",
         )
         st.text_input("Output MP4", key="video_output_input")
     with col_right:
@@ -511,6 +642,7 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     aspect=settings["aspect"],
                     duration_per_image=settings["duration_per_image"],
                     subtitle=inputs["subtitle"],
+                    story_json=inputs["story_json"],
                     cover=inputs["cover"],
                     scenes_dir=inputs["scenes_dir"],
                     ffmpeg_exe=settings["ffmpeg_exe"],
@@ -524,6 +656,7 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     video_tune=settings.get("video_tune"),
                     video_movflags=settings.get("video_movflags"),
                     slideshow_match_audio=settings.get("slideshow_match_audio"),
+                    zone_aware_slideshow=settings.get("zone_aware_slideshow"),
                     audio_match_epsilon=settings.get("audio_match_epsilon"),
                     keep_concat_list=settings.get("keep_concat_list"),
                     subtitle_font_size=settings.get("subtitle_font_size"),
@@ -634,11 +767,15 @@ def render_test_tab(settings: dict[str, Any]) -> None:
     else:
         st.success("Current video inputs resolve successfully.")
 
+    st.subheader("Image readiness")
+    _render_image_readiness_report(inputs["image_readiness"])
+
     col1, col2 = st.columns(2)
     with col1:
         st.write({
             "audio": str(inputs.get("audio") or ""),
             "subtitle": str(inputs.get("subtitle") or ""),
+            "story_json": str(inputs.get("story_json") or ""),
             "output": str(inputs.get("output") or ""),
         })
     with col2:

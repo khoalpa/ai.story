@@ -19,7 +19,7 @@ from video.render_slideshow import make_slideshow_video
 from video.render_static import make_static_video
 from video.run_history import append_run_history, write_run_log
 from video.runtime_tools import format_runtime_diagnostics
-from video.validation import autodetect_subtitle_from_audio
+from video.validation import autodetect_subtitle_from_audio, inspect_video_image_readiness
 
 logger = get_logger(__name__)
 
@@ -32,6 +32,7 @@ class RenderVideoRequest:
     aspect: str
     duration_per_image: float
     subtitle: Optional[Path] = None
+    story_json: Optional[Path] = None
     cover: Optional[Path] = None
     scenes_dir: Optional[Path] = None
     ffmpeg_exe: Optional[str] = None
@@ -47,6 +48,7 @@ class RenderVideoRequest:
     video_tune: Optional[str] = None
     video_movflags: Optional[str] = None
     slideshow_match_audio: Optional[bool] = None
+    zone_aware_slideshow: Optional[bool] = None
     audio_match_epsilon: Optional[float] = None
     keep_concat_list: Optional[bool] = None
     subtitle_font_size: Optional[int] = None
@@ -206,6 +208,11 @@ def validate_render_request(request: RenderVideoRequest) -> None:
         raise ValueError("Static mode needs a cover image or an asset profile with default_cover.")
     if request.mode == "slideshow" and request.scenes_dir is None:
         raise ValueError("Slideshow mode needs a scenes directory or an asset profile with default_scenes_dir.")
+    if request.mode == "slideshow" and request.zone_aware_slideshow:
+        if request.story_json is None:
+            raise ValueError("Zone-aware slideshow needs a story.json file.")
+        if request.subtitle is None:
+            raise ValueError("Zone-aware slideshow needs a subtitle .srt file.")
         
 
 def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], dict[str, Optional[Path]]]:
@@ -216,6 +223,7 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         scenes_dir=Path(args.scenes_dir) if getattr(args, "scenes_dir", None) is not None else None,
     )
     subtitle_path = Path(args.subtitle) if getattr(args, "subtitle", None) else None
+    story_json_path = Path(args.story_json) if getattr(args, "story_json", None) else None
     audio_path = Path(args.audio)
     if subtitle_path is None:
         subtitle_path = autodetect_subtitle_from_audio(audio_path)
@@ -226,10 +234,12 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         aspect=args.aspect,
         duration_per_image=args.duration_per_image,
         subtitle=subtitle_path,
+        story_json=story_json_path,
         cover=resolved_cover,
         scenes_dir=resolved_scenes_dir,
         asset_profile=getattr(args, "asset_profile", None),
         profile_root=getattr(args, "profile_root", None),
+        zone_aware_slideshow=bool(getattr(args, "zone_aware_slideshow", False)),
     )
     validate_render_request(request)
     return request, profile_dir, defaults
@@ -248,6 +258,17 @@ def execute_render_request(
     try:
         with _runtime_tool_env(request.ffmpeg_exe, request.ffprobe_exe), _render_runtime_overrides(request):
             with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
+                image_readiness = inspect_video_image_readiness(
+                    mode=request.mode,
+                    aspect=request.aspect,
+                    cover=request.cover,
+                    scenes_dir=request.scenes_dir,
+                )
+                if image_readiness.errors:
+                    raise ValueError(
+                        "Images are not ready for video render: "
+                        + "; ".join(image_readiness.errors)
+                    )
                 logger.info(
                     "Render request mode=%s aspect=%s output=%s",
                     request.mode,
@@ -279,6 +300,8 @@ def execute_render_request(
                         output=request.output,
                         duration_per_image=request.duration_per_image,
                         subtitle=request.subtitle,
+                        story_json=request.story_json,
+                        zone_aware=bool(request.zone_aware_slideshow),
                         progress_callback=progress_callback,
                     )
                 else:

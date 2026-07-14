@@ -20,10 +20,18 @@ def build_scale_pad_filter(aspect: AspectRatio) -> str:
     return f"scale={w}:{h}:force_original_aspect_ratio=decrease," f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2"
 
 
-def build_vf_filter(aspect: AspectRatio, subtitle: Optional[Path]) -> str:
+def build_vf_filter(
+    aspect: AspectRatio,
+    subtitle: Optional[Path],
+    *,
+    pre_subtitle_fps: Optional[int] = None,
+) -> str:
     base = build_scale_pad_filter(aspect)
     if subtitle is None:
         return base
+
+    if pre_subtitle_fps and pre_subtitle_fps > 0:
+        base = f"{base},fps={int(pre_subtitle_fps)}"
 
     subtitle_for_filter = str(subtitle).replace("\\", "/")
     sub_esc = escape_subtitle_path(subtitle_for_filter)

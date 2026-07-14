@@ -14,11 +14,11 @@ from audio.tts_provider import DEFAULT_TTS_PROVIDER, normalize_tts_provider
 from audio.adapters.tts_core import get_default_vieneu_local_target, normalize_vieneu_backend, normalize_vieneu_device, resolve_vieneu_model_name
 DEFAULT_PROFILE_ROOT = str(PACKAGE_PROFILE_ROOT)
 DEFAULT_BGM_DIR_STR = str(DEFAULT_BGM_DIR)
-DEFAULT_VOICE_NARRATOR = "Thục Đoan"
+DEFAULT_VOICE_NARRATOR = "Doan"
 DEFAULT_VOICE_FEMALE = "Thục Đoan"
-DEFAULT_VOICE_MALE = "Phạm Tuyên"
-DEFAULT_EN_VOICE_NARRATOR = "en-US-AriaNeural"
-DEFAULT_EN_VOICE_FEMALE = "en-US-JennyNeural"
+DEFAULT_VOICE_MALE = "Vinh"
+DEFAULT_EN_VOICE_NARRATOR = "Doan"
+DEFAULT_EN_VOICE_FEMALE = "Doan"
 DEFAULT_EN_VOICE_MALE = "en-US-GuyNeural"
 
 PROFILE_CONFIG_DEFAULTS: dict[str, Any] = {

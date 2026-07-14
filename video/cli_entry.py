@@ -10,6 +10,7 @@ from video.config import DEFAULT_PROFILE_ROOT
 from video.error_handling import USER_FACING_EXCEPTIONS, format_user_facing_error
 from video.ffmpeg_runner import ensure_tools
 from video.app_api import execute_render_request, request_from_args
+from video.validation import ImageReadinessReport, inspect_video_image_readiness
 
 DESCRIPTION = "Render an MP4 video from finished audio plus a cover image or slideshow scenes."
 
@@ -71,6 +72,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional subtitle file (SRT/ASS) to burn into the MP4.",
     )
+    parser.add_argument(
+        "--story-json",
+        type=str,
+        default=None,
+        help="Optional story.json file for zone-aware slideshow timing.",
+    )
+    parser.add_argument(
+        "--zone-aware-slideshow",
+        action="store_true",
+        help="In slideshow mode, time scene images from story.json zones and subtitle timestamps.",
+    )
+    parser.add_argument(
+        "--check-images",
+        action="store_true",
+        help="Check cover/scenes readiness and exit without rendering.",
+    )
     return parser
 
 
@@ -78,9 +95,40 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return build_parser().parse_args(argv)
 
 
+def _print_image_readiness(report: ImageReadinessReport) -> None:
+    print("Image readiness: READY" if report.ready else "Image readiness: NOT READY")
+    print(f"Expected resolution: {report.expected_width}x{report.expected_height}")
+    if report.scene_count:
+        print(f"Scene images: {report.scene_count}")
+    if report.mapped_zones:
+        print("Mapped zones: " + ", ".join(report.mapped_zones))
+    if report.errors:
+        print("Errors:")
+        for message in report.errors:
+            print(f"  - {message}")
+    if report.warnings:
+        print("Warnings:")
+        for message in report.warnings:
+            print(f"  - {message}")
+
+
 def run_from_args(args: argparse.Namespace) -> Path:
     used_files = UsedFilesTracker()
     request, profile_dir, defaults = request_from_args(args)
+    image_readiness = inspect_video_image_readiness(
+        mode=request.mode,
+        aspect=request.aspect,
+        cover=request.cover,
+        scenes_dir=request.scenes_dir,
+    )
+    if getattr(args, "check_images", False):
+        _print_image_readiness(image_readiness)
+        if image_readiness.errors:
+            raise ValueError("Images are not ready for video render.")
+        return request.output
+    if image_readiness.errors:
+        _print_image_readiness(image_readiness)
+        raise ValueError("Images are not ready for video render.")
     ensure_tools()
     if request.asset_profile:
         used_files.note("Asset profile", request.asset_profile)
@@ -103,6 +151,10 @@ def run_from_args(args: argparse.Namespace) -> Path:
         used_files.add("Default scenes directory from profile", defaults["scenes_dir"])
     if request.subtitle is not None:
         used_files.add("Subtitle file", request.subtitle)
+    if request.story_json is not None:
+        if not request.story_json.is_file():
+            raise FileNotFoundError(f"story.json not found: {request.story_json}")
+        used_files.add("Story JSON", request.story_json)
 
     execute_render_request(request)
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from video.story_zone_timeline import StoryZoneSegment
+
 
 def escape_ffconcat_path(path: Path) -> str:
     """
@@ -69,4 +71,27 @@ def write_concat_list(
     lines.append(f"duration {last_duration:.6f}")
     lines.append(f"file '{last_esc}'")
 
+    out_list_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_timeline_concat_list(
+    segments: list[StoryZoneSegment],
+    out_list_file: Path,
+) -> None:
+    if not segments:
+        raise ValueError("At least 1 timeline segment is required to create an ffconcat list")
+
+    lines: list[str] = ["ffconcat version 1.0"]
+    for segment in segments:
+        if segment.duration <= 0:
+            continue
+        img_esc = escape_ffconcat_path(segment.image)
+        lines.append(f"file '{img_esc}'")
+        lines.append(f"duration {segment.duration:.6f}")
+
+    if len(lines) <= 1:
+        raise ValueError("Timeline segments did not contain any positive durations")
+
+    last_esc = escape_ffconcat_path(segments[-1].image)
+    lines.append(f"file '{last_esc}'")
     out_list_file.write_text("\n".join(lines) + "\n", encoding="utf-8")

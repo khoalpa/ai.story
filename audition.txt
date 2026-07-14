@@ -1,0 +1,6 @@
+Chuỗi xử lý cho Microsoft TTS truyện đọc:
+
+1. Parametric EQ
+2. DeEsser
+3. Match Loudness
+4. Export

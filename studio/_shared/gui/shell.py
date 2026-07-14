@@ -16,6 +16,7 @@ from .state import (
     request_workspace_navigation,
     sync_pipeline_handoff_state,
 )
+from common.gui.input_bundle import InputBundle, load_input_story, scan_input_bundle
 from .runtime_usage import render_runtime_usage_compact, set_runtime_usage_container
 from .progress_details import summarize_progress_details
 from .workspace_navigation import workspace_navigation_state
@@ -27,7 +28,7 @@ WORKSPACE_SIDEBAR_EXPANDED_KEY = "workspace_sidebar_expanded"
 
 
 def _workspace_sidebar_initial_state() -> str:
-    st.session_state.setdefault(WORKSPACE_SIDEBAR_EXPANDED_KEY, True)
+    st.session_state.setdefault(WORKSPACE_SIDEBAR_EXPANDED_KEY, False)
     return "expanded" if st.session_state[WORKSPACE_SIDEBAR_EXPANDED_KEY] else "collapsed"
 
 
@@ -57,13 +58,73 @@ def _path_dir_exists(value: str) -> bool:
     return bool(value) and Path(value).is_dir()
 
 
+def _input_bundle() -> InputBundle:
+    return scan_input_bundle("input")
+
+
+def _input_story_available() -> bool:
+    return _input_bundle().has_story
+
+
+def _input_prompt_bundle_available() -> bool:
+    return _input_bundle().has_prompts
+
+
+def _render_plain_script_from_input_story() -> tuple[str, dict[str, object]]:
+    from story.audio_story_spec import render_plain_script, validate_canonical_authoring
+
+    authoring = load_input_story("input")
+    errors = validate_canonical_authoring(authoring)
+    if errors:
+        raise ValueError("; ".join(errors[:3]))
+    return render_plain_script(authoring), authoring
+
+
+def _apply_input_sample() -> tuple[bool, str]:
+    bundle = _input_bundle()
+    if not bundle.is_ready:
+        return False, "No usable input sample was found in the input folder."
+
+    applied: list[str] = []
+    if bundle.has_story:
+        plain_script, authoring = _render_plain_script_from_input_story()
+        st.session_state["workspace_story_plain_script_text"] = plain_script
+        st.session_state["workspace_last_story_output"] = str(bundle.story_path)
+        st.session_state["story_last_result"] = {
+            "plain_script": plain_script,
+            "authoring": authoring,
+            "canonical_json": authoring,
+            "plain_script_path": "",
+            "canonical_json_path": str(bundle.story_path),
+            "source": "input",
+        }
+        st.session_state["story_last_plain_script_path"] = ""
+        st.session_state["run_plain_text"] = plain_script
+        st.session_state["last_plain_script"] = plain_script
+        st.session_state["audio_last_auto_plain_script"] = plain_script
+        st.session_state["audio_lock_to_story_handoff"] = True
+        applied.append("story/audio")
+
+    if bundle.has_prompts:
+        st.session_state["image_source_kind"] = "input"
+        st.session_state["image_input_dir"] = str(bundle.root)
+        st.session_state["image_lock_to_story_handoff"] = False
+        st.session_state["workspace_story_image_handoff_dir"] = str(bundle.root)
+        applied.append("image prompts")
+
+    st.session_state["video_cover_source"] = "profile"
+    st.session_state["video_scenes_source"] = "profile"
+    st.session_state["workspace_input_sample_status"] = ("success", f"Input sample applied: {', '.join(applied)}.")
+    return True, f"Input sample applied: {', '.join(applied)}."
+
+
 def _story_ready_detail() -> tuple[str, list[str]]:
     handoff = workspace_handoff_state(st.session_state)
     outputs = workspace_source_outputs(st.session_state)
     missing: list[str] = []
-    if not (handoff.story_plain_script_text or _path_file_exists(outputs.story_plain_script_path) or _path_exists(handoff.last_story_output)):
+    if not (handoff.story_plain_script_text or _path_file_exists(outputs.story_plain_script_path) or _path_exists(handoff.last_story_output) or _input_story_available()):
         missing.append("plain script or Story output")
-    if not _path_dir_exists(handoff.story_image_handoff_dir):
+    if not (_path_dir_exists(handoff.story_image_handoff_dir) or _input_prompt_bundle_available()):
         missing.append("image handoff dir")
     if not _path_dir_exists(handoff.story_video_handoff_dir):
         missing.append("video story bundle")
@@ -87,7 +148,7 @@ def _image_ready_detail() -> tuple[str, list[str]]:
         missing.append("cover image")
     if not _path_dir_exists(handoff.image_scenes_dir):
         missing.append("scene images dir")
-    if not _path_file_exists(handoff.image_manifest_path):
+    if not (_path_file_exists(handoff.image_manifest_path) or _input_prompt_bundle_available()):
         missing.append("image manifest")
     return ("ready" if not missing else ("partial" if len(missing) < 3 else "missing"), missing)
 
@@ -110,10 +171,138 @@ def _video_ready_detail() -> tuple[str, list[str]]:
 def _readiness_badge(status: str) -> str:
     normalized = str(status or "missing").lower()
     if normalized == "ready":
-        return "[ready] ready"
+        return "Ready"
     if normalized == "partial":
-        return "[partial] partial"
-    return "[missing] missing"
+        return "Needs attention"
+    return "Needs input"
+
+
+def _readiness_action_label(app: str, status: str, missing: list[str]) -> str:
+    normalized = str(status or "missing").lower()
+    if app == "Story":
+        if normalized == "ready":
+            return "Ready for Audio"
+        if any("image" in item for item in missing):
+            return "Needs image prompts"
+        return "Open Story"
+    if app == "Audio":
+        return "Ready for Video" if normalized == "ready" else "Needs audio render"
+    if app == "Image":
+        return "Ready for Video" if normalized == "ready" else "Needs image prompts"
+    if app == "Video":
+        return "Video ready" if normalized == "ready" else "No video yet"
+    return _readiness_badge(status)
+
+
+def _workspace_story_material_available() -> bool:
+    handoff = workspace_handoff_state(st.session_state)
+    outputs = workspace_source_outputs(st.session_state)
+    return bool(
+        handoff.story_plain_script_text
+        or _path_file_exists(outputs.story_plain_script_path)
+        or _path_exists(handoff.last_story_output)
+    )
+
+
+def _workspace_next_action() -> dict[str, str]:
+    handoff = workspace_handoff_state(st.session_state)
+    outputs = workspace_source_outputs(st.session_state)
+    bundle = _input_bundle()
+
+    if not _workspace_story_material_available():
+        if bundle.is_ready:
+            return {
+                "label": "Use input sample",
+                "caption": "Load the sample story and prompt bundle, then start from Story.",
+                "kind": "input_sample",
+                "app": "Story",
+                "view": "Inputs",
+            }
+        return {
+            "label": "Open Story",
+            "caption": "Create or load a story before rendering audio, images, or video.",
+            "kind": "navigate",
+            "app": "Story",
+            "view": "Inputs",
+        }
+
+    if not _path_exists(handoff.audio_output_path or outputs.audio_output):
+        return {
+            "label": "Continue to Audio",
+            "caption": "A story script is ready. Render narration and subtitles next.",
+            "kind": "story_to_audio",
+            "app": "Audio",
+            "view": "Run",
+        }
+
+    if not (
+        _path_file_exists(handoff.image_cover_path or outputs.image_cover_output)
+        and _path_dir_exists(handoff.image_scenes_dir or outputs.image_scenes_dir)
+    ):
+        return {
+            "label": "Continue to Image",
+            "caption": "Audio is available. Render cover and scene images next.",
+            "kind": "story_to_image",
+            "app": "Image",
+            "view": "Run",
+        }
+
+    if not _path_exists(outputs.video_output):
+        return {
+            "label": "Continue to Video",
+            "caption": "Audio and images are ready. Combine them into an MP4.",
+            "kind": "handoffs_to_video",
+            "app": "Video",
+            "view": "Run",
+        }
+
+    return {
+        "label": "Review video",
+        "caption": "The latest video output is available for preview.",
+        "kind": "navigate",
+        "app": "Video",
+        "view": "Preview & Logs",
+    }
+
+
+def _run_workspace_next_action(action: dict[str, str]) -> None:
+    kind = action.get("kind", "navigate")
+    if kind == "input_sample":
+        try:
+            ok, message = _apply_input_sample()
+        except Exception as exc:
+            ok, message = False, str(exc)
+        st.session_state["workspace_input_sample_status"] = ("success" if ok else "warning", message)
+        request_workspace_navigation(action.get("app") or "Story", action.get("view") or "Inputs")
+    elif kind == "story_to_audio":
+        ok = _apply_story_to_audio()
+        st.session_state["workspace_readiness_action_status"] = (
+            "success" if ok else "warning",
+            "Story script sent to Audio." if ok else "No Story script is ready for Audio yet.",
+        )
+        request_workspace_navigation("Audio", "Run" if ok else "Input")
+    elif kind == "story_to_image":
+        ok = _apply_story_to_image()
+        st.session_state["workspace_readiness_action_status"] = (
+            "success" if ok else "warning",
+            "Story prompt bundle sent to Image." if ok else "No Story prompt bundle is ready for Image yet.",
+        )
+        request_workspace_navigation("Image", "Run" if ok else "Inputs")
+    elif kind == "handoffs_to_video":
+        audio_ok = _apply_audio_to_video()
+        image_ok = _apply_image_to_video()
+        ok = audio_ok or image_ok
+        st.session_state["workspace_readiness_action_status"] = (
+            "success" if ok else "warning",
+            "Latest handoffs sent to Video." if ok else "Audio and Image handoffs are not ready for Video yet.",
+        )
+        request_workspace_navigation("Video", "Run" if ok else "Inputs")
+    else:
+        request_workspace_navigation(action.get("app") or "Story", action.get("view") or "Inputs")
+
+    rerun_fn = getattr(st, "rerun", None)
+    if callable(rerun_fn):
+        rerun_fn()
 
 
 def _story_plain_display_value() -> str:
@@ -125,13 +314,21 @@ def _story_plain_display_value() -> str:
         return str(handoff.last_story_output)
     if handoff.story_plain_script_text or handoff.last_story_output or outputs.story_plain_script_path:
         return "Plain script ready for Audio."
+    bundle = _input_bundle()
+    if bundle.has_story:
+        return str(bundle.story_path)
     return ""
 
 
 def _story_plain_available() -> bool:
     handoff = workspace_handoff_state(st.session_state)
     outputs = workspace_source_outputs(st.session_state)
-    return bool(handoff.story_plain_script_text or _path_file_exists(outputs.story_plain_script_path) or _path_exists(handoff.last_story_output))
+    return bool(
+        handoff.story_plain_script_text
+        or _path_file_exists(outputs.story_plain_script_path)
+        or _path_exists(handoff.last_story_output)
+        or _input_story_available()
+    )
 
 
 def _load_text_from_path(value: str) -> str:
@@ -168,6 +365,8 @@ def _apply_story_to_audio() -> bool:
         plain_text = _load_text_from_path(outputs.story_plain_script_path)
     if not plain_text:
         plain_text = _load_text_from_path(handoff.last_story_output)
+    if not plain_text and _input_story_available():
+        plain_text, _ = _render_plain_script_from_input_story()
     if not plain_text:
         return False
     st.session_state["run_plain_text"] = plain_text
@@ -179,13 +378,20 @@ def _apply_story_to_audio() -> bool:
 
 def _apply_story_to_image() -> bool:
     handoff = workspace_handoff_state(st.session_state)
-    if not _path_dir_exists(handoff.story_image_handoff_dir):
+    bundle = _input_bundle()
+    if not _path_dir_exists(handoff.story_image_handoff_dir) and not bundle.has_prompts:
         return False
+    prompt_dir = handoff.story_image_handoff_dir if _path_dir_exists(handoff.story_image_handoff_dir) else str(bundle.root)
     st.session_state["image_source_kind"] = "handoff"
-    st.session_state["image_handoff_dir"] = handoff.story_image_handoff_dir
-    st.session_state["image_lock_to_story_handoff"] = True
+    st.session_state["image_handoff_dir"] = prompt_dir
+    if bundle.has_prompts and prompt_dir == str(bundle.root):
+        st.session_state["image_source_kind"] = "input"
+        st.session_state["image_input_dir"] = str(bundle.root)
+        st.session_state["image_lock_to_story_handoff"] = False
+    else:
+        st.session_state["image_lock_to_story_handoff"] = True
     if not str(st.session_state.get("image_output_dir") or "").strip():
-        st.session_state["image_output_dir"] = str(Path(handoff.story_image_handoff_dir) / "generated")
+        st.session_state["image_output_dir"] = str(Path(prompt_dir) / "generated")
     return True
 
 
@@ -305,7 +511,8 @@ def _build_handoff_readiness_rows() -> list[dict[str, str]]:
 
     story_plain_value = _story_plain_display_value()
     add_row(handoff_name="Story -> Audio - plain script", current_value=story_plain_value, ok=_story_plain_available(), missing_text="Missing plain script or Story output file.", app_name="Audio", target_view="Run", target_field="plain_script", fix_label="Open Audio")
-    add_row(handoff_name="Story -> Image - prompt bundle", current_value=handoff.story_image_handoff_dir, ok=_path_dir_exists(handoff.story_image_handoff_dir), missing_text="Missing image handoff directory from Story.", app_name="Image", target_view="Inputs", target_field="prompt_bundle", fix_label="Open Image")
+    input_bundle = _input_bundle()
+    add_row(handoff_name="Story -> Image - prompt bundle", current_value=handoff.story_image_handoff_dir or (str(input_bundle.root) if input_bundle.has_prompts else ""), ok=_path_dir_exists(handoff.story_image_handoff_dir) or input_bundle.has_prompts, missing_text="Missing image handoff directory from Story.", app_name="Image", target_view="Inputs", target_field="prompt_bundle", fix_label="Open Image")
     add_row(handoff_name="Story -> Video - bundle", current_value=handoff.story_video_handoff_dir, ok=_path_dir_exists(handoff.story_video_handoff_dir), missing_text="Missing Story bundle for Video.", app_name="Video", target_view="Inputs", target_field="story_bundle", fix_label="Open Video")
     add_row(handoff_name="Audio -> Video - audio", current_value=handoff.audio_output_path or outputs.audio_output, ok=_path_exists(handoff.audio_output_path or outputs.audio_output), missing_text="Missing audio output for Video input.", app_name="Video", target_view="Inputs", target_field="audio_input", fix_label="Open Video")
     add_row(handoff_name="Audio -> Video - subtitle", current_value=handoff.audio_srt_path or outputs.audio_srt_output, ok=_path_file_exists(handoff.audio_srt_path or outputs.audio_srt_output), missing_text="Missing subtitle (.srt) from Audio.", app_name="Video", target_view="Inputs", target_field="subtitle_input", fix_label="Open Video")
@@ -360,18 +567,65 @@ def _render_pipeline_readiness_block() -> None:
     rows = []
     for col, (app, status, missing) in zip(cols, readiness):
         detail = ", ".join(missing) if missing else "Ready to continue."
+        status_label = _readiness_action_label(app, status, missing)
         col.markdown(f"**{app}**")
-        col.write(_readiness_badge(status))
+        col.write(status_label)
         col.caption(detail)
         rows.append({
             "app": app,
-            "status": _readiness_badge(status),
+            "status": status_label,
             "missing_or_pending": detail,
         })
 
     with st.expander("Readiness details and handoff fixes", expanded=False):
         st.dataframe(rows, width="stretch", height=150)
         _render_handoff_readiness_table()
+
+
+def _render_input_sample_block() -> None:
+    bundle = _input_bundle()
+    status_message = st.session_state.pop("workspace_input_sample_status", None)
+    if isinstance(status_message, tuple) and len(status_message) == 2:
+        level, message = status_message
+        getattr(st, str(level) if str(level) in {"success", "warning", "error", "info"} else "info")(message)
+
+    st.markdown("### Input sample")
+    summary = bundle.summary()
+    cols = st.columns([1.2, 1.2, 1.4])
+    cols[0].metric("Story JSON", "ready" if bundle.has_story else "missing")
+    cols[1].metric("Prompt files", len(bundle.prompt_files))
+    cols[2].caption(str(bundle.root))
+    if bundle.story_error:
+        st.warning(f"Input story error: {bundle.story_error}")
+    if bundle.prompt_error:
+        st.warning(f"Input prompt error: {bundle.prompt_error}")
+
+    action_cols = st.columns([1.0, 2.0])
+    if action_cols[0].button("Use input sample", key="workspace_use_input_sample", width="stretch", disabled=not bundle.is_ready):
+        try:
+            ok, message = _apply_input_sample()
+        except Exception as exc:
+            ok, message = False, str(exc)
+        st.session_state["workspace_input_sample_status"] = ("success" if ok else "warning", message)
+        request_workspace_navigation("Story" if bundle.has_story else "Image", "Inputs")
+        rerun_fn = getattr(st, "rerun", None)
+        if callable(rerun_fn):
+            rerun_fn()
+    action_cols[1].caption(
+        "Loads input/story.json into Story/Audio and uses input prompt JSON files for Image when no handoff is ready."
+    )
+
+    with st.expander("Input sample details", expanded=False):
+        st.json(summary)
+
+
+def _render_overview_primary_action() -> None:
+    action = _workspace_next_action()
+    st.markdown("### Next step")
+    cols = st.columns([1.0, 2.2])
+    if cols[0].button(action["label"], key="workspace_primary_next_action", width="stretch"):
+        _run_workspace_next_action(action)
+    cols[1].caption(action["caption"])
 
 
 def _apply_pending_navigation_before_widgets(app_options: list[str]) -> None:
@@ -411,14 +665,31 @@ def _apply_pending_navigation_before_widgets(app_options: list[str]) -> None:
 
 def _status_badge_text(label: str, value: str) -> str:
     normalized = (value or "").strip().lower()
-    icon = "idle"
-    if normalized == "ready":
-        icon = "ready"
-    elif normalized == "sent":
-        icon = "sent"
-    elif normalized == "rendered":
-        icon = "rendered"
-    return f"{label}: {icon} {value}"
+    if label == "Story":
+        mapping = {
+            "idle": "Open Story",
+            "ready": "Ready for Audio",
+            "sent": "Sent to Audio",
+        }
+    elif label == "Audio":
+        mapping = {
+            "idle": "Waiting for script",
+            "ready": "Ready for Video",
+            "rendered": "Ready for Video",
+        }
+    elif label == "Image":
+        mapping = {
+            "idle": "Needs image prompts",
+            "ready": "Ready for Video",
+            "rendered": "Ready for Video",
+        }
+    else:
+        mapping = {
+            "idle": "No video yet",
+            "ready": "Video ready",
+            "rendered": "Video ready",
+        }
+    return f"{label}: {mapping.get(normalized, value or 'Open')}"
 
 
 def _navigate_to(app_name: str, target_view: str | None = None, target_field: str | None = None) -> None:
@@ -592,6 +863,14 @@ def _render_global_run_timeline() -> None:
             st.code(str(latest_error.get("error") or ""))
 
 
+def _render_workspace_dashboard() -> None:
+    _render_input_sample_block()
+    _render_pipeline_status_bar()
+    _render_pipeline_readiness_block()
+    _render_global_run_monitor()
+    _render_global_run_timeline()
+
+
 def _path_exists_safely(value: str) -> bool:
     try:
         return bool(value) and Path(value).exists()
@@ -638,19 +917,21 @@ def _render_handoff_sidebar_group(title: str, items: list[dict[str, str]]) -> No
     if not items:
         return
 
-    with st.expander(f"{title} details", expanded=False):
-        for item in items:
-            prefix = "[missing]" if item["status"] == "missing" else "[ready]"
-            summary = item["summary"]
-            if summary:
-                st.caption(f"{prefix} {item['label']}: {summary}")
-            else:
-                st.caption(f"{prefix} {item['label']}")
+    for item in items:
+        prefix = "Needs" if item["status"] == "missing" else "Ready"
+        summary = item["summary"]
+        if summary:
+            st.caption(f"{prefix} - {item['label']}: {summary}")
+        else:
+            st.caption(f"{prefix} - {item['label']}")
 
 
 def _render_handoff_status_sidebar() -> None:
     st.subheader("Handoff Status")
-    if st.button("Open readiness fixes", key="workspace_open_readiness_fixes", width="stretch"):
+    action = _workspace_next_action()
+    st.caption(f"Next: {action['label']}")
+    st.caption(action["caption"])
+    if st.button("Open dashboard", key="workspace_open_readiness_fixes", width="stretch"):
         _navigate_to("Overview")
 
     handoff = workspace_handoff_state(st.session_state)
@@ -664,7 +945,6 @@ def _render_handoff_status_sidebar() -> None:
         _handoff_sidebar_item("Image scenes", handoff.image_scenes_dir, "No scene images directory is available from Image handoff."),
         _handoff_sidebar_item("Image manifest", handoff.image_manifest_path, "No image manifest is available for Video/Image review."),
     ]
-    _render_handoff_sidebar_group("Handoffs", handoff_items)
 
     outputs = workspace_source_outputs(st.session_state)
     output_items = [
@@ -675,7 +955,11 @@ def _render_handoff_status_sidebar() -> None:
         _handoff_sidebar_item("Image scenes output", outputs.image_scenes_dir, "No recent scene images output is available."),
         _handoff_sidebar_item("Video output", outputs.video_output, "No recent video output is available."),
     ]
-    _render_handoff_sidebar_group("Latest outputs", output_items)
+
+    with st.expander("Handoff details", expanded=False):
+        _render_handoff_sidebar_group("Handoffs", handoff_items)
+        st.divider()
+        _render_handoff_sidebar_group("Latest outputs", output_items)
 
 
 def render_workspace_shell(
@@ -704,13 +988,6 @@ def render_workspace_shell(
             help="Expand the workspace sidebar",
         ):
             _expand_workspace_sidebar()
-
-    st.title(title)
-    st.caption(caption)
-    _render_pipeline_status_bar()
-    _render_pipeline_readiness_block()
-    _render_global_run_monitor()
-    _render_global_run_timeline()
 
     with st.sidebar:
         title_cols = st.columns([1.0, 0.22])
@@ -748,12 +1025,28 @@ def render_workspace_shell(
             set_runtime_usage_container(runtime_slot)
             render_runtime_usage_compact(container=runtime_slot)
 
+    st.title(title)
+    st.caption(caption)
+
     if selection == "Overview":
         overview_renderer()
+        _render_overview_primary_action()
+        st.divider()
+        st.subheader("Pipeline dashboard")
+        _render_workspace_dashboard()
         return
 
     renderer = app_renderers[selection]
     renderer()
+
+    st.divider()
+    show_dashboard = st.checkbox(
+        "Show pipeline dashboard",
+        key="workspace_show_pipeline_dashboard",
+        help="Show readiness, global run monitor, and timeline below the current workspace.",
+    )
+    if show_dashboard:
+        _render_workspace_dashboard()
 
 
 def render_studio_shell(*args, **kwargs):

@@ -18,6 +18,8 @@ from video.slideshow_concat import (
     estimate_slideshow_duration as estimate_slideshow_duration_core,
 )
 from video.slideshow_concat import write_concat_list as write_concat_list_core
+from video.slideshow_concat import write_timeline_concat_list
+from video.story_zone_timeline import build_story_zone_segments, estimate_story_zone_duration
 from video.subtitle_filters import build_vf_filter
 from video.validation import collect_scene_images, validate_slideshow_inputs
 
@@ -61,6 +63,8 @@ def make_slideshow_video(
     output: Path,
     duration_per_image: float = 10.0,
     subtitle: Optional[Path] = None,
+    story_json: Optional[Path] = None,
+    zone_aware: bool = False,
     progress_callback: Optional[Callable[[float, str], None]] = None,
 ) -> None:
     images = validate_slideshow_inputs(audio, scenes_dir)
@@ -72,7 +76,54 @@ def make_slideshow_video(
                 "Slideshow zone mode: mapped images by opening/zone/outro before rendering."
             )
 
-    vf_filter = build_vf_filter(aspect, subtitle)
+    vf_filter = build_vf_filter(
+        aspect,
+        subtitle,
+        pre_subtitle_fps=config.DEFAULT_FPS if subtitle is not None else None,
+    )
+    if zone_aware:
+        if story_json is None:
+            raise ValueError("Zone-aware slideshow requires a story.json file.")
+        if subtitle is None:
+            raise ValueError("Zone-aware slideshow requires a subtitle .srt file with real timestamps.")
+        assert scenes_dir is not None
+        segments = build_story_zone_segments(
+            story_json=story_json,
+            subtitle=subtitle,
+            scenes_dir=scenes_dir,
+        )
+        expected_out = estimate_story_zone_duration(segments)
+        tmp_list_path: Optional[Path] = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".ffconcat") as tmp:
+                tmp_list_path = Path(tmp.name)
+            write_timeline_concat_list(segments, tmp_list_path)
+            cmd = build_slideshow_ffmpeg_cmd(
+                ffmpeg_base=ffmpeg_base_args(),
+                concat_list=tmp_list_path,
+                audio=audio,
+                output=output,
+                vf_filter=vf_filter,
+                video_codec=config.DEFAULT_VIDEO_CODEC,
+                preset=config.DEFAULT_PRESET,
+                crf=config.DEFAULT_CRF,
+                tune=config.DEFAULT_TUNE_STILLIMAGE,
+                audio_codec=config.DEFAULT_AUDIO_CODEC,
+                audio_bitrate=config.DEFAULT_AUDIO_BITRATE,
+                movflags=config.DEFAULT_MOVFLAGS,
+            )
+            run_ffmpeg(cmd, expected_duration_s=expected_out, progress_callback=progress_callback)
+        finally:
+            if tmp_list_path is not None:
+                if config.KEEP_CONCAT_LIST:
+                    logger.info("KEEP_CONCAT_LIST=1 -> keeping concat list: %s", tmp_list_path)
+                else:
+                    try:
+                        tmp_list_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+        return
+
     ffprobe_exe = config.get_ffprobe_exe()
     ffprobe_available = is_available_tool(ffprobe_exe)
     if config.SLIDESHOW_MATCH_AUDIO and not ffprobe_available:

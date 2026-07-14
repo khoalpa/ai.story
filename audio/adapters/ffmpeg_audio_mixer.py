@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
@@ -239,6 +240,19 @@ class FfmpegMixConfig:
 
 
 def get_audio_duration_seconds(audio_path: Path, ffprobe_exe: str) -> Optional[float]:
+    def wav_duration() -> Optional[float]:
+        if audio_path.suffix.lower() != ".wav" or not audio_path.is_file():
+            return None
+        try:
+            with wave.open(str(audio_path), "rb") as wav_file:
+                frame_rate = wav_file.getframerate()
+                frame_count = wav_file.getnframes()
+                if frame_rate <= 0 or frame_count <= 0:
+                    return None
+                return frame_count / float(frame_rate)
+        except (wave.Error, OSError, EOFError):
+            return None
+
     try:
         cmd = [
             ffprobe_exe,
@@ -249,11 +263,14 @@ def get_audio_duration_seconds(audio_path: Path, ffprobe_exe: str) -> Optional[f
         ]
         proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if proc.returncode != 0:
-            return None
+            return wav_duration()
         out = proc.stdout.strip()
-        return float(out) if out else None
+        if not out:
+            return wav_duration()
+        duration = float(out)
+        return duration if duration > 0 else wav_duration()
     except Exception:
-        return None
+        return wav_duration()
 
 
 def resolve_audio_clip_path(file_name: Optional[str], bgm_dir: Path, out_dir: Path) -> Optional[Path]:

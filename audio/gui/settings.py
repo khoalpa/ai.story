@@ -148,9 +148,12 @@ def _render_audio_local_model_picker(*, provider_id: str, current_model: str, mo
 
     col_manual, col_local = st.columns([3, 1])
     with col_manual:
+        if selected != "(manual)":
+            st.session_state["vieneu_model_name"] = selected
+        else:
+            st.session_state.setdefault("vieneu_model_name", current_model)
         manual_value = st.text_input(
             "VieNeu model/repo",
-            value="" if selected != "(manual)" else current_model,
             key="vieneu_model_name",
             help="turbo -> Turbo/GGUF model; standard -> Standard/PyTorch-compatible model. With remote API, this model name is sent to the server.",
         )
@@ -272,6 +275,8 @@ def _voice_selectbox(
         )
         if str(st.session_state.get(key) or "").strip() not in values:
             st.session_state[key] = resolved_default
+    elif prior_selected == prior_default and prior_default != resolved_default:
+        st.session_state[key] = resolved_default
     elif options_changed and prior_selected == prior_default:
         st.session_state[key] = resolved_default
 

@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import wave
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +22,15 @@ def _prepare_wav_dir(out_file: Path) -> None:
     wav_dir = out_file.parent / f"{out_file.stem}_wav"
     wav_dir.mkdir(parents=True)
     (wav_dir / "seg_000.wav").write_bytes(b"voice")
+
+
+def _write_pcm_wav(path: Path, *, seconds: float, sample_rate: int = 8000) -> None:
+    frames = int(seconds * sample_rate)
+    with wave.open(str(path), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(b"\x00\x00" * frames)
 
 
 def test_ffmpeg_mix_audio_removes_temp_dir_after_success(monkeypatch, tmp_path: Path) -> None:
@@ -81,6 +91,20 @@ def test_ffmpeg_mix_audio_removes_temp_dir_after_failure(monkeypatch, tmp_path: 
         )
 
     assert not (tmp_path / "story_mix_tmp").exists()
+
+
+def test_get_audio_duration_seconds_falls_back_to_wave_when_ffprobe_fails(
+    monkeypatch, tmp_path: Path
+) -> None:
+    wav_path = tmp_path / "segment.wav"
+    _write_pcm_wav(wav_path, seconds=1.25)
+
+    def fake_run(*_args, **_kwargs):  # noqa: ANN001
+        return SimpleNamespace(returncode=1, stdout="", stderr=b"ffprobe unavailable")
+
+    monkeypatch.setattr(mixer.subprocess, "run", fake_run)
+
+    assert mixer.get_audio_duration_seconds(wav_path, "missing-ffprobe") == 1.25
 
 
 def test_final_output_filter_increases_volume_for_plain_output() -> None:

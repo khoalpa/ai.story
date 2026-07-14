@@ -315,7 +315,7 @@ def render_settings_sidebar() -> SettingsDict:
                 help="Base path used when saving Story outputs. The GUI writes .txt and .json beside this base path.",
             )
             seed_cols = st.columns([2, 1])
-            story_seed = seed_cols[0].number_input("Story seed", min_value=1, max_value=2_147_483_647, value=int(st.session_state.get(STORY_SEED_KEY) or 1), step=1, key=STORY_SEED_KEY)
+            story_seed = seed_cols[0].number_input("Story seed", min_value=1, max_value=2_147_483_647, step=1, key=STORY_SEED_KEY)
             seed_cols[1].button("Random seed", width="stretch", on_click=_randomize_story_seed)
             timeout_s = st.number_input("Timeout (s)", min_value=10, value=360, step=10)
             max_tokens = st.number_input("Max tokens", min_value=256, value=32768, step=256)

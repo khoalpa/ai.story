@@ -23,6 +23,7 @@ _VIDEO_SETTINGS_FIELDS = (
     'video_tune',
     'video_movflags',
     'slideshow_match_audio',
+    'zone_aware_slideshow',
     'audio_match_epsilon',
     'keep_concat_list',
     'subtitle_position',
@@ -51,6 +52,7 @@ def build_video_run_summary(
     audio: Path,
     output: Path,
     subtitle: Optional[Path],
+    story_json: Optional[Path],
     cover: Optional[Path],
     scenes_dir: Optional[Path],
     settings: dict[str, Any],
@@ -59,6 +61,7 @@ def build_video_run_summary(
     summary.update({
         'audio': path_to_text(audio),
         'subtitle': path_to_text(subtitle),
+        'story_json': path_to_text(story_json),
         'output': path_to_text(output),
         'cover': path_to_text(cover),
         'scenes_dir': path_to_text(scenes_dir),

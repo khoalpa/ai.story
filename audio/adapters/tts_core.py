@@ -1034,11 +1034,15 @@ def _normalize_voice_token(value: object) -> str:
 
 _LEGACY_VIENEU_VOICE_HINTS: dict[str, tuple[tuple[str, ...], ...]] = {
     "doan": (("doan",), ("nu", "mien", "nam"), ("female", "south")),
+    "thuc doan": (("doan",), ("nu", "mien", "nam"), ("female", "south")),
     "ly": (("ly",), ("nu", "mien", "bac"), ("female", "north")),
     "ngoc": (("ngoc",), ("nu", "mien", "bac"), ("female", "north")),
+    "bich ngoc": (("ngoc",), ("nu", "mien", "bac"), ("female", "north")),
     "vinh": (("vinh",), ("nam", "mien", "nam"), ("male", "south")),
+    "xuan vinh": (("vinh",), ("nam", "mien", "nam"), ("male", "south")),
     "binh": (("binh",), ("nam", "mien", "bac"), ("male", "north")),
     "tuyen": (("tuyen",), ("nam", "mien", "bac"), ("male", "north")),
+    "pham tuyen": (("tuyen",), ("nam", "mien", "bac"), ("male", "north")),
 }
 
 

@@ -1,2239 +1,854 @@
 {
   "meta": {
-    "title": "Cô Con Gái Bị Tráo",
-    "series": "Hồ Sơ Phản Đòn",
+    "title": "Chiếc Hộp Của Mây",
+    "series": "Những Điều Tử Tế Nhỏ",
     "episode": "1",
     "author": "Catalina",
-    "channel": "Audio Story",
-    "target": "nữ trưởng thành thích truyện audio phản đòn",
-    "length_min": 20,
-    "length_max": 30,
+    "channel": "Hộp Truyện Kỳ Diệu",
+    "target": "Trẻ em 6-10 tuổi",
+    "length_min": 8,
+    "length_max": 12,
     "language": "vi",
-    "genre": "trend-driven audio story",
-    "audience": "nam, nữ, 25-45 tuổi, nghe truyện audio ngắn và trung bình",
-    "tone": "căng thẳng, lạnh, phản đòn",
+    "genre": "children audio story",
+    "audience": "Trẻ em yêu thích truyện ấm áp và kỹ năng sống",
+    "tone": "Ấm áp, Tình bạn, Tưởng tượng kỳ diệu",
     "tags": [
-      "thiên kim giả",
-      "tráo thân phận",
-      "phản bội",
-      "lật chứng cứ",
-      "gia đình",
-      "audio story",
-      "nữ chính mạnh",
-      "payoff",
-      "đám đông"
+      "lòng tốt",
+      "chia sẻ",
+      "tình bạn",
+      "trung thực",
+      "hợp tác",
+      "chiếc hộp kỳ diệu",
+      "trẻ em",
+      "trước giờ ngủ"
     ]
   },
   "outline": {
-    "greeting": "Một cú tát trong tiệc nhận thân mở ra vụ tráo thân phận được chuẩn bị nhiều năm.",
-    "opening": "Nữ chính bị người yêu và gia đình nuôi phản bội trước đám đông nhưng vẫn giữ một quân bài kín.",
-    "introduction": "Thân phận, mối quan hệ và luật chơi quyền lực trong nhà họ Trịnh dần lộ rõ.",
-    "development": "Nữ chính âm thầm gom chứng cứ, để thiên kim giả tưởng thắng rồi tự bước vào bẫy.",
-    "climax": "Bằng chứng sinh học, nhật ký viện dưỡng và camera cũ được công bố ngay trong lễ ký quỹ.",
-    "falling": "Phản diện tự lộ mặt, các phe quay đầu và những người từng coi thường phải trả giá.",
-    "ending": "Nữ chính giành lại tên mình, cắt đứt tình cũ và tự đứng lên bằng năng lực.",
-    "farewell": "Câu chuyện khép lại bằng dư âm lạnh về cái giá của việc cướp đời người khác."
+    "greeting": "Mời các bạn bước vào câu chuyện về một chiếc hộp chỉ sáng lên khi nhận được lòng tốt thật lòng.",
+    "opening": "Mây phát hiện chiếc hộp bí mật trong thư viện nhưng nó hoàn toàn không mở được.",
+    "introduction": "Mây cùng bạn rùa Tí tìm hiểu quy luật của chiếc hộp và gặp những người bạn đang cần giúp đỡ.",
+    "development": "Mỗi việc tốt giúp chiếc hộp sáng hơn, nhưng Mây dần hiểu rằng làm điều tốt không phải để nhận phần thưởng.",
+    "climax": "Mây phải chọn giữa giữ lại món quà mình mong ước và dùng nó để giúp cả lớp vượt qua một khó khăn.",
+    "falling": "Quyết định chân thành của Mây khiến chiếc hộp mở ra theo cách bất ngờ và ấm áp.",
+    "ending": "Các bạn hiểu rằng lòng tốt lớn lên khi được chia sẻ và không cần ai ghi công.",
+    "farewell": "Câu chuyện khép lại bằng lời chúc các bạn luôn giữ một chiếc hộp tử tế trong tim."
   },
   "script": [
     {
       "zone": "LỜI CHÀO",
-      "environment": "night_city_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Ngay giữa bữa tiệc nhận thân của nhà họ Trịnh, Linh Đan bị người yêu cũ kéo lên sân khấu và gọi là kẻ giả mạo."
+      "text": "Xin chào các bạn nhỏ, hôm nay chúng ta sẽ gặp một chiếc hộp rất đặc biệt."
     },
     {
       "zone": "LỜI CHÀO",
-      "environment": "night_city_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
-      "speed": "SLOW",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Mẹ ruột vừa tìm lại cô không ôm cô, mà tát cô trước ba trăm khách mời."
+      "text": "Chiếc hộp ấy không chứa vàng, kẹo hay đồ chơi lấp lánh."
     },
     {
       "zone": "LỜI CHÀO",
-      "environment": "night_city_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Cô gái mặc váy trắng đứng sau lưng bà khóc rất khéo, như thể chính cô ta mới là nạn nhân."
-    },
-    {
-      "zone": "LỜI CHÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Nhưng khi máu trên khóe môi còn chưa khô, Linh Đan đã nhìn thẳng vào ống kính livestream và mỉm cười."
-    },
-    {
-      "zone": "LỜI CHÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Nụ cười đó là dấu hiệu đầu tiên cho thấy cái bẫy thật sự vừa bắt đầu."
+      "text": "Nó chỉ mở ra khi có một tấm lòng thật sự biết quan tâm."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Đêm đó, khách sạn Vân Kính sáng như một chiếc hộp pha lê đặt giữa trung tâm thành phố."
+      "text": "Chiều hôm ấy, Mây nghe thấy tiếng leng keng nhỏ phát ra từ kệ sách cuối thư viện."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Nhà họ Trịnh tổ chức tiệc công bố người thừa kế thất lạc sau hai mươi ba năm."
+      "text": "Cô bé lần theo âm thanh và nhìn thấy một chiếc hộp gỗ phủ bụi bạc."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan đến muộn năm phút vì chiếc xe cô gọi bị hủy ba lần liên tiếp."
+      "text": "Trên nắp hộp có hình một trái tim đang khép kín như nụ hoa."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "library_soft",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Khi cô bước vào đại sảnh, tên của cô đã bị xóa khỏi màn hình chào mừng."
+      "text": "Lạ thật, ai lại để chiếc hộp đẹp thế này ở đây nhỉ."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Trên màn hình ấy chỉ còn dòng chữ chúc mừng Trịnh Ngọc Vy trở về nhà."
+      "text": "Mây thử nâng nắp, xoay khóa và gõ nhẹ ba lần nhưng chiếc hộp vẫn im lìm."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ngọc Vy mặc chiếc váy trắng thêu hoa đỏ li ti mà mẹ ruột từng gửi cho Linh Đan."
+      "text": "Đúng lúc đó, một mảnh giấy nhỏ trượt ra từ khe khóa."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
+      "environment": "library_soft",
+      "voice": "FEMALE",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Chiếc váy ấy vốn là bằng chứng nhận thân đầu tiên, vì bên trong gấu váy có thêu ngày sinh thật."
+      "text": "Muốn mở chiếc hộp, hãy gieo ba việc tốt mà không chờ được cảm ơn."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Hoàng Minh, người từng hứa sẽ cùng Linh Đan đi xét nghiệm lại, đang đứng cạnh Ngọc Vy như vị hôn phu."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Anh ta thấy cô, nhưng không hề bước xuống."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Một nhân viên an ninh chặn Linh Đan trước thảm đỏ và yêu cầu cô xuất trình thiệp mời."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan đưa thiệp ra, nhưng mã QR trên đó hiện dòng chữ đã bị hủy."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cả sảnh bắt đầu quay sang nhìn cô bằng ánh mắt xem trò vui."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy đưa tay che miệng, nước mắt rơi đúng lúc máy quay lia tới."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô ta nói Linh Đan là người giúp việc cũ đã đánh cắp hồ sơ nhận thân."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mẹ Trịnh lao xuống, nhìn cô ba giây, rồi giáng một cái tát trước mặt mọi người."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Âm thanh ấy vang lên rõ hơn cả tiếng nhạc trong phòng tiệc."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan không khóc, chỉ lau khóe môi bằng khăn giấy trên bàn rượu."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô hỏi rất khẽ rằng mọi người có chắc muốn xử chuyện này ngay trên sóng trực tiếp không."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hoàng Minh cười lạnh và nói cô không còn đường lui."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan gật đầu, như thể đó chính là câu cô đã chờ."
+      "text": "Mây đọc xong, đôi mắt cô bé sáng lên vì tò mò hơn cả lúc đầu."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan lớn lên trong một viện dưỡng nhỏ ở ngoại ô, nơi hồ sơ trẻ em từng bị cháy mất một phần vào mười tám năm trước."
+      "text": "Mây là cô bé rất giỏi nhận ra những chi tiết nhỏ mà người khác thường bỏ qua."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cô không có ảnh sơ sinh, nhưng có một chiếc vòng bạc khắc chữ Đan và một mảnh giấy xét nghiệm cũ."
+      "text": "Cô bé nhớ vị trí từng quyển sách và luôn biết ai đang cần một lời động viên."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ba tháng trước, luật sư của nhà họ Trịnh tìm đến cô sau khi rà lại danh sách trẻ bị thất lạc."
+      "text": "Người bạn thân nhất của Mây là Tí, một chú rùa chậm rãi nhưng suy nghĩ rất sâu."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
+      "environment": "library_soft",
+      "voice": "MALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Những dữ liệu đầu tiên đều chỉ về Linh Đan, từ nhóm máu hiếm đến vết bớt sau tai trái."
+      "text": "Chúng ta nên đọc kỹ mảnh giấy trước khi vội làm điều gì nhé."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Bà Trịnh ban đầu run đến mức không dám chạm vào cô."
+      "text": "Tí chỉ vào dòng chữ cuối có những nét mực gần như đã phai."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
+      "environment": "library_soft",
+      "voice": "FEMALE",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Ông Trịnh thì giữ thái độ lạnh, vì tài sản của gia tộc đang chuẩn bị chuyển quyền."
+      "text": "Lòng tốt thật không cần người khác nhìn thấy."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ngọc Vy xuất hiện sau đó một tuần với cùng một chiếc vòng bạc và một câu chuyện còn bi thảm hơn."
+      "text": "Mây gật đầu nhưng trong lòng vẫn mong chiếc hộp chứa một món quà tuyệt vời."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cô ta nói mình bị bắt cóc, bị đổi tên, rồi được một người tốt bụng nuôi lớn."
+      "text": "Hai bạn đặt chiếc hộp vào giỏ nhỏ và bắt đầu đi quanh trường."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Điểm khéo của Ngọc Vy là cô ta không bao giờ tranh cãi trực tiếp với Linh Đan."
+      "text": "Sân trường sau giờ học yên ắng, chỉ còn vài chiếc lá chạy theo gió."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cô ta chỉ khóc trước mặt người lớn và để người khác thay mình nghi ngờ."
+      "text": "Mây quan sát thật kỹ để tìm một người đang cần giúp đỡ."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Hoàng Minh là người đổi thái độ nhanh nhất."
+      "text": "Tí nhắc rằng việc tốt phải đến từ sự quan tâm chứ không phải từ cuộc săn kho báu."
     },
     {
       "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Trước khi Ngọc Vy xuất hiện, anh ta từng cầu hôn Linh Đan bằng chiếc nhẫn trả góp."
+      "text": "Mây hít một hơi sâu và quyết định sẽ lắng nghe nhiều hơn nhìn vào chiếc hộp."
     },
     {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Sau khi thấy cổ phần nhà họ Trịnh được nhắc đến trong di chúc, anh ta bắt đầu gọi Linh Đan là người quá nhạy cảm."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan không vạch mặt anh ta ngay, vì cô biết một kẻ tham sẽ tự chọn phe nếu có đủ mồi."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô âm thầm xin làm trợ lý tạm thời cho phòng lưu trữ của tập đoàn Trịnh thị."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Lý do cô đưa ra là muốn tự chứng minh mình không sợ kiểm tra."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Thực ra cô cần quyền truy cập vào hồ sơ nhận thân, lịch khách sạn và danh sách người phục vụ trong tiệc."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Một nhân viên IT tên Khải từng được cô giúp khôi phục dữ liệu lỗi nên đồng ý hỗ trợ trong giới hạn hợp pháp."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Khải không hack gì cả, anh chỉ chỉ cho cô nơi lưu bản sao camera cũ mà công ty chưa xóa."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Từ ngày đó, Linh Đan hiểu rằng muốn thắng trong căn nhà này, cô phải để họ tưởng cô đã thua."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy tưởng mình điều khiển được nước mắt của cả gia đình."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hoàng Minh tưởng chỉ cần đổi người yêu là đổi được tầng lớp."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bà Trịnh tưởng trái tim mình đủ chính xác để nhận ra con."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ông Trịnh tưởng xét nghiệm nào có dấu đỏ cũng đáng tin."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Còn Linh Đan chỉ tin vào thời gian, dữ liệu và những vết nứt nhỏ trong lời nói."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô bắt đầu ghi lại từng cuộc gọi, từng tin nhắn, từng lần Ngọc Vy vô tình gọi sai tên viện dưỡng."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Trong mắt người ngoài, cô là cô gái bị bỏ rơi đứng bên lề gia tộc."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Trong cuốn sổ màu đen của cô, từng cái tên đã được nối bằng mũi tên rất rõ."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Đêm tiệc nhận thân không phải đêm cô bị đánh bại."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Đó là đêm cô quyết định cho toàn bộ sân khấu sáng đèn."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Sau cái tát, bảo vệ định kéo Linh Đan ra khỏi đại sảnh."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô không chống cự, chỉ yêu cầu họ giữ lại toàn bộ camera vì lát nữa có thể thành chứng cứ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Một vài khách mời bật cười vì nghĩ cô dọa suông."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy bước tới, nắm tay cô bằng vẻ thương hại được tập luyện rất kỹ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô ta thì thầm rằng một người không có nhà thì đừng mơ cướp nhà của người khác."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan nhìn bàn tay ấy và nhận ra móng tay của Ngọc Vy dính một vệt keo vải rất nhỏ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Vệt keo đó giống loại dùng để tháo rồi khâu lại gấu váy cũ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô không nói gì, vì bằng chứng tốt nhất phải tự đứng dưới ánh đèn."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hoàng Minh giật chiếc túi của Linh Đan và đổ đồ xuống bàn tiệc."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Một bản xét nghiệm photo rơi ra, cùng vài tấm ảnh viện dưỡng đã ố vàng."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Anh ta tuyên bố cô làm giả tất cả để chen vào nhà giàu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan hỏi anh ta có muốn đọc luôn tin nhắn anh từng yêu cầu cô giấu kết quả thật không."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mặt Hoàng Minh khựng lại trong nửa giây."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Nửa giây đó đủ để cô biết anh ta đã sợ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy lập tức khóc lớn hơn và nói mình không muốn phá hạnh phúc của ai."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bà Trịnh ôm Ngọc Vy vào lòng, như ôm lại hai mươi ba năm tội lỗi."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ông Trịnh yêu cầu luật sư công bố kết quả xét nghiệm mới nhất."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tờ giấy có dấu bệnh viện hiện lên trên màn hình và ghi Ngọc Vy phù hợp huyết thống."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cả sảnh vỗ tay nhẹ, kiểu vỗ tay dành cho người thắng mà không cần hiểu sự thật."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan nhìn tên bác sĩ ký cuối trang và thấy đúng cái tên cô đã khoanh đỏ ba ngày trước."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Đó là bác sĩ nghỉ hưu từ năm ngoái, nhưng chữ ký vẫn xuất hiện trên xét nghiệm mới."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô bước lùi một bước, để máy quay ghi rõ tờ giấy trên màn hình."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Khải đứng ở góc kỹ thuật gửi cho cô một tin nhắn duy nhất."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tin nhắn đó nói bản sao livestream đã được lưu tự động."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan khóa điện thoại và ngẩng đầu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô nói nếu nhà họ Trịnh đã chọn công khai, cô cũng sẽ công khai đến cùng."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ông Trịnh cau mày, nhưng chưa kịp phản ứng thì Ngọc Vy đã chen vào."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô ta nói người giả mạo thường thích kéo dài thời gian."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Câu nói ấy khiến nhiều khách mời gật đầu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan cảm ơn cô ta vì đã nhắc đến thời gian."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô yêu cầu mở đoạn video từ camera hành lang khách sạn lúc năm giờ mười bảy chiều."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Quản lý khách sạn lúng túng nói dữ liệu riêng tư không thể mở tùy tiện."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan đưa ra văn bản xác nhận cô là người bị tố cáo công khai nên có quyền yêu cầu bảo toàn chứng cứ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Luật sư nhà họ Trịnh định phản bác, nhưng ông Trịnh đưa tay ngăn lại."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ông muốn xem cô còn giãy được đến đâu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Màn hình chuyển sang camera hành lang khu chuẩn bị."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Trong video, Ngọc Vy bước vào phòng thay đồ của Linh Đan khi không có ai bên trong."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cả sảnh im xuống một nhịp."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy lập tức nói mình chỉ vào nhầm phòng vì lo lắng."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan không phản ứng, vì một đoạn video chưa đủ hạ một kẻ biết khóc."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Video tiếp tục chạy đến cảnh Hoàng Minh bước vào sau Ngọc Vy hai phút."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Anh ta cầm một phong bì nâu và nhìn quanh rất lâu trước khi đóng cửa."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bà Trịnh buông tay Ngọc Vy ra trong vô thức."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hoàng Minh gắt lên rằng đó chỉ là giấy tờ chuẩn bị cho lễ nhận thân."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan hỏi vì sao giấy tờ của lễ nhận thân lại nằm trong phòng thay đồ của cô."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Không ai trả lời ngay."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy lấy lại bình tĩnh rất nhanh."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô ta quỳ xuống trước mặt bà Trịnh và nói mình chỉ muốn có mẹ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cú quỳ ấy đẹp, đúng góc máy, đúng nước mắt, đúng sự yếu đuối mà đám đông dễ tin."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan nhìn cô ta quỳ, rồi bước sang một bên để máy quay thấy rõ hơn."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô biết Ngọc Vy càng diễn tốt, cú ngã sau cùng càng vang."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Một người dì trong họ Trịnh mắng Linh Đan độc ác vì ép một cô gái đáng thương."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan hỏi bà dì có nhớ đêm mất đứa bé năm đó ai là người trực ở viện không."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bà dì tái mặt, vì câu hỏi chạm vào một cái tên cũ bị chôn rất sâu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy lập tức đứng dậy, nhưng đã muộn."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan mở tấm ảnh viện dưỡng đầu tiên, trong đó có một cô y tá trẻ đang bế đứa bé quấn khăn vàng."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô y tá ấy chính là mẹ nuôi đã mất của Ngọc Vy."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Khách mời bắt đầu xì xào."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy nói người giống người là chuyện bình thường."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan đồng ý và nói vì thế cô đã không dùng ảnh để kết luận."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô chuyển sang bản ghi âm cuộc gọi giữa Ngọc Vy và một người đàn ông tên Lưu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Trong bản ghi, Ngọc Vy hỏi liệu hồ sơ đốt năm xưa còn bản sao không."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Giọng người đàn ông trả lời rằng bản sao nằm trong tủ sắt của viện cũ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy hét lên rằng bản ghi đó là giả."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan nhắc cô ta rằng bản ghi chỉ mới là món khai vị."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ông Trịnh bắt đầu nhìn luật sư riêng bằng ánh mắt khác."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Luật sư cúi đầu kiểm tra điện thoại, rồi lặng lẽ rời khỏi cạnh sân khấu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hoàng Minh thấy gió đổi chiều nên bước xa Ngọc Vy nửa bước."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Chỉ nửa bước thôi, nhưng đủ phơi ra bản chất của anh ta."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan không bỏ qua chi tiết đó."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô nói Hoàng Minh nên đứng yên vì phần của anh sắp tới."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Anh ta mắng cô là kẻ hèn vì ghi âm người khác."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô đáp rằng hèn là bán đứng người yêu để đổi lấy ghế trong gia tộc."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Đám đông lại im."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Trong ba mươi câu đầu của cuộc đối đầu, Linh Đan chưa một lần xin ai tin mình."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô chỉ đưa từng viên gạch chứng cứ ra trước mặt họ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy hiểu điều đó nên đổi chiến thuật."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô ta ôm ngực, nói mình khó thở và muốn được đưa đến bệnh viện."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bà Trịnh định gọi xe, nhưng Linh Đan nhắc rằng bệnh viện cũng là nơi câu chuyện bắt đầu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Câu nói ấy làm Ngọc Vy khựng lại."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan đề nghị gọi chính bác sĩ đã ký xét nghiệm đến xác nhận ngay trong livestream."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ông Trịnh lập tức sai trợ lý liên hệ bệnh viện."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Năm phút sau, trợ lý quay lại với gương mặt rất khó coi."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bệnh viện xác nhận bác sĩ ký tên đã nghỉ hưu và không hề trực phòng xét nghiệm hôm đó."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Một tiếng ồ rất nhỏ lan qua các bàn tiệc."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy cắn môi đến trắng bệch, nhưng vẫn chưa sụp."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô ta nói có thể nhân viên bệnh viện sai sót."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan gật đầu và nói sai sót thì phải kiểm lại từ mẫu gốc."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hoàng Minh đột nhiên quát rằng không được kéo dài trò hề này nữa."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tiếng quát ấy quá gấp, nên tự nó thành một dấu hỏi."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Linh Đan nhìn anh ta và hỏi tại sao người sợ nhất lại không phải Ngọc Vy."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hoàng Minh im."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô mở tin nhắn anh ta gửi hai tuần trước, trong đó anh hỏi nếu đổi mẫu tóc thì xác suất bị phát hiện là bao nhiêu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tin nhắn hiện lên màn hình, rõ từng chữ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hoàng Minh nhào tới giật điện thoại, nhưng bảo vệ của khách sạn giữ anh lại."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngọc Vy quay sang anh ta bằng ánh mắt căm hận."
-    },
-    {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan hiểu họ bắt đầu cắn nhau trong đầu."
+      "text": "Ở cuối hành lang, bạn Sóc Nâu đang loay hoay nhặt những tờ giấy bị gió thổi tung."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cô không cần đẩy nữa, chỉ cần chờ vết nứt tự toác."
+      "text": "Mình có thể giúp bạn gom lại theo từng màu để khỏi bị lẫn."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ông Trịnh hỏi Hoàng Minh mẫu tóc nào bị đổi."
+      "text": "Mây dùng chiếc kẹp tóc giữ xấp giấy rồi cùng Sóc Nâu nhặt từng tờ một."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Hoàng Minh nói không có mẫu tóc nào cả."
+      "text": "Tí chậm rãi bò quanh chân bàn và phát hiện một tờ giấy mắc dưới ghế."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan bấm phát đoạn ghi hình thứ hai từ thang máy khu xét nghiệm tư nhân."
+      "text": "Chỉ một lát sau, bộ tranh của Sóc Nâu đã được xếp ngay ngắn trở lại."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "school_hallway",
+      "voice": "MALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Trong đó Hoàng Minh đưa một túi mẫu cho trợ lý của Ngọc Vy."
+      "text": "Cảm ơn hai bạn, mình tưởng hôm nay sẽ phải làm lại hết."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ngày giờ trên video trùng với ngày kết quả xét nghiệm mới được lập."
+      "text": "Mây mỉm cười rồi kín đáo nhìn chiếc hộp trong giỏ."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Bà Trịnh lùi lại như bị ai rút mất xương sống."
+      "text": "Một chấm sáng nhỏ xuất hiện trên hình trái tim nhưng chưa đủ để mở khóa."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ngọc Vy lập tức hét rằng Hoàng Minh tự làm, cô ta không biết."
+      "text": "Vậy là chúng ta đã có việc tốt đầu tiên rồi."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
+      "environment": "school_hallway",
+      "voice": "MALE",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Hoàng Minh bật cười vì bị bỏ rơi quá nhanh."
+      "text": "Đừng đếm việc tốt như đếm viên bi, Mây nhé."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Anh ta nói nếu không có cô ta hứa chia cổ phần, anh ta cần gì phản bội Linh Đan."
+      "text": "Hai bạn đi tiếp đến khu vườn nhỏ sau lớp học."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Câu nói đó không phải bằng chứng cuối, nhưng là vết dao đầu tiên do chính đồng phạm đâm nhau."
+      "text": "Ở đó, bạn Nhím Con đang nhìn bình tưới bị nứt với vẻ buồn bã."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "garden_morning",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan để họ nói thêm vài câu nữa."
+      "text": "Bạn cần tưới cây trước khi về nhà đúng không."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cô đã học được rằng kẻ nói dối thường tự sửa lời nói dối bằng một lời nói dối tệ hơn."
+      "text": "Nhím Con gật đầu và chỉ vào luống hoa mới trồng đang khô dần."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ngọc Vy phủ nhận chia cổ phần, phủ nhận đổi mẫu, phủ nhận cả việc biết mẹ nuôi của mình từng làm ở viện."
+      "text": "Mây nghĩ đến việc dùng chiếc cốc uống nước nhưng chiếc cốc quá nhỏ."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan chiếu lên màn hình bản đăng ký hộ khẩu cũ của mẹ nuôi Ngọc Vy."
+      "text": "Tí quan sát máng hứng nước mưa và đề nghị nối một chiếc lá lớn thành vòi."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Địa chỉ trên đó cách viện dưỡng bị cháy chỉ ba căn nhà."
+      "text": "Ba bạn cùng đặt lá, giữ dây và dẫn nước vào từng gốc cây."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ông Trịnh cầm ly nước nhưng không uống nổi."
+      "text": "Nước chảy chậm nhưng đều, khiến những chiếc lá non dần đứng thẳng."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "garden_morning",
+      "voice": "MALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Dì trong họ Trịnh ngồi xuống, không dám mắng thêm."
+      "text": "Mình sẽ sửa bình tưới vào ngày mai, còn hôm nay cây đã được cứu rồi."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Khách mời không còn xem trò vui nữa, vì họ nhận ra mình đang chứng kiến một vụ tráo đời."
+      "text": "Chiếc hộp phát ra ánh sáng dịu hơn, giống một ngọn đèn nhỏ trong sương."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ngọc Vy đột ngột quay sang bà Trịnh và gọi mẹ bằng giọng vỡ vụn."
+      "text": "Mây vui mừng đến mức suýt reo lên về bí mật của chiếc hộp."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "garden_morning",
       "voice": "NARRATOR",
-      "speed": "NORMAL",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Đó là lá bài cảm xúc cuối cùng của cô ta."
+      "text": "Nhưng cô bé nhớ rằng việc tốt không nên biến thành màn biểu diễn."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "garden_morning",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Bà Trịnh run rẩy bước tới, nhưng lần này không ôm."
+      "text": "Chúng mình đi tiếp thôi, vẫn còn nhiều điều cần chú ý."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Bà hỏi Ngọc Vy vì sao biết bài hát ru bà chưa từng hát trước mặt người ngoài."
+      "text": "Trên đường về, Mây và Tí nghe tiếng sụt sịt gần chiếc cầu gỗ nhỏ."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ngọc Vy nghẹn lời."
+      "text": "Một bạn chim non đang ngồi bên túi hạt bị rách, nhìn đàn kiến mang hạt đi."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "river_soft",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan đáp thay rằng bài hát ấy nằm trong cuốn nhật ký cũ của bà, cuốn nhật ký bị chụp lại từ phòng đọc gia đình."
+      "text": "Bạn có bị đau không, hay chỉ lo mất phần ăn mang về."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
+      "environment": "river_soft",
+      "voice": "MALE",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Camera phòng đọc hiện cảnh Hoàng Minh mở ngăn kéo riêng của bà Trịnh."
+      "text": "Mình không đau, nhưng đây là phần hạt dành cho các em ở tổ."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Anh ta lấy điện thoại chụp từng trang, rồi gửi cho Ngọc Vy."
+      "text": "Mây lấy khăn tay buộc đáy túi và nhặt từng hạt còn sạch trên lối đi."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Hoàng Minh cúi đầu, còn Ngọc Vy không khóc nổi nữa."
+      "text": "Tí đề nghị chia số hạt còn lại thành những gói nhỏ để dễ mang hơn."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Nhưng Linh Đan vẫn chưa tung quân bài cuối."
+      "text": "Bạn chim non ngập ngừng vì sợ không đủ cho cả nhà."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "river_soft",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cô muốn tất cả họ phải hiểu vì sao cô dám bước vào đây một mình."
+      "text": "Mình có ít bánh hạt trong hộp cơm, bạn hãy mang thêm phần này nhé."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
-      "speed": "NORMAL",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Khải đưa cho quản lý khách sạn một USB đã niêm phong trước mặt luật sư."
+      "text": "Mây nhìn chiếc bánh yêu thích rồi đặt nó vào túi của bạn chim."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "USB chứa bản sao dữ liệu từ viện dưỡng cũ, được khôi phục từ ổ cứng lưu trữ sau vụ cháy."
+      "text": "Lần này chiếc hộp không chỉ sáng mà còn rung nhẹ như đang thở."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Trong danh sách trẻ sơ sinh năm đó, tên tạm của Linh Đan là bé gái vòng bạc."
+      "text": "Mây nắm chặt quai giỏ và hồi hộp chờ chiếc khóa bật mở."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Dòng ghi chú cuối cùng ghi người nhận trẻ nhầm là y tá Lưu Mai."
+      "text": "Thế nhưng chiếc hộp vẫn đóng kín, khiến cô bé bối rối."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "river_soft",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Lưu Mai chính là mẹ nuôi của Ngọc Vy."
+      "text": "Chúng ta đã làm đủ ba việc tốt rồi, sao hộp vẫn chưa mở."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
+      "environment": "river_soft",
+      "voice": "MALE",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Cả sảnh không còn tiếng nhạc."
+      "text": "Có lẽ một trong những việc ấy vẫn còn điều chúng ta chưa hiểu."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Chỉ còn tiếng thở của những người vừa hiểu mình đã đứng sai phía."
+      "text": "Mây nhớ lại từng chuyện và nhận ra mình đã liên tục nhìn hộp sau khi giúp đỡ."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan nhìn bà Trịnh, nhưng không gọi mẹ."
+      "text": "Cô bé thấy má mình nóng lên vì đã mong phần thưởng nhiều hơn niềm vui của bạn."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
+      "environment": "river_soft",
+      "voice": "FEMALE",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Cô nói sự thật không cần ôm ngay lập tức."
+      "text": "Có lẽ mình làm đúng việc nhưng chưa hoàn toàn đúng lòng."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cô chỉ cần mọi người ngừng dùng nước mắt của người khác để đè lên đời cô."
+      "text": "Tí không trách mà chỉ ngồi bên cạnh để Mây tự suy nghĩ."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ông Trịnh yêu cầu dừng tiệc và gọi cảnh sát kinh tế vì giấy tờ cổ phần đã bị can thiệp."
+      "text": "Đúng lúc ấy, một cơn gió mạnh làm tấm biển lớp học rơi xuống bãi cỏ."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ngọc Vy nghe đến hai chữ cổ phần thì mất bình tĩnh."
+      "text": "Ngày mai cả trường có buổi kể chuyện, nhưng tấm biển đã bị gãy làm đôi."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
+      "environment": "river_soft",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cô ta quát rằng nhà họ Trịnh nợ cô ta vì đã để cô ta sống nghèo suốt hai mươi năm."
+      "text": "Chúng ta phải quay lại giúp mọi người sửa nó trước khi trời tối."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
+      "environment": "river_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Câu quát ấy xé toạc chiếc mặt nạ đáng thương."
+      "text": "Mây không nhìn chiếc hộp nữa mà lập tức chạy về phía sân trường."
     },
     {
       "zone": "TRIỂN KHAI",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bà Trịnh nhìn cô ta như nhìn một người lạ."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "FAST",
       "lang": "VI",
-      "text": "Linh Đan giơ tay ra hiệu cho Khải chuyển sang tập tin cuối."
+      "text": "Tí theo sau chậm hơn nhưng vẫn gọi các bạn mang dây, hồ dán và giấy màu."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "FAST",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Màn hình hiện bản đồ thời gian của ba mẫu ADN đã được gửi đến ba phòng xét nghiệm khác nhau."
+      "text": "Tại sân trường, nhiều bạn đã cố ghép tấm biển nhưng phần giữa vẫn thiếu một mảnh lớn."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "FAST",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Mẫu thứ nhất bị đổi tại phòng tư nhân do Hoàng Minh sắp xếp."
+      "text": "Mây nhìn thấy trong chiếc hộp cơm của mình còn một tấm bìa cứng dùng làm tranh dự thi."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "FAST",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Mẫu thứ hai là mẫu tóc Ngọc Vy tự nộp và không trùng với nhà họ Trịnh."
+      "text": "Đó là bức tranh cô bé đã chuẩn bị suốt ba buổi chiều và rất muốn giữ nguyên."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Mẫu thứ ba là mẫu máu Linh Đan lấy trực tiếp tại bệnh viện công trước sự chứng kiến của công chứng viên."
+      "text": "Nếu cắt tấm bìa này, bức tranh của mình sẽ không thể dự thi nữa."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
+      "environment": "school_hallway",
+      "voice": "MALE",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Kết quả hiện lên rất rõ, Linh Đan là con ruột của ông bà Trịnh."
+      "text": "Bạn có quyền giữ nó, chúng ta vẫn có thể tìm cách khác."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "FAST",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Không ai vỗ tay."
+      "text": "Mây nhìn những người bạn đang chờ và nhớ đến dòng chữ trên mảnh giấy."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "FAST",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Sự im lặng lúc đó nặng hơn mọi tiếng vỗ tay."
+      "text": "Cô bé hiểu rằng lòng tốt đôi khi cần một lựa chọn thật sự chứ không chỉ vài phút tiện tay."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Ngọc Vy lao tới giật màn hình điều khiển, nhưng dây tín hiệu đã được khóa trong tủ kỹ thuật."
+      "text": "Mình sẽ dùng tấm bìa này, vì buổi kể chuyện là niềm vui của cả lớp."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "FAST",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cô ta quay sang Hoàng Minh và hét rằng anh đã hứa mọi thứ sẽ sạch."
+      "text": "Mây cẩn thận cắt phần nền tranh thành mảnh ghép vừa khít với tấm biển."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "FAST",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Hoàng Minh hét lại rằng chính cô ta đưa tiền và hồ sơ giả."
+      "text": "Các bạn dùng màu vẽ biến phần còn lại thành những đám mây và ngôi sao rực rỡ."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "FAST",
       "lang": "VI",
-      "text": "Cả hai quên mất micro trên sân khấu vẫn đang mở."
+      "text": "Tí giữ dây, Sóc Nâu dán mép, Nhím Con tô màu và chim non treo nơ."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "FAST",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Từng câu buộc tội nhau vang ra loa, rõ đến mức bàn cuối cũng nghe được."
+      "text": "Tấm biển mới đẹp hơn tấm biển cũ vì có dấu tay của tất cả mọi người."
     },
     {
       "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "FAST",
+      "speed": "SLOW",
       "lang": "VI",
-      "text": "Linh Đan đứng yên, để sự thật tự nói bằng giọng của kẻ nói dối."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Bà Trịnh khuỵu xuống ghế, nước mắt rơi nhưng không còn ai lau giúp bà."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Ông Trịnh hỏi Ngọc Vy ai chỉ cô ta vị trí chiếc vòng bạc thật."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Ngọc Vy cười méo mó và nói nhà này quá dễ lừa vì ai cũng thèm chuộc lỗi."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Câu nói ấy khiến bà Trịnh nhắm mắt lại."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Linh Đan mở chiếc hộp nhỏ trong túi."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Bên trong là nửa miếng ngọc bị mẻ, vật duy nhất mẹ ruột buộc vào vòng bạc năm xưa."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Nửa còn lại nằm trong két nhà họ Trịnh và chưa từng được công bố."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Ông Trịnh run tay lấy nửa miếng ngọc từ trợ lý."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Hai mảnh khớp nhau hoàn hảo trên mặt kính sân khấu."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Cú lật cuối cùng không cần lời giải thích dài."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Ngọc Vy nhìn hai mảnh ngọc, rồi lùi một bước."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Hoàng Minh định bỏ chạy khỏi cửa phụ."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Khải đã báo bảo vệ khóa lối ra ngay khi tập tin cuối được mở."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Hoàng Minh bị giữ lại trước mặt những người anh ta từng muốn gây ấn tượng."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Linh Đan nhìn anh ta và nói chiếc nhẫn trả góp anh cứ giữ làm kỷ niệm cho lựa chọn rẻ nhất đời mình."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Anh ta gọi tên cô, nhưng cô không quay đầu."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Ngọc Vy bật khóc thật lần đầu tiên trong đêm."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "FAST",
-      "lang": "VI",
-      "text": "Nhưng lần này không còn camera nào cứu được cô ta."
+      "text": "Trong giỏ, chiếc hộp bỗng vang lên một tiếng ting trong trẻo."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cảnh sát đến khi màn hình vẫn còn chiếu hai mảnh ngọc khớp nhau."
+      "text": "Khi mọi người quay lại thư viện, hình trái tim trên nắp hộp từ từ nở sáng."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Luật sư của nhà họ Trịnh niêm phong toàn bộ hồ sơ cổ phần ngay tại chỗ."
+      "text": "Chiếc khóa tự mở, nhưng bên trong không có vàng bạc hay món đồ quý giá."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Hoàng Minh bị đưa đi lấy lời khai vì liên quan đến việc tráo mẫu xét nghiệm."
+      "text": "Chỉ có một tấm gương nhỏ và nhiều mảnh giấy trắng hình chiếc lá."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
+      "environment": "library_soft",
+      "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ngọc Vy cố bám lấy tay bà Trịnh, nhưng bà rút tay về rất chậm."
+      "text": "Trong gương là mình, còn những chiếc lá này dùng để làm gì nhỉ."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
+      "environment": "library_soft",
+      "voice": "MALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Cái rút tay ấy đau hơn mọi lời mắng."
+      "text": "Có lẽ mỗi chiếc lá sẽ ghi lại một việc tử tế để người khác tiếp tục."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Dì trong họ Trịnh đứng dậy xin lỗi Linh Đan trước mặt các khách mời."
+      "text": "Mây viết việc đầu tiên là giúp mà không chờ phần thưởng hay lời khen."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan không đáp ngay, vì lời xin lỗi đến quá muộn thường chỉ để người nói dễ thở hơn."
+      "text": "Các bạn khác cũng viết những điều mình muốn làm vào ngày mai."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "environment": "library_soft",
+      "voice": "NARRATOR",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Chiếc hộp sáng ấm áp như thể chứa cả một buổi chiều đầy yêu thương."
+    },
+    {
+      "zone": "KẾT TRUYỆN",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ông Trịnh bước xuống sân khấu và cúi đầu trước cô."
+      "text": "Từ hôm đó, chiếc hộp được đặt ở góc lớp thay vì cất riêng cho Mây."
     },
     {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "zone": "KẾT TRUYỆN",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Ông nói nhà họ Trịnh nợ cô một danh phận và một lời bảo vệ."
+      "text": "Mỗi bạn có thể bỏ vào một chiếc lá kể về việc tốt mình đã thấy."
     },
     {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "zone": "KẾT TRUYỆN",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan nói danh phận có thể trả, nhưng tuổi thơ thì không."
+      "text": "Không ai ghi tên người làm, vì điều quan trọng là niềm vui được lan đi."
     },
     {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "zone": "KẾT TRUYỆN",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Bà Trịnh khóc đến mất tiếng và gọi cô là con."
+      "text": "Mây vẫn tiếc bức tranh dự thi nhưng cô bé không hề thấy hối hận."
     },
     {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "zone": "KẾT TRUYỆN",
+      "environment": "bedroom_warm",
+      "voice": "FEMALE",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Mình đã mất một bức tranh nhưng lại cùng các bạn tạo nên điều đẹp hơn."
+    },
+    {
+      "zone": "KẾT TRUYỆN",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Linh Đan nhìn bà rất lâu, rồi chỉ nói hôm nay bà nên nghỉ ngơi."
+      "text": "Tí mỉm cười và bảo rằng lòng tốt giống ánh đèn, càng chia sẻ càng sáng."
     },
     {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
+      "zone": "KẾT TRUYỆN",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Không phải cô lạnh lùng."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô chỉ không muốn lòng thương bị biến thành chiếc dây kéo mình quay lại quá nhanh."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Khách mời lần lượt rời khỏi đại sảnh trong sự ngượng ngập."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Những người vừa quay video chế giễu cô bắt đầu xóa bài."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Nhưng livestream chính thức đã được lưu, và sự thật không còn thuộc về riêng nhà họ Trịnh."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Sáng hôm sau, toàn bộ hội đồng quản trị biết người thừa kế thật không phải cô gái biết khóc."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Họ cũng biết Linh Đan là người đã cứu tập đoàn khỏi một hợp đồng chuyển nhượng bị gài bẫy."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Vị trí của cô thay đổi trước khi cô kịp đổi họ."
+      "text": "Mây hiểu chiếc hộp không thử ba việc làm mà thử cách trái tim lựa chọn."
     },
     {
       "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Một tháng sau, Linh Đan nhận lại tên khai sinh trong phòng công chứng nhỏ, không có hoa và không có máy ảnh."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Bà Trịnh ngồi đối diện cô, đôi tay đặt trên chiếc khăn thêu cũ."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Lần này bà không khóc để mong được tha thứ."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Bà chỉ đặt chiếc vòng bạc thật trước mặt cô và nói bà sẽ học lại cách làm mẹ."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Linh Đan nhận vòng, nhưng không gọi mẹ ngay."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Cô nói niềm tin cũng giống dữ liệu, đã mất thì phải khôi phục từng bản sao một."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Ông Trịnh giao cho cô phụ trách dự án kiểm toán nội bộ của tập đoàn."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Không ai phản đối, vì cả hội đồng đã thấy năng lực của cô trong đêm đó."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Những lỗ hổng giấy tờ mà cô phát hiện giúp tập đoàn tránh được một khoản thất thoát lớn."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Ngọc Vy bị điều tra vì làm giả hồ sơ và cấu kết tráo mẫu xét nghiệm."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Hoàng Minh cố gửi thư xin lỗi, nhưng Linh Đan trả lại nguyên phong bì."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Cô không cần một người đàn ông chỉ trung thành với tài sản lớn hơn."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Ngày dự án đầu tiên kết thúc, Khải hỏi cô có hả hê không."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Linh Đan nhìn thành phố sau lớp kính và nói hả hê thì có, nhưng nhẹ nhõm mới nhiều hơn."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Cô đã không lấy lại đời mình bằng tiếng khóc."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Cô lấy lại nó bằng chứng cứ, trí nhớ và sự kiên nhẫn."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Nhà họ Trịnh mở lại phòng lưu trữ thất lạc để tìm những đứa trẻ khác từng bị bỏ quên trong hồ sơ cháy."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Linh Đan đứng tên quỹ hỗ trợ pháp lý cho các ca nhận thân bị giả mạo."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Bà Trịnh đến buổi ra mắt quỹ và ngồi ở hàng ghế dưới, không đòi đứng cạnh cô."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Khi bài phát biểu kết thúc, Linh Đan bước xuống và đặt tay lên vai bà."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "cafe_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Chỉ một cái chạm rất nhẹ, nhưng đủ để bắt đầu lại mà không cần xóa sạch quá khứ."
+      "text": "Và từ đó, cả lớp có thêm một nơi nhỏ để nuôi lớn những điều tử tế."
     },
     {
       "zone": "TẠM BIỆT",
-      "environment": "night_city_soft",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Có những kẻ cướp thân phận vì tưởng đời người khác chỉ là một chiếc váy đẹp."
+      "text": "Câu chuyện về chiếc hộp của Mây đến đây là khép lại."
     },
     {
       "zone": "TẠM BIỆT",
-      "environment": "night_city_soft",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Nhưng váy có thể khâu lại, giấy có thể làm giả, còn sự thật thì luôn để lại đường may."
+      "text": "Mong các bạn luôn nhận ra những người đang cần một bàn tay giúp đỡ."
     },
     {
       "zone": "TẠM BIỆT",
-      "environment": "night_city_soft",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Linh Đan không trở về để cầu xin một gia đình."
+      "text": "Một việc tốt nhỏ cũng có thể làm ngày của ai đó trở nên dịu dàng hơn."
     },
     {
       "zone": "TẠM BIỆT",
-      "environment": "night_city_soft",
+      "environment": "bedroom_warm",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Cô trở về để nhắc họ rằng máu mủ không có nghĩa gì nếu thiếu công bằng."
-    },
-    {
-      "zone": "TẠM BIỆT",
-      "environment": "night_city_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Và đêm cô bị tát trước đám đông, cũng là đêm cô bắt cả đám đông phải nhìn thấy cô thật sự là ai."
+      "text": "Chúc các bạn ngủ ngon và giữ chiếc hộp tử tế luôn sáng trong tim."
     }
   ]
 }

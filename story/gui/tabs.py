@@ -8,6 +8,7 @@ from typing import Any, Callable, MutableMapping
 import streamlit as st
 import yaml
 
+from common.gui.input_bundle import load_input_story, scan_input_bundle
 from story.testing import llm_config_fingerprint, run_llm_smoke_test
 from story.audio_story_spec import render_plain_script, validate_canonical_authoring
 from story.convert_raw_to_script import SpeakerConfig, convert_text
@@ -273,6 +274,33 @@ def render_inputs_tab(settings: dict[str, Any], *, project_root: Path | None = N
         prompt_paths=prompt_paths,
         project_root=project_root,
     )
+    input_bundle = scan_input_bundle("input")
+    with st.expander("Input sample", expanded=False):
+        st.json(input_bundle.summary())
+        if st.button("Load canonical story from input/story.json", key="story_load_input_story", width="stretch", disabled=not input_bundle.has_story):
+            try:
+                authoring = load_input_story("input")
+                errors = validate_canonical_authoring(authoring)
+                if errors:
+                    raise ValueError("; ".join(errors[:3]))
+                plain_script = render_plain_script(authoring)
+                st.session_state["story_last_result"] = {
+                    "plain_script": plain_script,
+                    "authoring": authoring,
+                    "canonical_json": authoring,
+                    "plain_script_path": "",
+                    "canonical_json_path": str(input_bundle.story_path),
+                    "source": "input",
+                }
+                st.session_state["workspace_story_plain_script_text"] = plain_script
+                st.session_state["workspace_last_story_output"] = str(input_bundle.story_path)
+                st.session_state["run_plain_text"] = plain_script
+                st.session_state["last_plain_script"] = plain_script
+                st.session_state["audio_last_auto_plain_script"] = plain_script
+                st.session_state["audio_lock_to_story_handoff"] = True
+                st.success("Loaded input/story.json into Story and Audio.")
+            except Exception as exc:
+                st.warning(f"Could not load input story: {exc}")
     selected_brief_label = st.selectbox("Choose Brief YAML", brief_labels, key="story_selected_brief_label")
     chosen_brief_path = selected_brief_path(selected_brief_label, brief_paths, project_root=project_root)
     if chosen_brief_path is not None:

@@ -29,6 +29,17 @@ def main() -> int:
     app_title = "AI Story Studio"
 
     def render_overview() -> None:
+        st.subheader("Recommended workflow")
+        st.markdown(
+            """
+            - Open **Story** to create the plain script and image handoff bundle.
+            - Switch to **Audio** to render narration and subtitles.
+            - Switch to **Image** to render cover/scenes from the prompt bundle.
+            - Switch to **Video** to combine audio and images into an MP4.
+            - Track handoff status in the sidebar to see the latest output from each step.
+            """
+        )
+
         st.subheader("Unified workspace")
 
         col1, col2, col3, col4 = st.columns(4)
@@ -48,18 +59,6 @@ Render Story handoff -> cover/scenes.""")
             st.info("""**4. Video**
 
 Render audio/subtitle + cover/scenes -> MP4.""")
-
-        st.divider()
-        st.subheader("Recommended workflow")
-        st.markdown(
-            """
-            - Open **Story** to create the plain script and image handoff bundle.
-            - Switch to **Audio** to render narration and subtitles.
-            - Switch to **Image** to render cover/scenes from the prompt bundle.
-            - Switch to **Video** to combine audio and images into an MP4.
-            - Track handoff status in the sidebar to see the latest output from each step.
-            """
-        )
 
     render_workspace_shell(
         title=app_title,

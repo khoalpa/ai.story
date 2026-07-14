@@ -7,17 +7,17 @@
     "aspect": "9x16"
   },
   "voices": {
-    "vi_narrator": "Thục Đoan",
+    "vi_narrator": "Doan",
     "vi_female": "Thục Đoan",
-    "vi_male": "Phạm Tuyên",
-    "voice_narrator": "Thục Đoan",
+    "vi_male": "Vinh",
+    "voice_narrator": "Doan",
     "voice_female": "Thục Đoan",
-    "voice_male": "Phạm Tuyên",
-    "en_narrator": "en-US-AriaNeural",
-    "en_female": "en-US-JennyNeural",
+    "voice_male": "Vinh",
+    "en_narrator": "Doan",
+    "en_female": "Doan",
     "en_male": "en-US-GuyNeural",
-    "voice_en_narrator": "en-US-AriaNeural",
-    "voice_en_female": "en-US-JennyNeural",
+    "voice_en_narrator": "Doan",
+    "voice_en_female": "Doan",
     "voice_en_male": "en-US-GuyNeural"
   }
 }

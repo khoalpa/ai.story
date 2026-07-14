@@ -24,38 +24,65 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 ZONE_IMAGE_ALIASES: dict[str, tuple[str, ...]] = {
     "intro_card": (
-        "intro_card",
-        "intro-cover",
-        "intro_cover",
-        "opening",
-        "opening_card",
-        "prelude",
-        "cover",
+        "intro",   
+        "intro_card",     
+        "mo_dau",
+        "mo-dau",
     ),
-    "greeting": ("greeting", "loi_chao", "loi-chao", "hello"),
+    "greeting": (
+        "greeting", 
+        "greeting_zone", 
+        "loi_chao", 
+        "loi-chao", 
+    ),
     "opening": (
-        "zone_opening",
-        "story_opening",
+        "opening",           
+        "opening_zone",
         "mo_truyen",
         "mo-truyen",
-        "zone_intro",
-        "story_intro",
-        "opening",
     ),
-    "introduction": ("introduction", "gioi_thieu", "gioi-thieu"),
-    "development": ("development", "trien_khai", "trien-khai"),
-    "climax": ("climax", "cao_trao", "cao-trao"),
-    "falling": ("falling", "ha_man", "ha-man"),
-    "ending": ("ending", "ket_truyen", "ket-truyen"),
-    "farewell": ("farewell", "tam_biet", "tam-biet"),
+    "introduction": (
+        "introduction", 
+        "introduction_zone", 
+        "gioi_thieu", 
+        "gioi-thieu",
+    ),
+    "development": (
+        "development", 
+        "development_zone", 
+        "trien_khai", 
+        "trien-khai",
+    ),
+    "climax": (
+        "climax", 
+        "climax_zone", 
+        "cao_trao", 
+        "cao-trao",
+    ),
+    "falling": (
+        "falling", 
+        "falling_zone", 
+        "ha_man", 
+        "ha-man"
+    ),
+    "ending": (
+        "ending", 
+        "ending_zone",        
+        "ket_truyen", 
+        "ket-truyen",
+    ),
+    "farewell": (
+        "farewell", 
+        "farewell_zone", 
+        "tam_biet", 
+        "tam-biet",
+    ),
     "outro_card": (
+        "outro",  
         "outro_card",
-        "outro",
-        "ending_card",
         "closing",
-        "closing_card",
-        "endcard",
-        "credits",
+        "phan_ket",
+        "phan-ket",
     ),
 }
 
@@ -83,6 +110,7 @@ else:
 STDERR_TAIL_LINES = int(os.getenv("STDERR_TAIL_LINES", "40"))
 KEEP_CONCAT_LIST = os.getenv("KEEP_CONCAT_LIST", "0").strip() == "1"
 SLIDESHOW_MATCH_AUDIO = os.getenv("SLIDESHOW_MATCH_AUDIO", "1").strip() == "1"
+SLIDESHOW_ZONE_AWARE = os.getenv("SLIDESHOW_ZONE_AWARE", "1").strip() == "1"
 AUDIO_MATCH_EPSILON = float(os.getenv("AUDIO_MATCH_EPSILON", "0.2"))
 PRINT_FFMPEG_VERSION = os.getenv("PRINT_FFMPEG_VERSION", "0").strip() == "1"
 DEFAULT_PROFILE_ROOT = str(default_profile_root())
