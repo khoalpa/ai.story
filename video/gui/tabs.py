@@ -21,6 +21,7 @@ from video.gui.runtime_usage import render_runtime_usage_compact
 from video.gui.workspace_handoff import workspace_handoff_state
 from video.gui.workspace_source_outputs import workspace_source_outputs
 from video.gui.user_messages import show_missing_input, show_provider_error
+from video.handoff import read_audio_handoff, read_image_handoff
 from video.app_api import RenderVideoRequest
 from video.error_handling import (
     USER_FACING_EXCEPTIONS,
@@ -264,6 +265,8 @@ def _ensure_video_input_defaults(settings: dict[str, Any]) -> None:
     st.session_state.setdefault("video_cover_source", "handoff")
     st.session_state.setdefault("video_scenes_source", "handoff")
     st.session_state.setdefault("video_story_json_input", "")
+    st.session_state.setdefault("video_audio_handoff_manifest", "")
+    st.session_state.setdefault("video_image_handoff_manifest", "")
     st.session_state.setdefault("video_input_cover_path", str(Path(settings.get("input_root") or "input") / "cover.png"))
     st.session_state.setdefault("video_input_scenes_dir", str(Path(settings.get("input_root") or "input") / "scene_images"))
 
@@ -513,6 +516,25 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
     )
     col_left, col_right = st.columns([1.15, 1.0])
     with col_left:
+        st.text_input("Audio handoff manifest", key="video_audio_handoff_manifest")
+        st.text_input("Image handoff manifest", key="video_image_handoff_manifest")
+        if st.button("Load handoff manifests", key="video_load_handoff_manifests", width="stretch"):
+            try:
+                audio_manifest = str(st.session_state.get("video_audio_handoff_manifest") or "").strip()
+                image_manifest = str(st.session_state.get("video_image_handoff_manifest") or "").strip()
+                if audio_manifest:
+                    incoming_audio = read_audio_handoff(Path(audio_manifest))
+                    st.session_state["video_audio_input"] = str(incoming_audio.audio)
+                    st.session_state["video_subtitle_input"] = str(incoming_audio.subtitle or "")
+                if image_manifest:
+                    incoming_image = read_image_handoff(Path(image_manifest))
+                    st.session_state["video_cover_input"] = str(incoming_image.cover or "")
+                    st.session_state["video_scenes_input"] = str(incoming_image.scenes)
+                    st.session_state["video_cover_source"] = "handoff"
+                    st.session_state["video_scenes_source"] = "handoff"
+                st.success("Loaded handoff manifests. Direct input fields remain authoritative.")
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                st.error(f"Could not load handoff manifest: {exc}")
         st.text_input("Audio file", key="video_audio_input")
         st.text_input(
             "Subtitle file (leave empty = autodetect from audio)",

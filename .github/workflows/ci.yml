@@ -40,5 +40,18 @@ jobs:
       - name: Verify independent package wheels
         run: python scripts/check_independent_wheels.py
 
+      - name: Build standalone release wheels
+        run: |
+          mkdir -p dist/standalone
+          for package in story audio image video studio; do
+            python -m pip wheel "packages/$package" --no-deps --no-build-isolation -w dist/standalone
+          done
+
+      - name: Upload standalone wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-wheels
+          path: dist/standalone/*.whl
+
       - name: Run release smoke
         run: python scripts/release_smoke.py

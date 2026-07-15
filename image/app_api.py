@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from image.handoff import read_story_handoff, write_video_handoff
 
 
 def render_image_workspace(*, embedded: bool = False) -> None:
@@ -89,5 +90,6 @@ def execute_request(request: RenderImageRequest, progress_callback=None) -> Rend
 __all__ = [
     "RenderImageRequest", "RenderImageResult", "execute_request",
     "render_image_studio", "render_image_workspace", "validate_request",
+    "read_story_handoff", "write_video_handoff",
 ]
 

@@ -98,6 +98,7 @@ story = [
 ]
 "image" = [
   "assets/workflows/*.json",
+  "assets/schemas/*.json",
 ]
 "video" = [
   "assets/*",

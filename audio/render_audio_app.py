@@ -322,6 +322,7 @@ class RenderAudioAppResult:
     validate_warnings_count: int = 0
     cli_bgm_config: Optional[Path] = None
     profile_bgm_config: Optional[Path] = None
+    handoff_manifest_path: Optional[Path] = None
 
 
 def create_app_request_from_args(args) -> RenderAudioAppRequest:
@@ -563,7 +564,7 @@ def run_render_audio_app(
         vieneu_render_max_batch_size_run=request.vieneu_render_max_batch_size_run,
     )
     emit_render_event(event_sink, AppRenderCompletedEvent(render_artifacts=render_artifacts))
-    write_video_handoff(
+    handoff_manifest_path = write_video_handoff(
         request.output_dir / "audio_video_handoff.json",
         audio=job_paths.out_file,
         subtitle=job_paths.srt_path if job_paths.srt_path.is_file() else None,
@@ -581,4 +582,5 @@ def run_render_audio_app(
         render_artifacts=render_artifacts,
         cli_bgm_config=cli_bgm_config,
         profile_bgm_config=profile_bgm_config,
+        handoff_manifest_path=handoff_manifest_path,
     )

@@ -20,8 +20,10 @@ DESCRIPTION = "Render an MP4 video from finished audio plus a cover image or sli
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument(
-        "--audio", type=str, required=True, help="Input audio file path (for example: output/story.mp3)."
+        "--audio", type=str, default=None, help="Input audio file; overrides --audio-handoff."
     )
+    parser.add_argument("--audio-handoff", default=None, help="audio.video-handoff manifest path.")
+    parser.add_argument("--image-handoff", default=None, help="image.video-handoff manifest path.")
     parser.add_argument(
         "--output", type=str, required=True, help="Output MP4 file path (for example: output/video.mp4)."
     )

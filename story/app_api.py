@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+from story.handoff import write_handoff as write_story_handoff
 
 
 @dataclass(slots=True)
@@ -52,4 +53,5 @@ def main(argv: list[str] | None = None) -> int:
 __all__ = [
     "GenerateStoryRequest", "GenerateStoryResult", "execute_request", "main",
     "render_story_studio", "render_story_workspace", "validate_request",
+    "write_story_handoff",
 ]

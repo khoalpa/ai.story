@@ -11,6 +11,7 @@ from audio.render_audio_app import (
     run_render_audio_app,
     validate_only_script,
 )
+from audio.handoff import read_story_handoff, write_video_handoff
 
 
 def render_audio_workspace(*, embedded: bool = False) -> None:
@@ -48,7 +49,9 @@ __all__ = [
     "execute_request",
     "render_audio_studio",
     "render_audio_workspace",
+    "read_story_handoff",
     "run_render_audio_app",
     "validate_only_script",
     "validate_request",
+    "write_video_handoff",
 ]

@@ -295,7 +295,7 @@ def run_image_job(request: RenderImageRequest, progress_callback: ProgressCallba
         ),
         encoding="utf-8",
     )
-    write_video_handoff(
+    video_handoff_manifest = write_video_handoff(
         output_dir / "image_video_handoff.json",
         cover=cover_output if cover_output.is_file() else None,
         scenes=scenes_dir,
@@ -307,7 +307,7 @@ def run_image_job(request: RenderImageRequest, progress_callback: ProgressCallba
         cover_image=cover_output if cover_output.is_file() else None,
         scene_images_dir=scenes_dir,
         generated_files=generated,
-        manifest_path=runtime_manifest,
+        manifest_path=video_handoff_manifest,
         logs=logs,
     )
 

@@ -32,3 +32,5 @@ Relative artifact paths replace machine-specific absolute paths.
 The `render_*_studio` integration aliases remain supported for this release.
 Internal compatibility wrappers without callers may be removed independently;
 public removals require a deprecation cycle.
+
+See [the deprecation policy](DEPRECATIONS.md) for the planned removal window.

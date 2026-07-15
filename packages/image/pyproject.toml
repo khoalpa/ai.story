@@ -24,4 +24,4 @@ include = ["image*"]
 exclude = ["image.local_models", "image.local_models.*"]
 
 [tool.setuptools.package-data]
-image = ["assets/workflows/*.json"]
+image = ["assets/workflows/*.json", "assets/schemas/*.json"]

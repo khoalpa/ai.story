@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-story-studio.local/schemas/audio.video-handoff-v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "producer",
+    "created_at",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "audio.video-handoff"
+    },
+    "producer": {
+      "const": "audio"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "artifacts": {
+      "type": "object",
+      "required": [
+        "audio"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

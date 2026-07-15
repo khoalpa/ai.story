@@ -5,11 +5,18 @@ import subprocess
 import sys
 import tempfile
 import venv
+import zipfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ("story", "audio", "image", "video")
+REQUIRED_SCHEMA = {
+    "story": "story/assets/schemas/story-audio-handoff-v1.schema.json",
+    "audio": "audio/assets/schemas/audio-video-handoff-v1.schema.json",
+    "image": "image/assets/schemas/image-video-handoff-v1.schema.json",
+    "video": None,
+}
 
 
 def run(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> None:
@@ -30,6 +37,14 @@ def main() -> int:
                 cwd=temp,
             )
             wheel = next(dist.glob(f"ai_{package}-*.whl"))
+            with zipfile.ZipFile(wheel) as archive:
+                members = set(archive.namelist())
+            required_schema = REQUIRED_SCHEMA[package]
+            if required_schema and required_schema not in members:
+                raise RuntimeError(f"{wheel.name} is missing {required_schema}")
+            for sibling in PACKAGES:
+                if sibling != package and any(name.startswith(f"{sibling}/") for name in members):
+                    raise RuntimeError(f"{wheel.name} unexpectedly contains sibling package {sibling}")
             env_dir = temp / f"venv-{package}"
             venv.EnvBuilder(with_pip=True, system_site_packages=True).create(env_dir)
             python = env_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")

@@ -32,6 +32,7 @@ from video.render_static import make_static_video
 from video.run_history import append_run_history, write_run_log
 from video.runtime_tools import format_runtime_diagnostics
 from video.validation import autodetect_subtitle_from_audio, inspect_video_image_readiness
+from video.handoff import read_audio_handoff, read_image_handoff
 
 logger = get_logger(__name__)
 
@@ -228,15 +229,25 @@ def validate_render_request(request: RenderVideoRequest) -> None:
         
 
 def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], dict[str, Optional[Path]]]:
+    audio_bundle = read_audio_handoff(Path(args.audio_handoff)) if getattr(args, "audio_handoff", None) else None
+    image_bundle = read_image_handoff(Path(args.image_handoff)) if getattr(args, "image_handoff", None) else None
+    direct_audio = Path(args.audio) if getattr(args, "audio", None) else None
+    direct_subtitle = Path(args.subtitle) if getattr(args, "subtitle", None) else None
+    direct_cover = Path(args.cover) if getattr(args, "cover", None) else None
+    direct_scenes = Path(args.scenes_dir) if getattr(args, "scenes_dir", None) else None
+    audio_path = direct_audio or (audio_bundle.audio if audio_bundle else None)
+    subtitle_path = direct_subtitle or (audio_bundle.subtitle if audio_bundle else None)
+    manifest_cover = image_bundle.cover if image_bundle else None
+    manifest_scenes = image_bundle.scenes if image_bundle else None
     profile_dir, defaults, resolved_cover, resolved_scenes_dir = resolve_asset_profile_runtime(
         profile_root=getattr(args, "profile_root", None),
         asset_profile=getattr(args, "asset_profile", None),
-        cover=Path(args.cover) if getattr(args, "cover", None) is not None else None,
-        scenes_dir=Path(args.scenes_dir) if getattr(args, "scenes_dir", None) is not None else None,
+        cover=direct_cover or manifest_cover,
+        scenes_dir=direct_scenes or manifest_scenes,
     )
-    subtitle_path = Path(args.subtitle) if getattr(args, "subtitle", None) else None
     story_json_path = Path(args.story_json) if getattr(args, "story_json", None) else None
-    audio_path = Path(args.audio)
+    if audio_path is None:
+        raise ValueError("Provide --audio or --audio-handoff.")
     if subtitle_path is None:
         subtitle_path = autodetect_subtitle_from_audio(audio_path)
     request = RenderVideoRequest(
@@ -349,4 +360,5 @@ __all__ = [
     "RenderVideoRequest", "execute_render_request", "execute_request",
     "render_video_studio", "render_video_workspace", "request_from_args",
     "resolve_asset_profile_runtime", "validate_render_request", "validate_request",
+    "read_audio_handoff", "read_image_handoff",
 ]

@@ -506,7 +506,7 @@ Giữ `tabs.py` làm facade mỏng khi:
 
 ---
 
-## 7. Thiết kế `common/gui/` cũ (đã loại bỏ)
+## 7. Thiết kế GUI package nội bộ cũ (đã loại bỏ)
 
 Các helper dùng chung nên chia theo chủ đề nhỏ, không gom quá tay.
 
@@ -546,7 +546,7 @@ Không gom nếu:
 3. `config_mapper.py` map sang config/settings
 4. `main_panel.py` điều phối panel tương ứng
 5. panel module gọi service/runtime
-6. kết quả ghi ngược qua wrappers trong `state.py` hoặc `common/gui/*`
+6. kết quả ghi ngược qua wrappers trong `state.py` hoặc `<package>/gui/*`
 
 ### Với handoff pipeline
 1. workspace A ghi source output qua `workspace_source_outputs.py`
@@ -603,7 +603,7 @@ Trước khi thêm code mới, kiểm tra:
 
 ### Shared helpers
 - logic mới có lặp ở >= 2 workspace không?
-- nếu có, có nên đưa vào `common/gui/` không?
+- nếu có, có nên đưa vào GUI package nội bộ không?
 
 ---
 
@@ -774,7 +774,7 @@ Dùng cho:
 - raw metadata
 - exception text rút gọn nếu cần
 
-#### Trong `common/gui/user_messages.py`
+#### Trong `<package>/gui/user_messages.py`
 Dùng cho:
 - user-facing workflow messages
 - thiếu input/cấu hình cần thiết trước khi chạy action
@@ -785,7 +785,7 @@ Quy ước:
 - Đây là lớp chuẩn cho **workflow feedback** hướng người dùng.
 - Không dùng lớp này cho shell-level monitor/status thuần runtime.
 
-#### Trong `common/gui/shell.py`
+#### Trong `<package>/gui/shell.py`
 Được phép giữ trực tiếp:
 - pipeline status bar
 - global run monitor
@@ -1067,8 +1067,8 @@ py -m streamlit run studio/gui_entry.py
 ## Kiến trúc
 
 ### Shell dùng chung
-- `common.gui.shell.render_workspace_shell()`
-- `common.gui.state.ensure_workspace_shell_state()`
+- shell nội bộ của từng feature package
+- state nội bộ của từng feature package
 
 ### Embedded renderers
 - `story.gui.app.render_story_workspace(embedded=True)`
@@ -1089,7 +1089,7 @@ Mỗi studio vẫn giữ `main()` riêng để tương thích với launcher cũ
 - Tự động prefill đầu vào Audio từ output Story
 - Tự động prefill đầu vào Image từ handoff bundle của Story
 - Tự động prefill đầu vào Video từ output Audio và output Image
-- Gom component sidebar lặp lại vào `common.gui`
+- Gom component sidebar lặp lại trong package sở hữu
 - Bổ sung Run Monitor chung cho toàn bộ pipeline
 
 ## Auto-prefill behavior

@@ -432,6 +432,7 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
         workspace_source_outputs(st.session_state).story_plain_script_path = plain_script_path
         set_story_handoff(plain_script_text=result.get("plain_script") or "")
         workspace_handoff_state(st.session_state).last_story_output = plain_script_path
+        st.session_state["story_audio_handoff_manifest"] = str(result.get("audio_handoff_manifest") or "")
         st.session_state.story_last_canonical_json_path = canonical_json_path
         append_history(result)
 
@@ -579,6 +580,7 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
             st.session_state.story_last_canonical_json_path = canonical_json_path
             set_story_handoff(plain_script_text=plain_script_text)
             workspace_handoff_state(st.session_state).last_story_output = plain_script_path
+            st.session_state["story_audio_handoff_manifest"] = str(result.get("audio_handoff_manifest") or "")
             progress.progress(1.0, text=format_progress_text(100, "Complete", [f"mode={result.get('mode') or settings.get('mode') or '-'}"]))
             st.success("Story generated successfully")
             append_history(result)
