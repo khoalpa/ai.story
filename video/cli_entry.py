@@ -158,9 +158,10 @@ def run_from_args(args: argparse.Namespace) -> Path:
             raise FileNotFoundError(f"story.json not found: {request.story_json}")
         used_files.add("Story JSON", request.story_json)
 
-    execute_render_request(request)
+    result = execute_render_request(request)
 
     print(f"Created video file: {request.output}")
+    print(f"Created result manifest: {result['result_manifest_path']}")
     used_files.print_summary()
     return request.output
 

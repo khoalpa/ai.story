@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "video-result-manifest-v1.schema.json",
+  "type": "object",
+  "required": ["schema_version", "kind", "producer", "created_at", "artifacts", "provenance"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "kind": {"const": "video.result-manifest"},
+    "producer": {"const": "video"},
+    "created_at": {"type": "string"},
+    "artifacts": {"type": "object", "required": ["video"]},
+    "metadata": {"type": "object"},
+    "provenance": {"type": "object", "required": ["input_manifests"]}
+  }
+}

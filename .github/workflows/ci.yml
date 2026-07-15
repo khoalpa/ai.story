@@ -5,6 +5,21 @@ on:
   pull_request:
 
 jobs:
+  cross-platform-contracts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.10', '3.11']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install Pillow PyYAML requests
+      - run: python scripts/run_story_to_video_e2e.py --fixture --report e2e-report.json
+      - run: python scripts/check_public_api.py
+
   test-and-package:
     runs-on: ubuntu-latest
     steps:
@@ -28,6 +43,12 @@ jobs:
       - name: Run unit and integration tests
         run: pytest -q
 
+      - name: Run offline Story-to-Video E2E
+        run: python scripts/run_story_to_video_e2e.py --fixture --report e2e-report.json
+
+      - name: Check stable public API
+        run: python scripts/check_public_api.py
+
       - name: Check dependency direction
         run: python scripts/check_dependency_direction.py
 
@@ -47,11 +68,16 @@ jobs:
             python -m pip wheel "packages/$package" --no-deps --no-build-isolation -w dist/standalone
           done
 
+      - name: Publish wheel checksums
+        run: sha256sum dist/standalone/*.whl > dist/standalone/SHA256SUMS
+
       - name: Upload standalone wheels
         uses: actions/upload-artifact@v4
         with:
           name: standalone-wheels
-          path: dist/standalone/*.whl
+          path: |
+            dist/standalone/*.whl
+            dist/standalone/SHA256SUMS
 
       - name: Run release smoke
         run: python scripts/release_smoke.py

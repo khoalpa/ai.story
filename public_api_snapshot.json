@@ -1,0 +1,6 @@
+{
+  "story.app_api": ["GenerateStoryRequest", "GenerateStoryResult", "execute_request", "render_story_workspace"],
+  "audio.app_api": ["execute_request", "read_story_handoff", "write_video_handoff", "render_audio_workspace"],
+  "image.app_api": ["RenderImageRequest", "RenderImageResult", "execute_request", "read_story_handoff", "write_video_handoff", "render_image_workspace"],
+  "video.app_api": ["RenderVideoRequest", "execute_request", "read_audio_handoff", "read_image_handoff", "write_result_manifest", "render_video_workspace"]
+}

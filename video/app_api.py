@@ -33,6 +33,7 @@ from video.run_history import append_run_history, write_run_log
 from video.runtime_tools import format_runtime_diagnostics
 from video.validation import autodetect_subtitle_from_audio, inspect_video_image_readiness
 from video.handoff import read_audio_handoff, read_image_handoff
+from video.result_manifest import write_result_manifest
 
 logger = get_logger(__name__)
 
@@ -82,6 +83,8 @@ class RenderVideoRequest:
     debug_ffmpeg_exe: Optional[bool] = None
     render_video_history_dir: Optional[str] = None
     render_video_history_file: Optional[str] = None
+    audio_handoff: Optional[Path] = None
+    image_handoff: Optional[Path] = None
 
 
 @contextlib.contextmanager
@@ -263,6 +266,8 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         asset_profile=getattr(args, "asset_profile", None),
         profile_root=getattr(args, "profile_root", None),
         zone_aware_slideshow=bool(getattr(args, "zone_aware_slideshow", False)),
+        audio_handoff=Path(args.audio_handoff) if getattr(args, "audio_handoff", None) else None,
+        image_handoff=Path(args.image_handoff) if getattr(args, "image_handoff", None) else None,
     )
     validate_render_request(request)
     return request, profile_dir, defaults
@@ -329,6 +334,14 @@ def execute_render_request(
                     )
                 else:
                     raise ValueError("mode must be 'static' or 'slideshow'.")
+                result_manifest = write_result_manifest(
+                    request.output.with_suffix(".result.json"),
+                    video=request.output,
+                    resolution=request.aspect,
+                    input_manifests=(
+                        path for path in (request.audio_handoff, request.image_handoff) if path is not None
+                    ),
+                )
     except USER_FACING_EXCEPTIONS + (RuntimeError, TypeError, AssertionError):
         status = "error"
         raise
@@ -350,6 +363,8 @@ def execute_render_request(
         result["log_file"] = str(log_path)
         result["status"] = status
         result["elapsed_seconds"] = str(elapsed_seconds)
+        if status == "ok":
+            result["result_manifest_path"] = str(result_manifest)
     return result
 
 
@@ -360,5 +375,5 @@ __all__ = [
     "RenderVideoRequest", "execute_render_request", "execute_request",
     "render_video_studio", "render_video_workspace", "request_from_args",
     "resolve_asset_profile_runtime", "validate_render_request", "validate_request",
-    "read_audio_handoff", "read_image_handoff",
+    "read_audio_handoff", "read_image_handoff", "write_result_manifest",
 ]

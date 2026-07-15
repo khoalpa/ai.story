@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import mimetypes
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +17,19 @@ def _resolve(manifest: Path, raw: object) -> Path | None:
         return None
     path = Path(str(raw))
     resolved = path.resolve() if path.is_absolute() else (manifest.parent / path).resolve()
+    if not resolved.exists():
+        raise FileNotFoundError(f"Handoff artifact not found in {manifest}: {resolved}")
+    if descriptor:
+        expected_type = descriptor.get("media_type")
+        actual_type = "inode/directory" if resolved.is_dir() else (mimetypes.guess_type(resolved.name)[0] or "application/octet-stream")
+        if expected_type and expected_type != actual_type:
+            raise ValueError(
+                f"Artifact media type mismatch in {manifest}: {resolved} "
+                f"declares {expected_type}, detected {actual_type}"
+            )
+        expected_size = descriptor.get("size_bytes")
+        if expected_size is not None and resolved.is_file() and resolved.stat().st_size != expected_size:
+            raise ValueError(f"Artifact size mismatch in {manifest}: {resolved}")
     if descriptor and descriptor.get("sha256") and resolved.is_file():
         actual = hashlib.sha256(resolved.read_bytes()).hexdigest()
         if actual != descriptor["sha256"]:
@@ -56,6 +70,8 @@ def read_audio_handoff(manifest_path: Path) -> AudioVideoHandoff:
     audio = _resolve(manifest_path, artifacts.get("audio"))
     if audio is None:
         raise ValueError("Audio video handoff is missing artifacts.audio")
+    if not audio.is_file() or audio.suffix.lower() not in {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}:
+        raise ValueError(f"Unsupported audio artifact in {manifest_path}: {audio}")
     return AudioVideoHandoff(audio, _resolve(manifest_path, artifacts.get("subtitle")))
 
 
@@ -65,4 +81,6 @@ def read_image_handoff(manifest_path: Path) -> ImageVideoHandoff:
     scenes = _resolve(manifest_path, artifacts.get("scenes"))
     if scenes is None:
         raise ValueError("Image video handoff is missing artifacts.scenes")
+    if not scenes.is_dir():
+        raise ValueError(f"Scenes artifact is not a directory in {manifest_path}: {scenes}")
     return ImageVideoHandoff(_resolve(manifest_path, artifacts.get("cover")), scenes)
