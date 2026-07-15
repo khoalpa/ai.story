@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping, Optional, cast
@@ -16,6 +15,7 @@ from audio.adapters.tts_core import (
     warmup_vieneu_engine,
 )
 from audio.logging_utils import get_logger
+from audio.handoff import read_story_handoff, write_video_handoff
 from audio.render_job import RenderJobArtifacts, RenderJobPaths, RuntimeContext, VoiceRuntimeMaps
 from audio.paths import ASSETS_ROOT, DEFAULT_BGM_DIR, PACKAGE_PROFILE_ROOT
 from audio.render_events import (
@@ -74,12 +74,12 @@ REQUEST_DEFAULTS: dict[str, Any] = {
     "voice_en_narrator": "Doan",
     "voice_en_female": "Doan",
     "voice_en_male": "en-US-AndrewNeural",
-    "voice_narrator_speed": 12,
-    "voice_female_speed": 14,
-    "voice_male_speed": 10,
-    "voice_en_narrator_speed": 12,
-    "voice_en_female_speed": 13,
-    "voice_en_male_speed": 11,
+    "voice_narrator_speed": 25,
+    "voice_female_speed": 25,
+    "voice_male_speed": 25,
+    "voice_en_narrator_speed": 25,
+    "voice_en_female_speed": 25,
+    "voice_en_male_speed": 25,
     "abbr_map": str(ASSETS_ROOT / "abbreviation_map.json"),
     "bgm_config": None,
     "sentiment_tone": False,
@@ -141,12 +141,12 @@ class RenderAudioAppRequest:
     auto_en_lines: bool
     post_fx_preset: str
     max_concurrent_tts: int
-    voice_narrator_speed: int = 12
-    voice_female_speed: int = 14
-    voice_male_speed: int = 10
-    voice_en_narrator_speed: int = 12
-    voice_en_female_speed: int = 13
-    voice_en_male_speed: int = 11
+    voice_narrator_speed: int = 25
+    voice_female_speed: int = 25
+    voice_male_speed: int = 25
+    voice_en_narrator_speed: int = 25
+    voice_en_female_speed: int = 25
+    voice_en_male_speed: int = 25
     tts_provider: str = DEFAULT_TTS_PROVIDER
     audio_format: str = "mp3"
     vieneu_core: str = "local"
@@ -345,78 +345,6 @@ def _to_namespace(request: RenderAudioAppRequest) -> SimpleNamespace:
     return request.to_namespace()
 
 
-def _resolve_job_paths_compat(input_path: Path, output_dir: Path, audio_format: str) -> RenderJobPaths:
-    try:
-        sig = inspect.signature(resolve_job_paths)
-        if "audio_format" in sig.parameters:
-            return resolve_job_paths(input_path, output_dir, audio_format=audio_format)
-    except (TypeError, ValueError):
-        pass
-    return resolve_job_paths(input_path, output_dir)
-
-
-def _run_render_job_compat(
-    *,
-    segments,
-    paths,
-    runtime_ctx,
-    voice_maps,
-    voice_rate_map,
-    abbr_map,
-    auto_en_lines: bool,
-    max_concurrent_tts: int,
-    tts_provider: str,
-    post_fx_preset: str,
-    ffmpeg_exe: str,
-    ffprobe_exe: str,
-    event_sink: RenderEventSink | None,
-    audio_format: str,
-    vieneu_core: str = "local",
-    vieneu_mode: str = "standard",
-    vieneu_api_base: str = "",
-    vieneu_model_name: str = get_default_vieneu_local_target("standard"),
-    vieneu_device: str = "cuda",
-    vieneu_backend: str = "auto",
-    vieneu_render_temperature: float = 0.7,
-    vieneu_render_max_chars_chunk: int = 240,
-    vieneu_render_use_batch: bool = False,
-    vieneu_render_max_batch_size_run: int = 1,
-):
-    base_kwargs = {
-        "segments": segments,
-        "paths": paths,
-        "runtime_ctx": runtime_ctx,
-        "voice_maps": voice_maps,
-        "voice_rate_map": voice_rate_map,
-        "abbr_map": abbr_map,
-        "auto_en_lines": auto_en_lines,
-        "max_concurrent_tts": max_concurrent_tts,
-        "tts_provider": tts_provider,
-        "post_fx_preset": post_fx_preset,
-        "ffmpeg_exe": ffmpeg_exe,
-        "ffprobe_exe": ffprobe_exe,
-        "event_sink": event_sink,
-        "audio_format": audio_format,
-        "vieneu_core": vieneu_core,
-        "vieneu_mode": vieneu_mode,
-        "vieneu_api_base": vieneu_api_base,
-        "vieneu_model_name": vieneu_model_name,
-        "vieneu_device": vieneu_device,
-        "vieneu_backend": vieneu_backend,
-        "vieneu_render_temperature": vieneu_render_temperature,
-        "vieneu_render_max_chars_chunk": vieneu_render_max_chars_chunk,
-        "vieneu_render_use_batch": vieneu_render_use_batch,
-        "vieneu_render_max_batch_size_run": vieneu_render_max_batch_size_run,
-    }
-    try:
-        sig = inspect.signature(run_render_job)
-        filtered_kwargs = {name: value for name, value in base_kwargs.items() if name in sig.parameters}
-        return run_render_job(**filtered_kwargs)
-    except (TypeError, ValueError):
-        pass
-    return run_render_job(**base_kwargs)
-
-
 def run_render_audio_app(
     request: RenderAudioAppRequest,
     *,
@@ -424,6 +352,9 @@ def run_render_audio_app(
     ffprobe_exe: str,
     event_sink: RenderEventSink | None = None,
 ) -> RenderAudioAppResult:
+    if request.input_path.suffix.lower() == ".json" and "handoff" in request.input_path.stem:
+        incoming = read_story_handoff(request.input_path)
+        request = replace(request, input_path=incoming.plain_script)
     if not request.input_path.is_file():
         raise FileNotFoundError(f"Input file not found: {request.input_path}")
 
@@ -438,7 +369,7 @@ def run_render_audio_app(
     voice_maps = build_voice_maps(args, runtime_ctx.profile_voice_defaults)
     voice_rate_map = build_voice_rate_map(args)
     segment_voice_rate_map = cast(dict[str, object], voice_rate_map)
-    job_paths = _resolve_job_paths_compat(request.input_path, request.output_dir, request.audio_format)
+    job_paths = resolve_job_paths(request.input_path, request.output_dir, audio_format=request.audio_format)
     logger.info("Render output directory resolved: %s", request.output_dir)
     logger.info(
         "Render targets | audio: %s | subtitle: %s | wav_dir: %s | debug_json: %s",
@@ -605,7 +536,7 @@ def run_render_audio_app(
             allow_network=False,
         )
 
-    render_artifacts = _run_render_job_compat(
+    render_artifacts = run_render_job(
         segments=preview.segments,
         paths=job_paths,
         runtime_ctx=runtime_ctx,
@@ -632,6 +563,11 @@ def run_render_audio_app(
         vieneu_render_max_batch_size_run=request.vieneu_render_max_batch_size_run,
     )
     emit_render_event(event_sink, AppRenderCompletedEvent(render_artifacts=render_artifacts))
+    write_video_handoff(
+        request.output_dir / "audio_video_handoff.json",
+        audio=job_paths.out_file,
+        subtitle=job_paths.srt_path if job_paths.srt_path.is_file() else None,
+    )
     return RenderAudioAppResult(
         request=request,
         mode="render",

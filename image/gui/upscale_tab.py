@@ -9,7 +9,7 @@ from typing import Any
 from PIL import Image
 import streamlit as st
 
-from common.gui.user_messages import show_path_warning
+from image.gui.user_messages import show_path_warning
 from image.gui.state import (
     IMAGE_LAST_UPSCALE_OUTPUT_KEY,
     IMAGE_UPSCALE_RESAMPLE_KEY,

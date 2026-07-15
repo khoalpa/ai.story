@@ -34,10 +34,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gui = [
-  "streamlit>=1.43,<2",
-  "Pillow>=10,<12",
-]
 test = [
   "pytest>=8,<9",
   "ruff>=0.11,<1",
@@ -45,19 +41,12 @@ test = [
   "wheel>=0.42,<1",
 ]
 dev = [
-  "streamlit>=1.43,<2",
-  "Pillow>=10,<12",
   "pytest>=8,<9",
   "ruff>=0.11,<1",
   "mypy>=1.10,<2",
   "wheel>=0.42,<1",
 ]
 all = [
-  "streamlit>=1.43,<2",
-  "Pillow>=10,<12",
-  "pytest>=8,<9",
-  "ruff>=0.11,<1",
-  "mypy>=1.10,<2",
   "lmdeploy>=0.12.3",
 ]
 image-local = [
@@ -116,15 +105,9 @@ story = [
   "assets/*/*/*",
   "assets/*/*/*/*",
 ]
-"studio._shared" = [
-  "assets/*",
-  "assets/*/*",
-  "assets/*/*/*",
-  "assets/*/*/*/*",
-]
 
 [tool.setuptools.packages.find]
-include = ["audio*", "story*", "image*", "video*", "studio*", "common*"]
+include = ["audio*", "story*", "image*", "video*", "studio*"]
 exclude = [
   "tests*",
   "dist*",
@@ -166,7 +149,6 @@ files = [
   "story",
   "image",
   "video",
-  "common",
   "studio",
   "scripts",
 ]
@@ -184,6 +166,14 @@ exclude = [
 # Baseline of modules with known mypy debt. Keep this list explicit so CI still
 # covers the rest of the package tree and new modules do not silently opt out.
 module = [
+  "audio.gui.handoff_utils",
+  "audio.gui.history",
+  "audio.gui.project_tools",
+  "audio.gui.provider_actions",
+  "audio.gui.result_panels",
+  "audio.gui.runtime_usage",
+  "audio.gui.tabs",
+  "audio.gui.workspace",
   "audio.adapters.edge_tts",
   "audio.adapters.ffmpeg_audio_mixer",
   "audio.adapters.tts_core",
@@ -206,12 +196,17 @@ module = [
   "audio.render_job_store",
   "audio.services.tts_render",
   "audio.validate_plain_script",
-  "common.gui.diagnostics_blocks",
-  "common.gui.history_utils",
-  "common.gui.panel_utils",
-  "common.gui.shell",
-  "common.gui.state",
   "image.gui.detector_ui",
+  "image.gui.common_ui",
+  "image.gui.diagnostics_blocks",
+  "image.gui.handoff_utils",
+  "image.gui.history_utils",
+  "image.gui.panel_utils",
+  "image.gui.prompt_ui",
+  "image.gui.provider_actions",
+  "image.gui.runtime_usage",
+  "image.gui.shared_state",
+  "image.gui.upscale_tab",
   "image.gui.inpaint_utils",
   "image.gui.result_ui",
   "image.gui.service",
@@ -221,6 +216,12 @@ module = [
   "story.client",
   "story.common",
   "story.gui.diagnostics_blocks",
+  "story.gui.handoff_utils",
+  "story.gui.project_tools",
+  "story.gui.provider_actions",
+  "story.gui.result_panels",
+  "story.gui.runtime_usage",
+  "story.gui.sidebar",
   "story.gui.history_utils",
   "story.gui.image_prompts",
   "story.gui.llm_test",
@@ -230,12 +231,14 @@ module = [
   "story.gui.tabs",
   "story.gui.workspace_state",
   "story.llm_providers",
-  "studio._shared.gui.diagnostics_blocks",
-  "studio._shared.gui.history_utils",
-  "studio._shared.gui.panel_utils",
-  "studio._shared.gui.shell",
-  "studio._shared.gui.state",
   "video.app_api",
+  "video.gui.diagnostics_blocks",
+  "video.gui.history_utils",
+  "video.gui.panel_utils",
+  "video.gui.provider_actions",
+  "video.gui.runtime_usage",
+  "video.gui.shared_state",
+  "video.render_slideshow",
   "video.cli_entry",
   "video.ffmpeg_runner",
   "video.gui.tabs",

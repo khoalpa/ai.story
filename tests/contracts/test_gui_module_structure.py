@@ -14,7 +14,6 @@ GUI_CORE_FILES = (
     "service.py",
     "state.py",
     "tabs.py",
-    "view_models.py",
 )
 
 

@@ -1,4 +1,4 @@
-from common.runtime import run_main
+from video.runtime import run_main
 from video.cli import main
 
 if __name__ == "__main__":

@@ -1,11 +1,7 @@
 {
   "profile_id": "demo",
-  "default_cover": "cover/default_cover.png",
-  "default_scenes_dir": "scenes",
-  "video_defaults": {
-    "mode": "slideshow",
-    "aspect": "9x16"
-  },
+  "bgm_dir": "../../bgm",
+  "bgm_config": "../../bgm_config.json",
   "voices": {
     "vi_narrator": "Doan",
     "vi_female": "Thục Đoan",

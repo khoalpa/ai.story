@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from common.runtime_diagnostics import RuntimeDiagnosticsReport
+from video.runtime_diagnostics import RuntimeDiagnosticsReport
 
 
 @dataclass(frozen=True)

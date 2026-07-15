@@ -9,6 +9,7 @@ from image.provider_runtime import (
     render_with_provider,
 )
 from image.workflow_routing import infer_prompt_kind
+from image.handoff import read_story_handoff, write_video_handoff
 
 ProgressCallback = Callable[[float, str], None]
 
@@ -166,6 +167,8 @@ def _emit_progress(progress_callback: ProgressCallback | None, fraction: float, 
 
 def run_image_job(request: RenderImageRequest, progress_callback: ProgressCallback | None = None) -> RenderImageResult:
     handoff_dir = request.handoff_dir
+    if handoff_dir.is_file():
+        handoff_dir = read_story_handoff(handoff_dir).prompt_dir
     if not handoff_dir.is_dir():
         raise FileNotFoundError(f"Prompt directory not found: {handoff_dir}")
 
@@ -291,6 +294,11 @@ def run_image_job(request: RenderImageRequest, progress_callback: ProgressCallba
             indent=2,
         ),
         encoding="utf-8",
+    )
+    write_video_handoff(
+        output_dir / "image_video_handoff.json",
+        cover=cover_output if cover_output.is_file() else None,
+        scenes=scenes_dir,
     )
     _emit_progress(progress_callback, 1.0, "Image generation completed")
     return RenderImageResult(

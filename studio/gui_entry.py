@@ -9,20 +9,21 @@ if __package__ in {None, ""}:
     if project_root_text not in sys.path:
         sys.path.insert(0, project_root_text)
 
-from studio._shared.launcher_utils import build_missing_streamlit_message
-
-
 def main() -> int:
     try:
         import streamlit as st
-        from studio._shared.gui import render_project_tools_workspace, render_workspace_shell
-        from audio.gui.app import render_audio_workspace
-        from image.gui.app import render_image_workspace
-        from story.gui.app import render_story_workspace
-        from video.gui.app import render_video_workspace
+        from audio.app_api import render_audio_workspace
+        from image.app_api import render_image_workspace
+        from story.app_api import render_story_workspace
+        from studio.project_tools import render_project_tools_workspace
+        from video.app_api import render_video_workspace
     except ModuleNotFoundError as exc:
         if exc.name == "streamlit":
-            print(build_missing_streamlit_message("studio.gui_entry"), file=sys.stderr)
+            print(
+                "Streamlit is required for studio.gui_entry. "
+                "Install the project GUI dependencies and try again.",
+                file=sys.stderr,
+            )
             return 1
         raise
 
@@ -60,18 +61,21 @@ Render Story handoff -> cover/scenes.""")
 
 Render audio/subtitle + cover/scenes -> MP4.""")
 
-    render_workspace_shell(
-        title=app_title,
-        caption="Unified workspace for the Story -> Audio / Image -> Video pipeline in one interface.",
-        overview_renderer=render_overview,
-        app_renderers={
-            "Story": lambda: render_story_workspace(embedded=True),
-            "Audio": lambda: render_audio_workspace(embedded=True),
-            "Image": lambda: render_image_workspace(embedded=True),
-            "Video": lambda: render_video_workspace(embedded=True),
-            "Project Tools": lambda: render_project_tools_workspace(embedded=True),
-        },
+    st.set_page_config(page_title=app_title, page_icon=":material/movie:", layout="wide")
+    st.title(app_title)
+    st.caption("Unified workspace for the Story -> Audio / Image -> Video pipeline.")
+    selected = st.sidebar.radio(
+        "Workspace", ["Overview", "Story", "Audio", "Image", "Video", "Project Tools"]
     )
+    renderers = {
+        "Overview": render_overview,
+        "Story": lambda: render_story_workspace(embedded=True),
+        "Audio": lambda: render_audio_workspace(embedded=True),
+        "Image": lambda: render_image_workspace(embedded=True),
+        "Video": lambda: render_video_workspace(embedded=True),
+        "Project Tools": lambda: render_project_tools_workspace(embedded=True),
+    }
+    renderers[selected]()
     return 0
 
 

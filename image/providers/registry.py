@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
-from common.provider_catalog import get_provider_choice_group
+from image.provider_catalog import get_provider_choice_group
 
 _CHOICES = get_provider_choice_group("image_sd")
 

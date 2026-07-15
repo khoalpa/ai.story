@@ -376,10 +376,6 @@ def run_ffmpeg_with_progress(cmd, total_seconds: float, label: str = "[FFMPEG]",
 
 
 
-def validate_ffmpeg_tools(ffmpeg_exe: str, ffprobe_exe: str):
-    """Backward-compatible wrapper retained for older tests/callers."""
-    return validate_runtime_executables(ffmpeg_exe, ffprobe_exe)
-
 def ffmpeg_mix_audio(
     segments: List[Segment],
     out_file: Path,

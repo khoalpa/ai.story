@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from importlib import import_module
 
-from common.provider_catalog import get_provider_choice_group
+from video.provider_catalog import get_provider_choice_group
 from video.providers.base import VideoProviderDescriptor, normalize_provider_token
 
 _CHOICES = get_provider_choice_group("video")

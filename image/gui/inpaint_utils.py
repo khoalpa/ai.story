@@ -10,7 +10,7 @@ from typing import Any
 from PIL import Image
 import streamlit as st
 
-from common.gui.history_utils import append_deduped_tail_history_entry
+from image.gui.history_utils import append_deduped_tail_history_entry
 from image.gui.common_ui import _normalize_exc, _ui_info, _ui_success, _ui_warning
 from image.gui.result_ui import _current_temp_cover_path, _find_scene_output_by_key
 from image.gui.state import IMAGE_INPAINT_MASK_PATH_KEY, IMAGE_INPAINT_SOURCE_PATH_KEY

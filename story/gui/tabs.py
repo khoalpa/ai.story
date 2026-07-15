@@ -8,12 +8,13 @@ from typing import Any, Callable, MutableMapping
 import streamlit as st
 import yaml
 
-from common.gui.input_bundle import load_input_story, scan_input_bundle
+from story.gui.input_bundle import load_input_story, scan_input_bundle
 from story.testing import llm_config_fingerprint, run_llm_smoke_test
 from story.audio_story_spec import render_plain_script, validate_canonical_authoring
 from story.convert_raw_to_script import SpeakerConfig, convert_text
 from story.validate_canonical_authoring import extract_auto_repair_log, validate_script_length_rule
 from story.validate_plain_script import validate_script
+from story.handoff import write_handoff
 
 from story.gui.handoff_utils import HandoffAction, render_handoff_action_row
 from story.gui.diagnostics_blocks import render_runtime_diagnostics_block
@@ -413,6 +414,12 @@ def render_run_tab(settings: dict[str, Any], *, brief_text: str, system_prompt: 
         )
         result["plain_script_path"] = str(txt_path)
         result["canonical_json_path"] = str(json_path)
+        manifest_path = write_handoff(
+            txt_path.parent / "story_audio_handoff.json",
+            kind="story.audio-handoff",
+            artifacts={"plain_script": txt_path, "canonical_story": json_path},
+        )
+        result["audio_handoff_manifest"] = str(manifest_path)
         return str(txt_path), str(json_path)
 
     def _commit_story_result(result: dict[str, Any]) -> None:

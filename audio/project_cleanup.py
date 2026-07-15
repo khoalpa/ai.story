@@ -51,6 +51,14 @@ REMOVABLE_FILE_NAMES = {
     ".DS_Store",
     "Thumbs.db",
 }
+MODEL_MODULE_NAMES = {"audio", "story", "image", "video"}
+
+
+def is_module_model_store(rel: Path) -> bool:
+    if len(rel.parts) < 2 or rel.parts[0] not in MODEL_MODULE_NAMES:
+        return False
+    expected = "models" if rel.parts[0] == "audio" else "local_models"
+    return rel.parts[1] == expected
 
 
 @dataclass(frozen=True)
@@ -110,7 +118,8 @@ def build_cleanup_plan(
             continue
         rel = resolved.relative_to(root)
         top = rel.parts[0] if rel.parts else ""
-        if top == "models" and not include_models:
+        in_model_store = top == "models" or is_module_model_store(rel)
+        if in_model_store and not include_models:
             continue
         if is_runtime_dir_name(top) and not include_runtime:
             continue
@@ -125,7 +134,11 @@ def build_cleanup_plan(
                 directories.add(resolved)
             elif include_venv and name in VENV_DIR_NAMES:
                 directories.add(resolved)
-            elif include_models and resolved == root / "models":
+            elif include_models and (
+                resolved == root / "models"
+                or resolved == root / "audio" / "models"
+                or resolved in {root / module / "local_models" for module in MODEL_MODULE_NAMES if module != "audio"}
+            ):
                 directories.add(resolved)
         elif path.is_file() and is_removable_file(path):
             files.add(resolved)

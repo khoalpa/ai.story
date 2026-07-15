@@ -5,9 +5,7 @@ import sys
 from typing import Sequence
 
 from video import __version__
-from video import cli_entry
-
-MAPPING = {"render-video": cli_entry}
+MAPPING = {"render-video"}
 DEFAULT_COMMAND = "render-video"
 
 
@@ -47,12 +45,11 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     if not normalized:
         parser.print_help()
-        print("\nRenderer options:\n")
-        MAPPING[command].build_parser().print_help()
         return
 
-    mod = MAPPING[command]
-    mod.main(normalized)
+    from video import cli_entry
+
+    cli_entry.main(normalized)
 
 
 if __name__ == "__main__":

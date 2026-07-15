@@ -1,8 +1,8 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 
 def test_provider_choices_are_managed_from_common_catalog() -> None:
-    from common.provider_catalog import get_provider_choice_group
+    from image.provider_catalog import get_provider_choice_group
     from audio.tts_provider import DEFAULT_TTS_PROVIDER, get_tts_provider_choices
     from image.providers import list_sd_provider_ids
     from story.llm_providers import DEFAULT_PROVIDER_ID, list_provider_ids

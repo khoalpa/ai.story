@@ -1,4 +1,4 @@
-from image_gui import main
+from image.gui_entry import main
 
 if __name__ == "__main__":
     raise SystemExit(main())

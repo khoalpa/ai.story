@@ -8,6 +8,18 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+
+def render_video_workspace(*, embedded: bool = False) -> None:
+    """Render Video's GUI while keeping Streamlit out of headless imports."""
+    from video.gui.app import render_video_workspace as render
+
+    render(embedded=embedded)
+
+
+def render_video_studio(*args: Any, **kwargs: Any) -> None:
+    kwargs.setdefault("embedded", True)
+    render_video_workspace(*args, **kwargs)
+
 from video import config
 import video.render_static as render_static_module
 from video.asset_profile_utils import apply_profile_runtime_defaults, resolve_profile_defaults
@@ -328,3 +340,13 @@ def execute_render_request(
         result["status"] = status
         result["elapsed_seconds"] = str(elapsed_seconds)
     return result
+
+
+validate_request = validate_render_request
+execute_request = execute_render_request
+
+__all__ = [
+    "RenderVideoRequest", "execute_render_request", "execute_request",
+    "render_video_studio", "render_video_workspace", "request_from_args",
+    "resolve_asset_profile_runtime", "validate_render_request", "validate_request",
+]

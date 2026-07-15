@@ -5,19 +5,5 @@
   "video_defaults": {
     "mode": "slideshow",
     "aspect": "9x16"
-  },
-  "voices": {
-    "vi_narrator": "Doan",
-    "vi_female": "Thục Đoan",
-    "vi_male": "Vinh",
-    "voice_narrator": "Doan",
-    "voice_female": "Thục Đoan",
-    "voice_male": "Vinh",
-    "en_narrator": "Doan",
-    "en_female": "Doan",
-    "en_male": "en-US-GuyNeural",
-    "voice_en_narrator": "Doan",
-    "voice_en_female": "Doan",
-    "voice_en_male": "en-US-GuyNeural"
   }
 }

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 
-from common.launcher_utils import build_missing_streamlit_message
+from video.launcher_utils import build_missing_streamlit_message
 
 
 def main() -> int:

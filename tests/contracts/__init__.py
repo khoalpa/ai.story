@@ -40,7 +40,7 @@ def test_image_prompt_job_attaches_prompts_and_handoff(monkeypatch, tmp_path: Pa
 
 
 def test_story_image_prompts_use_canonical_outline_and_standard_payload() -> None:
-    from common.image_sequence import ZONE_IMAGE_SEQUENCE
+    from video.config import ZONE_IMAGE_SEQUENCE
     from story.gui.image_prompts import build_image_prompts
 
     authoring = {

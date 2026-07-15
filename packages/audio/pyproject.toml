@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-audio"
+version = "0.1.0"
+description = "Standalone narration and audio rendering package for AI Story Studio."
+license = {text = "MIT"}
+authors = [{name = "AI Story Studio"}]
+requires-python = ">=3.10"
+dependencies = ["PyYAML==6.0.3", "edge-tts==7.2.7", "vieneu>=2.4.0", "neucodec>=0.0.5", "streamlit>=1.43,<2"]
+
+[project.scripts]
+render-audio = "audio.entrypoints:main"
+render-audio-gui = "audio.gui_entry:main"
+
+[tool.setuptools]
+package-dir = {"" = "../.."}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["../.."]
+include = ["audio*"]
+exclude = ["audio.models", "audio.models.*"]
+
+[tool.setuptools.package-data]
+audio = ["py.typed", "assets/*", "assets/*/*", "assets/*/*/*", "assets/*/*/*/*"]

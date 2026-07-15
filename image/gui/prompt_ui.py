@@ -5,7 +5,7 @@ from typing import Any
 
 import streamlit as st
 
-from common.gui.state import get_workspace_target_field
+from image.gui.shared_state import get_workspace_target_field
 from image.gui.prompt_state import _get_effective_prompt_edit
 from image.provider_runtime import (
     _resolve_bundle_asset_path,

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Iterable
 
@@ -75,7 +75,7 @@ def test_image_settings_exposes_num_images_per_prompt_after_gallery_support() ->
 
 def test_image_refresh_action_handles_non_sd_local_providers(monkeypatch) -> None:
     import image.gui.settings as settings
-    from common.gui.provider_actions import ProviderAction
+    from image.gui.provider_actions import ProviderAction
 
     statuses: list[tuple[str, str, str]] = []
 
@@ -99,7 +99,7 @@ def test_image_refresh_action_handles_non_sd_local_providers(monkeypatch) -> Non
 
 def test_image_refresh_action_handles_stable_diffusion_status_without_model_count(monkeypatch) -> None:
     import image.gui.settings as settings
-    from common.gui.provider_actions import ProviderAction
+    from image.gui.provider_actions import ProviderAction
 
     statuses: list[tuple[str, str, str]] = []
 

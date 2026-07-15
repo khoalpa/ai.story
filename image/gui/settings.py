@@ -6,22 +6,22 @@ from typing import Any
 
 import streamlit as st
 
-from common.gui.diagnostics_blocks import DiagnosticsSection, render_diagnostics_sections
-from common.gui.panel_utils import render_json_summary_expander, safe_rerun
-from common.gui.provider_actions import (
+from image.gui.diagnostics_blocks import DiagnosticsSection, render_diagnostics_sections
+from image.gui.panel_utils import render_json_summary_expander, safe_rerun
+from image.gui.provider_actions import (
     ProviderAction,
     render_action_status,
     render_provider_action_row,
     set_action_status,
 )
-from common.gui.sidebar_sections import SidebarSection
-from common.gui.user_messages import (
+from image.gui.sidebar_sections import SidebarSection
+from image.gui.user_messages import (
     GuidanceAction,
     UserMessage,
     render_user_message,
     show_provider_error,
 )
-from common.model_store import (
+from image.model_store import (
     detect_image_model_type,
     list_local_models,
     list_local_targets,

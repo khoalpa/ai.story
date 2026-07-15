@@ -21,7 +21,7 @@ from audio.audio_story_spec import (
 )
 from audio.raw_to_plain_script import build_min_header, has_script_marker, normalize_raw_lines
 from audio.render_audio_app import RenderAudioAppRequest, RenderAudioAppResult
-from audio.validate_plain_script import detect_body_only_script
+from audio.validate_plain_script import looks_like_body_only_script
 from audio.render_events import RenderEvent
 
 from .constants import DEFAULT_DOWNLOAD_NAME, PHASE_LABELS, PHASE_ORDER
@@ -321,7 +321,7 @@ def normalize_plain_script_text(plain_text: str) -> tuple[str, bool]:
     if has_script_marker(lines):
         return text, False
 
-    if detect_body_only_script(lines):
+    if looks_like_body_only_script(lines):
         normalized = "SCRIPT:\n" + text.lstrip("\n")
         return normalized, True
 

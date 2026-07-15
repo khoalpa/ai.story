@@ -24,7 +24,7 @@ def test_clean_project_dry_run_is_default_and_apply_is_explicit() -> None:
     assert "--apply" in content
     assert "Dry run only" in content
     assert "include_models" in content
-    assert "studio._shared.project_cleanup" in content
+    assert "audio.project_cleanup" in content
 
 
 def test_clean_project_finds_and_removes_expected_artifacts(tmp_path: Path) -> None:

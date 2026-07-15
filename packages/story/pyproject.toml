@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-story"
+version = "0.1.0"
+description = "Standalone story generation package for AI Story Studio."
+license = {text = "MIT"}
+authors = [{name = "AI Story Studio"}]
+requires-python = ">=3.10"
+dependencies = ["PyYAML==6.0.3", "requests==2.32.3", "streamlit>=1.43,<2"]
+
+[project.scripts]
+generator-story = "story.cli:main"
+generator-story-gui = "story.gui_entry:main"
+
+[tool.setuptools]
+package-dir = {"" = "../.."}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["../.."]
+include = ["story*"]
+
+[tool.setuptools.package-data]
+story = ["assets/*", "assets/*/*", "assets/*/*/*"]

@@ -4,9 +4,9 @@ from typing import Any
 
 import streamlit as st
 
-from common.gui.provider_actions import ProviderAction, render_action_status, render_provider_action_row, set_action_status
-from common.model_store import list_local_models, list_local_targets, provider_models_dir, provider_target_dir
-from common.runtime_diagnostics import RuntimeDiagnosticsReport
+from video.gui.provider_actions import ProviderAction, render_action_status, render_provider_action_row, set_action_status
+from video.model_store import list_local_models, list_local_targets, provider_models_dir, provider_target_dir
+from video.runtime_diagnostics import RuntimeDiagnosticsReport
 from video.config import get_ffmpeg_exe, get_ffprobe_exe
 from video.providers.base import VideoProviderDescriptor, VideoProviderSettings
 from video.runtime_tools import collect_runtime_diagnostics, describe_tool

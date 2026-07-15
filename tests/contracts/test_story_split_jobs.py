@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import zipfile
 import shutil
@@ -61,7 +61,7 @@ def test_story_handoff_bundle_output_is_project_root_relative(monkeypatch) -> No
 
 
 def test_story_image_prompts_use_canonical_outline_and_standard_payload() -> None:
-    from common.image_sequence import ZONE_IMAGE_SEQUENCE
+    from video.config import ZONE_IMAGE_SEQUENCE
     from story.gui.image_prompts import build_image_prompts
 
     authoring = {

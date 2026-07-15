@@ -7,6 +7,7 @@ from typing import Any
 from story.gui.image_prompts import build_story_slug
 from story.image_sequence import ZONE_IMAGE_SEQUENCE
 from story.paths import PROJECT_ROOT
+from story.handoff import write_handoff
 
 
 DEFAULT_OUTPUT_BASE = Path("output/story/video_handoff")
@@ -74,5 +75,12 @@ def materialize_story_handoff_bundle(*, authoring: dict[str, Any], image_prompts
         "scene_images_dir": "scene_images",
         "expected_scene_images": expected_scene_images,
     }
-    _write_json(bundle_dir / "manifest.json", manifest)
+    manifest_path = write_handoff(
+        bundle_dir / "manifest.json",
+        kind="story.image-handoff",
+        artifacts={"prompt_dir": ".", "scene_images_dir": "scene_images"},
+    )
+    envelope = json.loads(manifest_path.read_text(encoding="utf-8"))
+    envelope.update(manifest)
+    _write_json(manifest_path, envelope)
     return bundle_dir

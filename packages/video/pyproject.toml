@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-video"
+version = "0.1.0"
+description = "Standalone video rendering package for AI Story Studio."
+license = {text = "MIT"}
+authors = [{name = "AI Story Studio"}]
+requires-python = ">=3.10"
+dependencies = ["streamlit>=1.43,<2", "Pillow>=10,<12"]
+
+[project.scripts]
+render-video = "video.cli:main"
+render-video-gui = "video.gui_entry:main"
+
+[tool.setuptools]
+package-dir = {"" = "../.."}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["../.."]
+include = ["video*"]
+
+[tool.setuptools.package-data]
+video = ["assets/*", "assets/*/*", "assets/*/*/*", "assets/*/*/*/*"]

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import importlib.util
 import sys
@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL_STORE = ROOT / "common" / "model_store.py"
+MODEL_STORE = ROOT / "audio" / "model_store.py"
 MANAGE_MODELS = ROOT / "scripts" / "manage_models.py"
 
 
@@ -22,7 +22,8 @@ def load_model_store_module():
 
 def test_model_store_inventory_reports_sizes_and_kinds(tmp_path: Path) -> None:
     module = load_model_store_module()
-    anchor = tmp_path / "common" / "fake.py"
+    module.models_root = lambda _anchor=None: tmp_path / "models"
+    anchor = tmp_path / "audio" / "fake.py"
     anchor.parent.mkdir()
     anchor.write_text("", encoding="utf-8")
     (tmp_path / "models" / "audio" / "vieneu").mkdir(parents=True)
@@ -42,7 +43,8 @@ def test_model_store_inventory_reports_sizes_and_kinds(tmp_path: Path) -> None:
 
 def test_model_store_remove_is_dry_run_by_default(tmp_path: Path) -> None:
     module = load_model_store_module()
-    anchor = tmp_path / "common" / "fake.py"
+    module.models_root = lambda _anchor=None: tmp_path / "models"
+    anchor = tmp_path / "audio" / "fake.py"
     anchor.parent.mkdir()
     anchor.write_text("", encoding="utf-8")
     target = tmp_path / "models" / "story" / "local-model"

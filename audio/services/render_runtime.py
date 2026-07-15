@@ -122,12 +122,12 @@ def _resolve_voice_rate_value(raw_value: object, *, lang: str, voice: str) -> st
 
 def build_voice_rate_map(args) -> Dict[str, str]:
     return {
-        "vi_narrator": _resolve_voice_rate_value(getattr(args, "voice_narrator_speed", 12), lang="vi", voice="narrator"),
-        "vi_female": _resolve_voice_rate_value(getattr(args, "voice_female_speed", 14), lang="vi", voice="female"),
-        "vi_male": _resolve_voice_rate_value(getattr(args, "voice_male_speed", 10), lang="vi", voice="male"),
-        "en_narrator": _resolve_voice_rate_value(getattr(args, "voice_en_narrator_speed", 12), lang="en", voice="narrator"),
-        "en_female": _resolve_voice_rate_value(getattr(args, "voice_en_female_speed", 13), lang="en", voice="female"),
-        "en_male": _resolve_voice_rate_value(getattr(args, "voice_en_male_speed", 11), lang="en", voice="male"),
+        "vi_narrator": _resolve_voice_rate_value(getattr(args, "voice_narrator_speed", 25), lang="vi", voice="narrator"),
+        "vi_female": _resolve_voice_rate_value(getattr(args, "voice_female_speed", 25), lang="vi", voice="female"),
+        "vi_male": _resolve_voice_rate_value(getattr(args, "voice_male_speed", 25), lang="vi", voice="male"),
+        "en_narrator": _resolve_voice_rate_value(getattr(args, "voice_en_narrator_speed", 25), lang="en", voice="narrator"),
+        "en_female": _resolve_voice_rate_value(getattr(args, "voice_en_female_speed", 25), lang="en", voice="female"),
+        "en_male": _resolve_voice_rate_value(getattr(args, "voice_en_male_speed", 25), lang="en", voice="male"),
     }
 
 

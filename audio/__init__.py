@@ -16,7 +16,7 @@ re-exported here or documented as public.
 
 __version__ = "0.1.0"
 
-from audio.render_audio_app import (
+from audio.app_api import (
     RenderAudioAppRequest,
     RenderAudioAppResult,
     create_app_request_from_args,

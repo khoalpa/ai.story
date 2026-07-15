@@ -24,15 +24,12 @@ REQUIRED_MEMBERS = [
     'audio/assets/bgm/zone_opening.mp3',
     'image/assets/workflows/comfyui_minimal_t2i_workflow.json',
     'video/assets/profiles/demo/manifest.json',
-    'studio/_shared/assets/llm/lmdeploy.yml',
-    'studio/_shared/assets/llm/lm_studio.yml',
-    'studio/_shared/assets/llm/openai_chatgpt.yml',
-    'studio/_shared/assets/llm/custom_compatible.yml',
-    'studio/_shared/assets/workflows/comfyui_minimal_t2i_workflow.json',
-    'studio/_shared/assets/workflows/comfyui_story_cover_9x16_hires_v2_workflow.json',
-    'studio/_shared/assets/profiles/demo/manifest.json',
-    'studio/_shared/assets/profiles/demo/bgm_config.json',
-    'studio/_shared/assets/bgm/bgm_lofi.mp3',
+    'story/assets/llm/lmdeploy.yml',
+    'story/assets/llm/lm_studio.yml',
+    'story/assets/llm/openai_chatgpt.yml',
+    'story/assets/llm/custom_compatible.yml',
+    'image/assets/workflows/comfyui_story_9x16_cover_scene_workflow.json',
+    'image/assets/workflows/comfyui_story_cover_9x16_hires_v2_workflow.json',
 ]
 
 

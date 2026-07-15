@@ -7,22 +7,22 @@ from typing import Any
 from PIL import Image, ImageOps
 import streamlit as st
 
-from common.gui.diagnostics_blocks import render_runtime_diagnostics_block
-from common.gui.history_utils import append_deduped_tail_history_entry
-from common.gui.progress_details import format_progress_text
-from common.gui.runtime_usage import render_runtime_usage_compact
-from common.gui.state import (
+from image.gui.diagnostics_blocks import render_runtime_diagnostics_block
+from image.gui.history_utils import append_deduped_tail_history_entry
+from image.gui.progress_details import format_progress_text
+from image.gui.runtime_usage import render_runtime_usage_compact
+from image.gui.shared_state import (
     append_global_run_event,
     set_image_handoff,
     update_global_run_monitor,
 )
-from common.gui.user_messages import (
+from image.gui.user_messages import (
     show_empty_result,
     show_path_warning,
     show_preview_warning,
 )
-from common.gui.workspace_handoff import workspace_handoff_state
-from common.gui.workspace_source_outputs import workspace_source_outputs
+from image.gui.workspace_handoff import workspace_handoff_state
+from image.gui.workspace_source_outputs import workspace_source_outputs
 
 from image.app_api import RenderImageRequest
 from image.gui.common_ui import _normalize_exc, _ui_error, _ui_info, _ui_success, _ui_warning

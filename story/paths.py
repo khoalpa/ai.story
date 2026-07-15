@@ -5,7 +5,7 @@ from pathlib import Path
 from story.runtime import (
     compute_standard_paths,
     resolve_assets_root_for_module,
-    resolve_common_package_assets_root,
+    resolve_package_assets_root,
     resolve_project_root as _resolve_project_root,
 )
 
@@ -13,7 +13,7 @@ _PATHS = compute_standard_paths(__file__)
 PACKAGE_ROOT = _PATHS["PACKAGE_ROOT"]
 PROJECT_ROOT = _PATHS["PROJECT_ROOT"]
 PACKAGE_ASSETS_ROOT = _PATHS["PACKAGE_ASSETS_ROOT"]
-COMMON_PACKAGE_ASSETS_ROOT = _PATHS["COMMON_PACKAGE_ASSETS_ROOT"]
+BUNDLED_ASSETS_ROOT = _PATHS["BUNDLED_ASSETS_ROOT"]
 PROJECT_ASSETS_ROOT = _PATHS["PROJECT_ASSETS_ROOT"]
 ASSETS_ROOT = _PATHS["ASSETS_ROOT"]
 TESTS_ROOT = _PATHS["TESTS_ROOT"]
@@ -60,7 +60,7 @@ def resolve_asset_reference(reference: str | Path, project_root: Path | None = N
         stripped = normalized.split("generator_story/assets/", 1)[1]
         attempts.append((assets_root / stripped).resolve())
 
-    bundled_assets_root = resolve_common_package_assets_root(__file__)
+    bundled_assets_root = resolve_package_assets_root(__file__)
     if bundled_assets_root != assets_root:
         attempts.append((bundled_assets_root / candidate).resolve())
         if normalized.startswith("assets/"):

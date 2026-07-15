@@ -21,6 +21,16 @@ ENTRYPOINTS = [
     ("render-video-gui", "missing-streamlit"),
     ("ai-studio-gui", "missing-streamlit"),
 ]
+ENTRYPOINT_MODULES = {
+    "generator-story": "story",
+    "generator-story-gui": "story.gui_entry",
+    "render-audio": "audio",
+    "render-audio-gui": "audio.gui_entry",
+    "render-image-gui": "image.gui_entry",
+    "render-video": "video",
+    "render-video-gui": "video.gui_entry",
+    "ai-studio-gui": "studio.gui_entry",
+}
 
 
 @dataclass
@@ -107,15 +117,15 @@ def venv_paths(venv_dir: Path) -> tuple[Path, Path]:
     return bindir / ("python.exe" if sys.platform.startswith("win") else "python"), bindir
 
 
-def assert_help(cmd_path: Path, name: str, *, cwd: Path | None = None) -> None:
-    result = run([str(cmd_path), "--help"], expect=0, cwd=cwd)
+def assert_help(command: Sequence[str], name: str, *, cwd: Path | None = None) -> None:
+    result = run([*command, "--help"], expect=0, cwd=cwd)
     merged = (result.stdout + "\n" + result.stderr).lower()
     if "usage" not in merged and name not in merged:
         raise SmokeFailure(f"Help output for {name} does not look valid.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
 
 
-def assert_missing_streamlit(cmd_path: Path, name: str, *, cwd: Path | None = None) -> None:
-    result = run([str(cmd_path)], expect=1, cwd=cwd)
+def assert_missing_streamlit(command: Sequence[str], name: str, *, cwd: Path | None = None) -> None:
+    result = run(command, expect=1, cwd=cwd)
     merged = (result.stdout + "\n" + result.stderr).lower()
     if "streamlit" not in merged and "missing dependency" not in merged:
         raise SmokeFailure(
@@ -170,11 +180,16 @@ def main() -> int:
             cmd_path = bindir / (entrypoint + (".exe" if sys.platform.startswith("win") else ""))
             if not cmd_path.exists():
                 raise SmokeFailure(f"Missing console script: {cmd_path}")
+            command = (
+                [str(vpy), "-m", ENTRYPOINT_MODULES[entrypoint]]
+                if sys.platform.startswith("win")
+                else [str(cmd_path)]
+            )
             if mode == "help":
-                assert_help(cmd_path, entrypoint, cwd=tmpdir)
+                assert_help(command, entrypoint, cwd=tmpdir)
                 print(f"[{entrypoint}] --help OK")
             elif mode == "missing-streamlit":
-                assert_missing_streamlit(cmd_path, entrypoint, cwd=tmpdir)
+                assert_missing_streamlit(command, entrypoint, cwd=tmpdir)
                 print(f"[{entrypoint}] missing-streamlit path OK")
             else:
                 raise SmokeFailure(f"Unknown smoke mode: {mode}")

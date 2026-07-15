@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from audio import asset_profiles as common
+from audio import asset_profiles
 from audio.asset_profiles import AssetProfileContract
 from audio.logging_utils import get_logger
 from audio.paths import PACKAGE_PROFILE_ROOT
@@ -34,15 +34,15 @@ def _invalid(manifest_path: Path) -> Exception:
 
 
 def normalize_profile_root(profile_root: str | Path | None) -> Path:
-    return common.normalize_profile_root(profile_root, default_root=PACKAGE_PROFILE_ROOT)
+    return asset_profiles.normalize_profile_root(profile_root, default_root=PACKAGE_PROFILE_ROOT)
 
 
 def load_json_dict(path: Path) -> Optional[Dict[str, Any]]:
-    return common.load_json_dict(path, logger_warning=_warn)
+    return asset_profiles.load_json_dict(path, logger_warning=_warn)
 
 
 def load_asset_profile_manifest(profile_name: str, profile_root: str | Path | None) -> Tuple[Path, Dict[str, Any]]:
-    return common.load_asset_profile_manifest(
+    return asset_profiles.load_asset_profile_manifest(
         profile_name,
         profile_root,
         default_root=PACKAGE_PROFILE_ROOT,
@@ -53,7 +53,7 @@ def load_asset_profile_manifest(profile_name: str, profile_root: str | Path | No
 
 
 def resolve_asset_profile_contract(profile_name: str, profile_root: str | Path | None) -> AssetProfileContract:
-    return common.resolve_asset_profile_contract(
+    return asset_profiles.resolve_asset_profile_contract(
         profile_name,
         profile_root,
         default_root=PACKAGE_PROFILE_ROOT,
@@ -64,16 +64,16 @@ def resolve_asset_profile_contract(profile_name: str, profile_root: str | Path |
 
 
 def resolve_profile_path(profile_dir: Path, value: Any) -> Optional[Path]:
-    return common.resolve_profile_path(profile_dir, value)
+    return asset_profiles.resolve_profile_path(profile_dir, value)
 
 
 def get_manifest_str(manifest: Dict[str, Any], key: str) -> Optional[str]:
-    return common.get_manifest_str(manifest, key)
+    return asset_profiles.get_manifest_str(manifest, key)
 
 
 def resolve_manifest_relative_path(profile_dir: Path, manifest: Dict[str, Any], key: str) -> Optional[Path]:
-    return common.resolve_manifest_relative_path(profile_dir, manifest, key)
+    return asset_profiles.resolve_manifest_relative_path(profile_dir, manifest, key)
 
 
 def resolve_profile_voice_defaults(manifest: Dict[str, Any]) -> Dict[str, str]:
-    return common.resolve_profile_voice_defaults(manifest)
+    return asset_profiles.resolve_profile_voice_defaults(manifest)

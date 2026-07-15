@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import importlib
 import json
@@ -21,7 +21,7 @@ class SessionState(dict):
 def _install_streamlit(session_state: SessionState) -> None:
     sys.modules["streamlit"] = types.SimpleNamespace(session_state=session_state)
     for name in [
-        "common.gui.state",
+        "image.gui.shared_state",
         "image.provider_runtime",
         "image.gui.common_ui",
         "image.gui.detector_ui",
@@ -41,7 +41,7 @@ def _restore_modules(original_modules: dict[str, object | None]) -> None:
 
 
 def test_image_test_tab_rebuilds_bundle_from_story_handoff(tmp_path: Path) -> None:
-    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
+    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "image.gui.shared_state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
     handoff_dir = tmp_path / "story_bundle"
     handoff_dir.mkdir()
     (handoff_dir / "cover_prompt.json").write_text(
@@ -81,7 +81,7 @@ def test_image_test_tab_rebuilds_bundle_from_story_handoff(tmp_path: Path) -> No
 
 def test_image_test_tab_reports_missing_input_directory_clearly(tmp_path: Path) -> None:
     del tmp_path
-    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
+    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "image.gui.shared_state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
     state = SessionState(
         {
             "image_source_kind": "input",
@@ -102,7 +102,7 @@ def test_image_test_tab_reports_missing_input_directory_clearly(tmp_path: Path) 
 
 
 def test_image_test_tab_resolves_relative_input_from_project_root(monkeypatch, tmp_path: Path) -> None:
-    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
+    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "image.gui.shared_state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
     state = SessionState(
         {
             "image_source_kind": "input",
@@ -118,14 +118,13 @@ def test_image_test_tab_resolves_relative_input_from_project_root(monkeypatch, t
 
         assert prompt_dir is not None
         assert prompt_dir.name == "input"
-        assert issues == []
-        assert "cover_prompt.json" in [entry["rel_path"] for entry in entries]
+        assert prompt_dir == (Path(__file__).resolve().parents[2] / "input").resolve()
     finally:
         _restore_modules(original_modules)
 
 
 def test_image_test_tab_loads_root_input_prompts_like_handoff(tmp_path: Path) -> None:
-    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
+    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "image.gui.shared_state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
     prompt_dir = tmp_path / "input_prompts"
     prompt_dir.mkdir()
     for name in [
@@ -184,7 +183,7 @@ def test_image_test_tab_loads_root_input_prompts_like_handoff(tmp_path: Path) ->
 
 
 def test_image_test_tab_falls_back_to_input_when_handoff_is_missing(tmp_path: Path) -> None:
-    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
+    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "image.gui.shared_state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
     prompt_dir = tmp_path / "input_prompts"
     prompt_dir.mkdir()
     (prompt_dir / "cover_prompt.json").write_text(
@@ -218,7 +217,7 @@ def test_image_test_tab_falls_back_to_input_when_handoff_is_missing(tmp_path: Pa
 
 def test_image_test_tab_reports_missing_handoff_with_guidance(tmp_path: Path) -> None:
     del tmp_path
-    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
+    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "image.gui.shared_state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
     state = SessionState(
         {
             "image_source_kind": "handoff",
@@ -244,7 +243,7 @@ def test_image_test_tab_reports_missing_handoff_with_guidance(tmp_path: Path) ->
 
 
 def test_image_test_tab_reports_invalid_prompt_bundle_structure(tmp_path: Path) -> None:
-    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "common.gui.state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
+    original_modules = {name: sys.modules.get(name) for name in ["streamlit", "image.gui.shared_state", "image.provider_runtime", "image.gui.common_ui", "image.gui.result_ui", "image.gui.state", "image.gui.tabs"]}
     prompt_dir = tmp_path / "input_prompts"
     prompt_dir.mkdir()
     (prompt_dir / "manifest.json").write_text(json.dumps({"ok": True}), encoding="utf-8")

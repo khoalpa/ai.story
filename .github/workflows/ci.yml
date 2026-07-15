@@ -31,8 +31,14 @@ jobs:
       - name: Check dependency direction
         run: python scripts/check_dependency_direction.py
 
+      - name: Check standalone architecture
+        run: python scripts/check_standalone_architecture.py
+
       - name: Verify wheel contents
         run: python scripts/check_wheel_contents.py
+
+      - name: Verify independent package wheels
+        run: python scripts/check_independent_wheels.py
 
       - name: Run release smoke
         run: python scripts/release_smoke.py

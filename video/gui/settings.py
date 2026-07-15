@@ -16,9 +16,9 @@ from video.error_handling import USER_FACING_EXCEPTIONS, format_user_facing_erro
 from video.runtime_tools import collect_runtime_diagnostics
 from video.providers.base import VideoProviderDescriptor
 from video.providers.registry import get_video_provider_descriptors, normalize_video_provider
-from common.gui.diagnostics_blocks import render_runtime_diagnostics_block
-from common.gui.sidebar_sections import SidebarSection
-from common.gui.user_messages import show_path_warning
+from video.gui.diagnostics_blocks import render_runtime_diagnostics_block
+from video.gui.sidebar_sections import SidebarSection
+from video.gui.user_messages import show_path_warning
 
 
 _LOGLEVEL_OPTIONS = ["quiet", "panic", "fatal", "error", "warning", "info", "verbose", "debug", "trace"]

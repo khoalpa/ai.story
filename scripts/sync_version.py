@@ -9,7 +9,13 @@ TARGETS = [
     ROOT / "audio" / "__init__.py",
     ROOT / "story" / "__init__.py",
     ROOT / "video" / "__init__.py",
+    ROOT / "image" / "__init__.py",
     ROOT / "pyproject.toml",
+    ROOT / "packages" / "story" / "pyproject.toml",
+    ROOT / "packages" / "audio" / "pyproject.toml",
+    ROOT / "packages" / "image" / "pyproject.toml",
+    ROOT / "packages" / "video" / "pyproject.toml",
+    ROOT / "packages" / "studio" / "pyproject.toml",
 ]
 
 

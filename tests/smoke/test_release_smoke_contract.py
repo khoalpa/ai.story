@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -43,11 +43,11 @@ def test_release_smoke_uses_timeouts_and_offline_friendly_env() -> None:
 def test_story_paths_resolution_strategy_is_explicit() -> None:
     content = (ROOT / "story" / "paths.py").read_text(encoding="utf-8")
     assert 'resolve_assets_root_for_module' in content
-    assert 'resolve_common_package_assets_root' in content
+    assert 'resolve_package_assets_root' in content
 
-    runtime = (ROOT / "common" / "runtime.py").read_text(encoding="utf-8")
+    runtime = (ROOT / "video" / "runtime.py").read_text(encoding="utf-8")
     assert '_looks_like_source_checkout' in runtime
-    assert 'resolve_common_package_assets_root' in runtime
+    assert 'resolve_package_assets_root' in runtime
     assert 'resolve_assets_root_for_module' in runtime
 
 

@@ -7,20 +7,20 @@ from typing import Any, Optional
 
 import streamlit as st
 
-from common.gui.diagnostics_blocks import render_runtime_diagnostics_block
-from common.gui.history_utils import append_capped_history_entry
-from common.gui.panel_utils import (
+from video.gui.diagnostics_blocks import render_runtime_diagnostics_block
+from video.gui.history_utils import append_capped_history_entry
+from video.gui.panel_utils import (
     normalize_optional_path,
     render_download_button_from_path,
     render_json_summary_expander,
     render_session_history,
 )
-from common.gui.state import append_global_run_event, get_workspace_target_field, set_video_handoff, update_global_run_monitor
-from common.gui.progress_details import format_progress_text
-from common.gui.runtime_usage import render_runtime_usage_compact
-from common.gui.workspace_handoff import workspace_handoff_state
-from common.gui.workspace_source_outputs import workspace_source_outputs
-from common.gui.user_messages import show_missing_input, show_provider_error
+from video.gui.shared_state import append_global_run_event, get_workspace_target_field, set_video_handoff, update_global_run_monitor
+from video.gui.progress_details import format_progress_text
+from video.gui.runtime_usage import render_runtime_usage_compact
+from video.gui.workspace_handoff import workspace_handoff_state
+from video.gui.workspace_source_outputs import workspace_source_outputs
+from video.gui.user_messages import show_missing_input, show_provider_error
 from video.app_api import RenderVideoRequest
 from video.error_handling import (
     USER_FACING_EXCEPTIONS,

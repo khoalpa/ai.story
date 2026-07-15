@@ -113,12 +113,6 @@ def looks_like_body_only_script(lines: List[str]) -> bool:
     return signal_count >= 1
 
 
-def detect_body_only_script(lines: List[str]) -> bool:
-    """
-    Backward-compatible alias cho GUI helpers đang import tên cũ.
-    """
-    return looks_like_body_only_script(lines)
-
 
 def detect_script_block(lines: List[str]) -> int:
     """

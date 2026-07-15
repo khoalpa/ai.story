@@ -5,6 +5,18 @@ from pathlib import Path
 from typing import Any
 
 
+def render_image_workspace(*, embedded: bool = False) -> None:
+    """Render Image's GUI while keeping Streamlit out of headless imports."""
+    from image.gui.app import render_image_workspace as render
+
+    render(embedded=embedded)
+
+
+def render_image_studio(*args: Any, **kwargs: Any) -> None:
+    kwargs.setdefault("embedded", True)
+    render_image_workspace(*args, **kwargs)
+
+
 @dataclass(slots=True)
 class RenderImageRequest:
     provider: str
@@ -56,4 +68,26 @@ class RenderImageResult:
     @property
     def images_dir(self) -> Path:
         return self.scene_images_dir
+
+
+def validate_request(request: RenderImageRequest) -> None:
+    if not isinstance(request, RenderImageRequest):
+        raise TypeError("request must be RenderImageRequest")
+    if not request.provider.strip():
+        raise ValueError("provider is required")
+    if request.width <= 0 or request.height <= 0:
+        raise ValueError("image dimensions must be positive")
+
+
+def execute_request(request: RenderImageRequest, progress_callback=None) -> RenderImageResult:
+    validate_request(request)
+    from image.gui.service import run_image_job
+
+    return run_image_job(request, progress_callback=progress_callback)
+
+
+__all__ = [
+    "RenderImageRequest", "RenderImageResult", "execute_request",
+    "render_image_studio", "render_image_workspace", "validate_request",
+]
 

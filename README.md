@@ -13,8 +13,11 @@ The repository is organized as a modular monorepo with focused packages:
 - `audio`
 - `image`
 - `video`
-- `common`
 - `studio`
+
+See [Standalone packages](docs/STANDALONE_PACKAGES.md) for independent wheel
+installation and filesystem handoff contracts. Existing installations should
+also review [the migration guide](docs/MIGRATION_STANDALONE_PACKAGES.md).
 
 ## Current status
 
@@ -81,14 +84,16 @@ python -m pip install .[all,image-local]
 
 ## Requirements
 
-- `requirements.txt`: single all-in-one environment for local install, GUI use, tests, and release checks
+- `pyproject.toml`: canonical dependency and tool configuration
+- `requirements.txt`: convenience environment for local development and CI
 
 ## Package metadata alignment
 
-`pyproject.toml` is aligned with `requirements.txt` as follows:
+Dependency ownership is defined as follows:
 
 - base `project.dependencies` covers the runtime and GUI packages needed by the shipped launchers
-- optional extras in `pyproject.toml` remain available for package installs, while `requirements.txt` is the single pip requirements file for this repo
+- optional extras in `pyproject.toml` remain available for package installs
+- `requirements.txt` mirrors the development environment and must not introduce package requirements absent from `pyproject.toml`
 - `.[image-local]` keeps heavyweight local image-generation dependencies optional
 
 ## Quality checks
@@ -103,7 +108,7 @@ python scripts/check_dependency_direction.py
 python scripts/check_wheel_contents.py
 ```
 
-`mypy` is configured to scan the shipped packages (`audio`, `story`, `image`, `video`, `common`, `studio`) plus `scripts`. Modules with existing type debt are listed explicitly in the `pyproject.toml` mypy override baseline; remove modules from that list as their annotations are cleaned up.
+`mypy` is configured to scan the shipped packages (`audio`, `story`, `image`, `video`, `studio`) plus `scripts`. Modules with existing type debt are listed explicitly in the `pyproject.toml` mypy override baseline; remove modules from that list as their annotations are cleaned up.
 
 ## Audio assets
 
@@ -147,15 +152,15 @@ and the supported Streamlit launcher modules:
 - Replaced the `video` package `sys.path` hack with a normal package export surface.
 - Fixed root pytest discovery so smoke tests run from the repository root.
 - Added the `image` branch to packaging metadata and console scripts.
-- Moved cross-app image-sequence constants into `common` so Story does not depend on `video`.
+- Moved runtime, GUI helpers, and assets into the package that owns each capability.
 - Added release smoke coverage for installed-wheel entrypoints, including `ai-studio-gui` and `render-image-gui`.
 
 ## Current architectural notes
 
 - `story`, `audio`, `image`, and `video` now follow the same GUI entrypoint pattern.
 - Package GUI entry modules are the public Streamlit start points.
-- Canonical package GUI modules remain the only supported import targets for embedded studio integration.
-- Top-level dependency direction is constrained to app packages importing `common`, not each other.
+- Stable `*/app_api.py` modules are the supported targets for embedded Studio integration.
+- Feature packages are standalone and may not import sibling packages, `common`, or `studio`.
 - `scripts/check_dependency_direction.py` and `package_api_policy.json` should remain aligned with the real package graph.
 
 ## Current release notes
@@ -163,7 +168,7 @@ and the supported Streamlit launcher modules:
 - Wheel packaging now includes `image*` packages.
 - Wheel packaging checks include bundled audio BGM config and BGM files under `audio/assets`.
 - Console scripts now cover Story, Audio, Image, Video, and the unified Studio shell.
-- Runtime, GUI, test, and dev dependencies are consolidated in the single `requirements.txt` file.
+- Dependency and tool configuration is canonical in `pyproject.toml`.
 - Mypy runs across shipped packages, with an explicit override baseline for modules that still carry type debt.
 - Repository hygiene checks are hardened to avoid false positives caused by the current pytest run itself.
 
@@ -174,14 +179,7 @@ and the supported Streamlit launcher modules:
 
 ### Package dependency direction
 
-This repository uses a one-way package dependency rule among the main packages.
-
-## Allowed directions
-
-- `audio -> common`
-- `story -> common`
-- `image -> common`
-- `video -> common`
+This repository enforces standalone feature packages.
 
 ## Forbidden directions
 
@@ -198,22 +196,18 @@ The following are forbidden unless the policy manifest is explicitly changed:
 - `video -> audio`
 - `video -> story`
 - `video -> image`
-- `common -> audio`
-- `common -> story`
-- `common -> image`
-- `common -> video`
 
 ## Rationale
 
-- `common` provides shared runtime and utility concerns.
 - `audio`, `story`, `image`, and `video` are sibling feature packages.
-- Sibling packages must not depend on each other directly because that creates hidden coupling and makes refactors harder.
+- Each feature package owns its runtime, GUI helpers, provider registry and assets.
+- `studio` integrates feature packages only through their public `app_api` modules.
 
 ## Enforcement
 
 CI validates dependency direction from `package_api_policy.json` and fails when:
 - a package imports another package not listed in its allowed dependency list,
-- or a package starts depending on a sibling package directly instead of routing shared concerns through `common`.
+- or a package starts depending on a sibling package directly.
 
 Tests are excluded from this direction check so integration tests can probe package behavior without being blocked by architecture policy.
 
@@ -512,7 +506,7 @@ Giữ `tabs.py` làm facade mỏng khi:
 
 ---
 
-## 7. Module chung trong `common/gui/`
+## 7. Thiết kế `common/gui/` cũ (đã loại bỏ)
 
 Các helper dùng chung nên chia theo chủ đề nhỏ, không gom quá tay.
 

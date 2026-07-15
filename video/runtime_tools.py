@@ -6,12 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from common.runtime_diagnostics import (
+from video.runtime_diagnostics import (
     RuntimeDiagnosticsReport,
-    collect_runtime_diagnostics as collect_common_runtime_diagnostics,
+    collect_runtime_diagnostics as _collect_runtime_diagnostics,
     describe_tool,
     read_tool_version,
-    resolve_tool_path as common_resolve_tool_path,
+    resolve_tool_path as resolve_runtime_tool_path,
 )
 from video.exceptions import RuntimeDependencyError
 from video.logging_utils import get_logger
@@ -59,11 +59,11 @@ def resolve_tool_path(env_var: str, executable_name: str, windows_fallback: Path
 
 
 def is_available_tool(path_or_name: str) -> bool:
-    return common_resolve_tool_path(path_or_name) is not None
+    return resolve_runtime_tool_path(path_or_name) is not None
 
 
 def get_available_tool_path(path_or_name: str) -> Optional[str]:
-    return common_resolve_tool_path(path_or_name)
+    return resolve_runtime_tool_path(path_or_name)
 
 
 def get_tool_version_line(path_or_name: str) -> Optional[str]:
@@ -76,7 +76,7 @@ def collect_runtime_diagnostics(
 ) -> RuntimeDiagnosticsReport:
     ffmpeg_value = ffmpeg_exe or resolve_tool_path("FFMPEG_EXE", "ffmpeg", DEFAULT_WINDOWS_FFMPEG)
     ffprobe_value = ffprobe_exe or resolve_tool_path("FFPROBE_EXE", "ffprobe", DEFAULT_WINDOWS_FFPROBE)
-    return collect_common_runtime_diagnostics(
+    return _collect_runtime_diagnostics(
         tool_configs=(("ffmpeg", ffmpeg_value), ("ffprobe", ffprobe_value)),
         dependency_modules=("yaml", "requests", "streamlit"),
     )

@@ -8,14 +8,14 @@ import types
 def test_image_error_normalization_repairs_mojibake() -> None:
     original_modules = {
         "streamlit": sys.modules.get("streamlit"),
-        "common.gui.user_messages": sys.modules.get("common.gui.user_messages"),
+        "image.gui.user_messages": sys.modules.get("image.gui.user_messages"),
         "image.gui.common_ui": sys.modules.get("image.gui.common_ui"),
     }
     sys.modules["streamlit"] = types.SimpleNamespace()
-    user_messages = types.ModuleType("common.gui.user_messages")
+    user_messages = types.ModuleType("image.gui.user_messages")
     user_messages.UserMessage = object
     user_messages.render_user_message = lambda *args, **kwargs: None
-    sys.modules["common.gui.user_messages"] = user_messages
+    sys.modules["image.gui.user_messages"] = user_messages
     sys.modules.pop("image.gui.common_ui", None)
     try:
         common_ui = importlib.import_module("image.gui.common_ui")

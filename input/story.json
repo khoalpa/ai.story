@@ -1,670 +1,590 @@
 {
   "meta": {
-    "title": "Chiếc Hộp Của Mây",
-    "series": "Những Điều Tử Tế Nhỏ",
+    "title": "Chiếc Cầu Cầu Vồng Của Lớp Lá Non",
+    "series": "Lớp Học Muôn Màu",
     "episode": "1",
-    "author": "Catalina",
+    "author": "Lollipop",
     "channel": "Hộp Truyện Kỳ Diệu",
-    "target": "Trẻ em 6-10 tuổi",
+    "target": "Trẻ em 4-8 tuổi",
     "length_min": 8,
     "length_max": 12,
     "language": "vi",
     "genre": "children audio story",
-    "audience": "Trẻ em yêu thích truyện ấm áp và kỹ năng sống",
-    "tone": "Ấm áp, Tình bạn, Tưởng tượng kỳ diệu",
+    "audience": "Trẻ em nghe truyện trước giờ ngủ và học kỹ năng sống",
+    "tone": "Ấm áp, vui tươi, tình bạn, học kỹ năng sống",
     "tags": [
-      "lòng tốt",
-      "chia sẻ",
-      "tình bạn",
-      "trung thực",
+      "lớp học thú nhỏ",
       "hợp tác",
-      "chiếc hộp kỳ diệu",
-      "trẻ em",
+      "trung thực",
+      "kiên nhẫn",
+      "tình bạn",
+      "sáng tạo",
+      "chia sẻ",
       "trước giờ ngủ"
     ]
   },
   "outline": {
-    "greeting": "Mời các bạn bước vào câu chuyện về một chiếc hộp chỉ sáng lên khi nhận được lòng tốt thật lòng.",
-    "opening": "Mây phát hiện chiếc hộp bí mật trong thư viện nhưng nó hoàn toàn không mở được.",
-    "introduction": "Mây cùng bạn rùa Tí tìm hiểu quy luật của chiếc hộp và gặp những người bạn đang cần giúp đỡ.",
-    "development": "Mỗi việc tốt giúp chiếc hộp sáng hơn, nhưng Mây dần hiểu rằng làm điều tốt không phải để nhận phần thưởng.",
-    "climax": "Mây phải chọn giữa giữ lại món quà mình mong ước và dùng nó để giúp cả lớp vượt qua một khó khăn.",
-    "falling": "Quyết định chân thành của Mây khiến chiếc hộp mở ra theo cách bất ngờ và ấm áp.",
-    "ending": "Các bạn hiểu rằng lòng tốt lớn lên khi được chia sẻ và không cần ai ghi công.",
-    "farewell": "Câu chuyện khép lại bằng lời chúc các bạn luôn giữ một chiếc hộp tử tế trong tim."
+    "greeting": "Mời các bạn nhỏ đến với một ngày đặc biệt tại lớp Lá Non.",
+    "opening": "Chiếc cầu mô hình của lớp bất ngờ bị lệch trước giờ trưng bày.",
+    "introduction": "Sóc Nâu cùng các bạn thú nhỏ chuẩn bị công trình chung bằng những điểm mạnh khác nhau.",
+    "development": "Cả nhóm tìm nguyên nhân, vượt qua hiểu lầm và học cách phân công công việc.",
+    "climax": "Sóc Nâu nói thật về sai sót và đề nghị cả nhóm cùng sửa cầu theo kế hoạch mới.",
+    "falling": "Các bạn phối hợp hoàn thiện chiếc cầu vững chắc trước khi chuông trưng bày vang lên.",
+    "ending": "Lớp Lá Non nhận ra hợp tác và trung thực quan trọng hơn việc làm mọi thứ một mình.",
+    "farewell": "Câu chuyện khép lại trong niềm vui và lời chúc ngủ ngon ấm áp."
   },
   "script": [
     {
       "zone": "LỜI CHÀO",
-      "environment": "library_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Xin chào các bạn nhỏ, hôm nay chúng ta sẽ gặp một chiếc hộp rất đặc biệt."
+      "text": "Xin chào các bạn nhỏ, hôm nay lớp Lá Non đang chuẩn bị một điều thật đặc biệt."
     },
     {
       "zone": "LỜI CHÀO",
-      "environment": "library_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Chiếc hộp ấy không chứa vàng, kẹo hay đồ chơi lấp lánh."
+      "text": "Các bạn thú nhỏ sẽ cùng dựng một chiếc cầu cầu vồng cho ngày hội sáng tạo."
     },
     {
       "zone": "LỜI CHÀO",
-      "environment": "library_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
-      "speed": "SLOW",
+      "speed": "NORMAL",
       "lang": "VI",
-      "text": "Nó chỉ mở ra khi có một tấm lòng thật sự biết quan tâm."
+      "text": "Nhưng ngay trước giờ trưng bày, một rắc rối nhỏ bất ngờ xuất hiện."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "library_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Chiều hôm ấy, Mây nghe thấy tiếng leng keng nhỏ phát ra từ kệ sách cuối thư viện."
+      "text": "Chiếc cầu giấy nhiều màu đang đứng giữa lớp thì bỗng nghiêng sang một bên."
     },
     {
       "zone": "MỞ TRUYỆN",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô bé lần theo âm thanh và nhìn thấy một chiếc hộp gỗ phủ bụi bạc."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Trên nắp hộp có hình một trái tim đang khép kín như nụ hoa."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "library_soft",
-      "voice": "FEMALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Lạ thật, ai lại để chiếc hộp đẹp thế này ở đây nhỉ."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây thử nâng nắp, xoay khóa và gõ nhẹ ba lần nhưng chiếc hộp vẫn im lìm."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Đúng lúc đó, một mảnh giấy nhỏ trượt ra từ khe khóa."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "library_soft",
-      "voice": "FEMALE",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Muốn mở chiếc hộp, hãy gieo ba việc tốt mà không chờ được cảm ơn."
-    },
-    {
-      "zone": "MỞ TRUYỆN",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây đọc xong, đôi mắt cô bé sáng lên vì tò mò hơn cả lúc đầu."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây là cô bé rất giỏi nhận ra những chi tiết nhỏ mà người khác thường bỏ qua."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô bé nhớ vị trí từng quyển sách và luôn biết ai đang cần một lời động viên."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Người bạn thân nhất của Mây là Tí, một chú rùa chậm rãi nhưng suy nghĩ rất sâu."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "library_soft",
-      "voice": "MALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Chúng ta nên đọc kỹ mảnh giấy trước khi vội làm điều gì nhé."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tí chỉ vào dòng chữ cuối có những nét mực gần như đã phai."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "library_soft",
-      "voice": "FEMALE",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Lòng tốt thật không cần người khác nhìn thấy."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây gật đầu nhưng trong lòng vẫn mong chiếc hộp chứa một món quà tuyệt vời."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hai bạn đặt chiếc hộp vào giỏ nhỏ và bắt đầu đi quanh trường."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Sân trường sau giờ học yên ắng, chỉ còn vài chiếc lá chạy theo gió."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây quan sát thật kỹ để tìm một người đang cần giúp đỡ."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tí nhắc rằng việc tốt phải đến từ sự quan tâm chứ không phải từ cuộc săn kho báu."
-    },
-    {
-      "zone": "GIỚI THIỆU",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây hít một hơi sâu và quyết định sẽ lắng nghe nhiều hơn nhìn vào chiếc hộp."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ở cuối hành lang, bạn Sóc Nâu đang loay hoay nhặt những tờ giấy bị gió thổi tung."
-    },
-    {
-      "zone": "TRIỂN KHAI",
       "environment": "school_hallway",
       "voice": "FEMALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mình có thể giúp bạn gom lại theo từng màu để khỏi bị lẫn."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây dùng chiếc kẹp tóc giữ xấp giấy rồi cùng Sóc Nâu nhặt từng tờ một."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tí chậm rãi bò quanh chân bàn và phát hiện một tờ giấy mắc dưới ghế."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Chỉ một lát sau, bộ tranh của Sóc Nâu đã được xếp ngay ngắn trở lại."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "MALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cảm ơn hai bạn, mình tưởng hôm nay sẽ phải làm lại hết."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây mỉm cười rồi kín đáo nhìn chiếc hộp trong giỏ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Một chấm sáng nhỏ xuất hiện trên hình trái tim nhưng chưa đủ để mở khóa."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "FEMALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Vậy là chúng ta đã có việc tốt đầu tiên rồi."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "MALE",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Đừng đếm việc tốt như đếm viên bi, Mây nhé."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Hai bạn đi tiếp đến khu vườn nhỏ sau lớp học."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ở đó, bạn Nhím Con đang nhìn bình tưới bị nứt với vẻ buồn bã."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "FEMALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bạn cần tưới cây trước khi về nhà đúng không."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Nhím Con gật đầu và chỉ vào luống hoa mới trồng đang khô dần."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây nghĩ đến việc dùng chiếc cốc uống nước nhưng chiếc cốc quá nhỏ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tí quan sát máng hứng nước mưa và đề nghị nối một chiếc lá lớn thành vòi."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ba bạn cùng đặt lá, giữ dây và dẫn nước vào từng gốc cây."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Nước chảy chậm nhưng đều, khiến những chiếc lá non dần đứng thẳng."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "MALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mình sẽ sửa bình tưới vào ngày mai, còn hôm nay cây đã được cứu rồi."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Chiếc hộp phát ra ánh sáng dịu hơn, giống một ngọn đèn nhỏ trong sương."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây vui mừng đến mức suýt reo lên về bí mật của chiếc hộp."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Nhưng cô bé nhớ rằng việc tốt không nên biến thành màn biểu diễn."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "garden_morning",
-      "voice": "FEMALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Chúng mình đi tiếp thôi, vẫn còn nhiều điều cần chú ý."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Trên đường về, Mây và Tí nghe tiếng sụt sịt gần chiếc cầu gỗ nhỏ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Một bạn chim non đang ngồi bên túi hạt bị rách, nhìn đàn kiến mang hạt đi."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "FEMALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bạn có bị đau không, hay chỉ lo mất phần ăn mang về."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "MALE",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Mình không đau, nhưng đây là phần hạt dành cho các em ở tổ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây lấy khăn tay buộc đáy túi và nhặt từng hạt còn sạch trên lối đi."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tí đề nghị chia số hạt còn lại thành những gói nhỏ để dễ mang hơn."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Bạn chim non ngập ngừng vì sợ không đủ cho cả nhà."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "FEMALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mình có ít bánh hạt trong hộp cơm, bạn hãy mang thêm phần này nhé."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Mây nhìn chiếc bánh yêu thích rồi đặt nó vào túi của bạn chim."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Lần này chiếc hộp không chỉ sáng mà còn rung nhẹ như đang thở."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây nắm chặt quai giỏ và hồi hộp chờ chiếc khóa bật mở."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Thế nhưng chiếc hộp vẫn đóng kín, khiến cô bé bối rối."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "FEMALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Chúng ta đã làm đủ ba việc tốt rồi, sao hộp vẫn chưa mở."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "MALE",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Có lẽ một trong những việc ấy vẫn còn điều chúng ta chưa hiểu."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây nhớ lại từng chuyện và nhận ra mình đã liên tục nhìn hộp sau khi giúp đỡ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô bé thấy má mình nóng lên vì đã mong phần thưởng nhiều hơn niềm vui của bạn."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "FEMALE",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Có lẽ mình làm đúng việc nhưng chưa hoàn toàn đúng lòng."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Tí không trách mà chỉ ngồi bên cạnh để Mây tự suy nghĩ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Đúng lúc ấy, một cơn gió mạnh làm tấm biển lớp học rơi xuống bãi cỏ."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Ngày mai cả trường có buổi kể chuyện, nhưng tấm biển đã bị gãy làm đôi."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "FEMALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Chúng ta phải quay lại giúp mọi người sửa nó trước khi trời tối."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "river_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây không nhìn chiếc hộp nữa mà lập tức chạy về phía sân trường."
-    },
-    {
-      "zone": "TRIỂN KHAI",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
       "speed": "FAST",
       "lang": "VI",
-      "text": "Tí theo sau chậm hơn nhưng vẫn gọi các bạn mang dây, hồ dán và giấy màu."
+      "text": "Ôi, chân cầu bên trái sắp trượt khỏi tấm nền rồi."
     },
     {
-      "zone": "CAO TRÀO",
+      "zone": "MỞ TRUYỆN",
       "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Tại sân trường, nhiều bạn đã cố ghép tấm biển nhưng phần giữa vẫn thiếu một mảnh lớn."
+      "text": "Thỏ Trắng nhanh tay giữ tấm nền, còn Nhím Gai đỡ lấy nhịp cầu ở giữa."
     },
     {
-      "zone": "CAO TRÀO",
+      "zone": "MỞ TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Chúng ta chỉ còn một lúc nữa trước khi cô giáo mở cửa phòng trưng bày."
+    },
+    {
+      "zone": "MỞ TRUYỆN",
       "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Mây nhìn thấy trong chiếc hộp cơm của mình còn một tấm bìa cứng dùng làm tranh dự thi."
+      "text": "Sóc Nâu đứng im bên hộp que gỗ, hai tai nóng ran vì lo lắng."
     },
     {
-      "zone": "CAO TRÀO",
+      "zone": "MỞ TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Bạn biết một điều quan trọng về chiếc cầu nhưng chưa dám nói ra."
+    },
+    {
+      "zone": "MỞ TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Có ai nhớ chúng ta đã gắn thanh chống cuối cùng ở đâu không?"
+    },
+    {
+      "zone": "MỞ TRUYỆN",
       "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Đó là bức tranh cô bé đã chuẩn bị suốt ba buổi chiều và rất muốn giữ nguyên."
+      "text": "Cả nhóm nhìn nhau, rồi cùng quay về phía chiếc hộp đang nằm cạnh Sóc Nâu."
     },
     {
-      "zone": "CAO TRÀO",
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu là bạn nhỏ nhanh nhẹn, khéo tay và rất giỏi nhận ra những chi tiết lệch."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Thỏ Trắng có đôi mắt tinh, thường kiểm tra màu sắc và khoảng cách giữa các phần."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Nhím Gai làm việc chậm rãi nhưng luôn đo đạc cẩn thận trước khi dán."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Vịt Vàng thích ghi chép và nhớ rất rõ từng bước trong kế hoạch."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sáng nay, cô giáo giao cho bốn bạn dựng một cây cầu đủ chắc cho đoàn tàu đồ chơi."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Mỗi bạn có một việc riêng, nhưng tất cả phải kiểm tra cùng nhau trước khi hoàn thành."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu nhận phần nối các thanh chống dưới mặt cầu bằng dây giấy mềm."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Bạn muốn làm thật nhanh để mọi người khen mình là người khéo nhất lớp."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Khi các bạn ra lấy cờ trang trí, Sóc Nâu quyết định tự hoàn thành phần còn lại."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Một thanh chống bị ngắn, nhưng Sóc Nâu vẫn giấu nó dưới lớp giấy màu."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Bạn nghĩ chiếc cầu sẽ đứng vững và chẳng ai phát hiện sai sót nhỏ ấy."
+    },
+    {
+      "zone": "GIỚI THIỆU",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Bây giờ, chính chỗ nối ấy đang khiến cả công trình nghiêng dần trước mắt mọi người."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Thỏ Trắng đặt thước dọc theo mặt cầu và thấy nhịp giữa thấp hơn một chút."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Có lẽ chúng ta đã dán nhầm vị trí của một thanh chống."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Nhím Gai cúi xuống quan sát các nút buộc, nhưng lớp giấy màu che gần kín."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Mình đề nghị tháo phần trang trí để kiểm tra từng chỗ nối."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu vội lắc đầu vì sợ mọi người nhìn thấy thanh gỗ bị ngắn."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "FAST",
+      "lang": "VI",
+      "text": "Hay chúng ta chỉ cần dán thêm thật nhiều keo ở bên ngoài."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Vịt Vàng mở sổ và đọc lại quy tắc đầu tiên của nhóm."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Trước khi sửa, chúng ta phải tìm đúng nguyên nhân để không làm cầu yếu hơn."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Cả nhóm đồng ý đặt đoàn tàu đồ chơi lên từng đoạn để thử tải nhẹ."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Đoàn tàu đi qua đầu cầu an toàn nhưng dừng lại khi tới nhịp giữa."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Nhịp giữa đang chịu lực không đều, nên một bên mới bị kéo xuống."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu nhận ra Thỏ Trắng đã tìm đúng nơi có thanh chống bị ngắn."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Bạn muốn nói thật, nhưng lời xin lỗi cứ mắc lại sau hai chiếc răng nhỏ."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Nhím Gai lấy bốn chiếc hộp bút để tạm đỡ các góc của cây cầu."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Bây giờ cầu đã an toàn hơn, chúng ta có thể kiểm tra mà không làm hỏng thêm."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Vịt Vàng chia tờ giấy thành bốn ô và ghi tên từng phần cần xem."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Thỏ Trắng kiểm tra mặt cầu, Nhím Gai kiểm tra chân, mình kiểm tra dây buộc."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu có thể xem lại các thanh chống vì bạn giỏi nhận ra chỗ lệch."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu nghe vậy càng thấy áy náy vì các bạn vẫn tin tưởng mình."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Bạn cầm chiếc đèn nhỏ soi xuống dưới lớp giấy màu xanh."
+    },
+    {
+      "zone": "TRIỂN KHAI",
       "environment": "school_hallway",
       "voice": "FEMALE",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Nếu cắt tấm bìa này, bức tranh của mình sẽ không thể dự thi nữa."
+      "text": "Mình thấy một thanh chống không chạm tới mép còn lại."
     },
     {
-      "zone": "CAO TRÀO",
+      "zone": "TRIỂN KHAI",
       "environment": "school_hallway",
-      "voice": "MALE",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Cả nhóm im lặng trong chốc lát, rồi Vịt Vàng nhẹ nhàng hỏi."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Thanh này bị cắt ngắn từ đầu hay bị trượt sau khi chúng ta rời đi?"
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Bạn có quyền giữ nó, chúng ta vẫn có thể tìm cách khác."
+      "text": "Sóc Nâu cúi mắt và siết nhẹ chiếc kéo giấy trong tay."
     },
     {
-      "zone": "CAO TRÀO",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây nhìn những người bạn đang chờ và nhớ đến dòng chữ trên mảnh giấy."
-    },
-    {
-      "zone": "CAO TRÀO",
-      "environment": "school_hallway",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Cô bé hiểu rằng lòng tốt đôi khi cần một lựa chọn thật sự chứ không chỉ vài phút tiện tay."
-    },
-    {
-      "zone": "CAO TRÀO",
+      "zone": "TRIỂN KHAI",
       "environment": "school_hallway",
       "voice": "FEMALE",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Mình sẽ dùng tấm bìa này, vì buổi kể chuyện là niềm vui của cả lớp."
+      "text": "Mình đã cắt thanh ấy hơi ngắn và vẫn giấu nó dưới lớp trang trí."
     },
     {
-      "zone": "CAO TRÀO",
+      "zone": "TRIỂN KHAI",
       "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Mây cẩn thận cắt phần nền tranh thành mảnh ghép vừa khít với tấm biển."
+      "text": "Thỏ Trắng không trách móc mà chỉ nhìn bạn với vẻ ngạc nhiên."
     },
     {
-      "zone": "CAO TRÀO",
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Mình buồn vì bạn không nói, nhưng mình vui vì bây giờ bạn đã thành thật."
+    },
+    {
+      "zone": "TRIỂN KHAI",
       "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Các bạn dùng màu vẽ biến phần còn lại thành những đám mây và ngôi sao rực rỡ."
+      "text": "Nhím Gai gật đầu và đặt thước xuống cạnh Sóc Nâu."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sai sót có thể sửa được, còn chúng ta cần cùng nhau làm ngay từ bây giờ."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu hít một hơi sâu rồi đề nghị tháo nhịp giữa theo từng bước nhỏ."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Mình sẽ cắt thanh mới, nhưng lần này các bạn hãy đo cùng mình."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Thỏ Trắng đo chiều dài, Vịt Vàng đọc số, còn Nhím Gai giữ thước thật thẳng."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu cắt lần đầu hơi dài và dừng lại trước khi vội vàng sửa tiếp."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Chúng ta có thể đánh dấu thêm một đường rồi cắt từng chút một."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Lần thứ hai, thanh gỗ vừa khít giữa hai điểm nối dưới mặt cầu."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Cả nhóm chưa dán ngay mà thử đặt thanh mới vào vị trí."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Thanh đã đúng chiều dài, nhưng dây buộc bên phải vẫn còn quá lỏng."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Vịt Vàng kiểm tra sổ và nhớ ra một nút buộc đôi mà cô giáo từng hướng dẫn."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Mỗi người giữ một đầu, rồi chúng ta kéo nhẹ cùng lúc."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Bốn bạn phối hợp chậm rãi để nút dây nằm gọn ngay giữa thanh chống."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Khi bỏ hai hộp bút ở đầu cầu, công trình vẫn đứng thẳng."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Tuy vậy, chiếc hộp giữa nhịp vẫn chưa thể lấy ra."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Chúng ta cần thử tải từng mức trước khi tin rằng cầu đã thật sự chắc."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu xếp ba viên gỗ nhỏ lên đoàn tàu thay vì đặt tất cả cùng lúc."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Đoàn tàu lăn chậm qua nhịp giữa, và mặt cầu chỉ rung rất nhẹ."
+    },
+    {
+      "zone": "TRIỂN KHAI",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Từ ngoài hành lang, tiếng chuông báo giờ trưng bày bắt đầu ngân lên."
     },
     {
       "zone": "CAO TRÀO",
@@ -672,7 +592,15 @@
       "voice": "NARRATOR",
       "speed": "FAST",
       "lang": "VI",
-      "text": "Tí giữ dây, Sóc Nâu dán mép, Nhím Con tô màu và chim non treo nơ."
+      "text": "Cánh cửa phòng trưng bày hé mở khi đoàn tàu vẫn còn đứng giữa cầu."
+    },
+    {
+      "zone": "CAO TRÀO",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "FAST",
+      "lang": "VI",
+      "text": "Chúng ta chỉ còn một lần thử cuối trước khi khách tham quan bước vào."
     },
     {
       "zone": "CAO TRÀO",
@@ -680,7 +608,71 @@
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Tấm biển mới đẹp hơn tấm biển cũ vì có dấu tay của tất cả mọi người."
+      "text": "Sóc Nâu nhìn hộp viên gỗ và nhớ rằng cây cầu phải chở đủ sáu viên."
+    },
+    {
+      "zone": "CAO TRÀO",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Mình đã làm cả nhóm mất thời gian, nên mình muốn chịu trách nhiệm kiểm tra cuối."
+    },
+    {
+      "zone": "CAO TRÀO",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Bạn không tự làm một mình mà mời từng người trở lại đúng vị trí."
+    },
+    {
+      "zone": "CAO TRÀO",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Thỏ Trắng quan sát độ nghiêng, Nhím Gai giữ chân cầu, Vịt Vàng đếm tải trọng."
+    },
+    {
+      "zone": "CAO TRÀO",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu đặt từng viên gỗ lên tàu, chờ mọi người xác nhận rồi mới đặt viên tiếp."
+    },
+    {
+      "zone": "CAO TRÀO",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Một viên, hai viên, ba viên, mặt cầu vẫn giữ được đường thẳng."
+    },
+    {
+      "zone": "CAO TRÀO",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Đến viên thứ năm, sợi dây bên trái phát ra tiếng sột soạt rất nhỏ."
+    },
+    {
+      "zone": "CAO TRÀO",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Dừng lại nhé, chúng ta cần siết nút dây trước khi thử viên cuối."
+    },
+    {
+      "zone": "CAO TRÀO",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Cả nhóm cùng chỉnh nút buộc, rồi Sóc Nâu nhẹ nhàng đặt viên thứ sáu."
     },
     {
       "zone": "CAO TRÀO",
@@ -688,135 +680,135 @@
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Trong giỏ, chiếc hộp bỗng vang lên một tiếng ting trong trẻo."
+      "text": "Đoàn tàu vượt qua cầu an toàn trong tiếng reo vui của bốn người bạn."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "library_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Khi mọi người quay lại thư viện, hình trái tim trên nắp hộp từ từ nở sáng."
+      "text": "Cô giáo bước vào đúng lúc đoàn tàu dừng lại bên lá cờ cuối cầu."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Chiếc khóa tự mở, nhưng bên trong không có vàng bạc hay món đồ quý giá."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Chỉ có một tấm gương nhỏ và nhiều mảnh giấy trắng hình chiếc lá."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "library_soft",
+      "environment": "school_hallway",
       "voice": "FEMALE",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Trong gương là mình, còn những chiếc lá này dùng để làm gì nhỉ."
+      "text": "Cô thấy các con đã sửa được công trình và còn phối hợp rất nhịp nhàng."
     },
     {
       "zone": "HẠ MÀN",
-      "environment": "library_soft",
-      "voice": "MALE",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Có lẽ mỗi chiếc lá sẽ ghi lại một việc tử tế để người khác tiếp tục."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây viết việc đầu tiên là giúp mà không chờ phần thưởng hay lời khen."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "library_soft",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Các bạn khác cũng viết những điều mình muốn làm vào ngày mai."
-    },
-    {
-      "zone": "HẠ MÀN",
-      "environment": "library_soft",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Chiếc hộp sáng ấm áp như thể chứa cả một buổi chiều đầy yêu thương."
+      "text": "Sóc Nâu chủ động kể lại việc mình đã giấu thanh chống bị cắt ngắn."
     },
     {
-      "zone": "KẾT TRUYỆN",
-      "environment": "bedroom_warm",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Từ hôm đó, chiếc hộp được đặt ở góc lớp thay vì cất riêng cho Mây."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "bedroom_warm",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mỗi bạn có thể bỏ vào một chiếc lá kể về việc tốt mình đã thấy."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "bedroom_warm",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Không ai ghi tên người làm, vì điều quan trọng là niềm vui được lan đi."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "bedroom_warm",
-      "voice": "NARRATOR",
-      "speed": "NORMAL",
-      "lang": "VI",
-      "text": "Mây vẫn tiếc bức tranh dự thi nhưng cô bé không hề thấy hối hận."
-    },
-    {
-      "zone": "KẾT TRUYỆN",
-      "environment": "bedroom_warm",
+      "zone": "HẠ MÀN",
+      "environment": "school_hallway",
       "voice": "FEMALE",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Mình đã mất một bức tranh nhưng lại cùng các bạn tạo nên điều đẹp hơn."
+      "text": "Con xin lỗi vì đã muốn được khen nên không nói thật với các bạn."
     },
     {
-      "zone": "KẾT TRUYỆN",
-      "environment": "bedroom_warm",
+      "zone": "HẠ MÀN",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Biết nhận lỗi và cùng sửa lỗi là một bước tiến rất đáng quý."
+    },
+    {
+      "zone": "HẠ MÀN",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Tí mỉm cười và bảo rằng lòng tốt giống ánh đèn, càng chia sẻ càng sáng."
+      "text": "Thỏ Trắng trao cho Sóc Nâu chiếc cờ nhỏ ghi hai chữ cùng làm."
     },
     {
-      "zone": "KẾT TRUYỆN",
-      "environment": "bedroom_warm",
+      "zone": "HẠ MÀN",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "NORMAL",
       "lang": "VI",
-      "text": "Mây hiểu chiếc hộp không thử ba việc làm mà thử cách trái tim lựa chọn."
+      "text": "Nhím Gai đặt cờ lên nhịp giữa, nơi từng khiến cả nhóm lo lắng."
+    },
+    {
+      "zone": "HẠ MÀN",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Chiếc cầu giờ không chỉ chắc hơn mà còn chứa một kỷ niệm đẹp của tình bạn."
     },
     {
       "zone": "KẾT TRUYỆN",
-      "environment": "bedroom_warm",
+      "environment": "school_hallway",
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Và từ đó, cả lớp có thêm một nơi nhỏ để nuôi lớn những điều tử tế."
+      "text": "Trong ngày hội, nhiều bạn nhỏ thích thú nhìn đoàn tàu chạy qua chiếc cầu cầu vồng."
+    },
+    {
+      "zone": "KẾT TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Sóc Nâu không còn mong được khen riêng mà vui vì cả nhóm đã thành công."
+    },
+    {
+      "zone": "KẾT TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Mình hiểu rằng làm nhanh không quan trọng bằng làm đúng và cùng kiểm tra."
+    },
+    {
+      "zone": "KẾT TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "FEMALE",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Thỏ Trắng mỉm cười vì lời nói thật đã giúp mọi người tìm được cách sửa."
+    },
+    {
+      "zone": "KẾT TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Vịt Vàng ghi thêm vào sổ rằng mỗi công việc đều cần lắng nghe và hợp tác."
+    },
+    {
+      "zone": "KẾT TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "NORMAL",
+      "lang": "VI",
+      "text": "Nhím Gai nhắc cả nhóm giữ lại thanh gỗ ngắn như một dấu nhắc đáng yêu."
+    },
+    {
+      "zone": "KẾT TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Từ hôm đó, Sóc Nâu luôn báo ngay khi gặp khó khăn thay vì âm thầm che giấu."
+    },
+    {
+      "zone": "KẾT TRUYỆN",
+      "environment": "school_hallway",
+      "voice": "NARRATOR",
+      "speed": "SLOW",
+      "lang": "VI",
+      "text": "Lớp Lá Non hiểu rằng một tập thể vững vàng được xây bằng trung thực và tin tưởng."
     },
     {
       "zone": "TẠM BIỆT",
@@ -824,7 +816,7 @@
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Câu chuyện về chiếc hộp của Mây đến đây là khép lại."
+      "text": "Câu chuyện về chiếc cầu cầu vồng của lớp Lá Non đến đây là khép lại."
     },
     {
       "zone": "TẠM BIỆT",
@@ -832,7 +824,7 @@
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Mong các bạn luôn nhận ra những người đang cần một bàn tay giúp đỡ."
+      "text": "Chúc các bạn nhỏ luôn biết nói thật, chia sẻ và cùng nhau vượt qua thử thách."
     },
     {
       "zone": "TẠM BIỆT",
@@ -840,15 +832,7 @@
       "voice": "NARRATOR",
       "speed": "SLOW",
       "lang": "VI",
-      "text": "Một việc tốt nhỏ cũng có thể làm ngày của ai đó trở nên dịu dàng hơn."
-    },
-    {
-      "zone": "TẠM BIỆT",
-      "environment": "bedroom_warm",
-      "voice": "NARRATOR",
-      "speed": "SLOW",
-      "lang": "VI",
-      "text": "Chúc các bạn ngủ ngon và giữ chiếc hộp tử tế luôn sáng trong tim."
+      "text": "Hẹn gặp lại trong một câu chuyện ấm áp khác của Hộp Truyện Kỳ Diệu."
     }
   ]
 }

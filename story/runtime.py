@@ -21,11 +21,11 @@ def _module_package_root(module_file: str | Path | None = None) -> Path:
     return _runtime_package_root()
 
 
-def resolve_common_package_assets_root(module_file: str | Path | None = None) -> Path:
+def resolve_package_assets_root(module_file: str | Path | None = None) -> Path:
     return (_module_package_root(module_file) / _PACKAGE_ASSETS_DIRNAME).resolve()
 
 
-def _source_common_assets_root(path: Path) -> Path:
+def _source_package_assets_root(path: Path) -> Path:
     return (_module_package_root(path) / _PACKAGE_ASSETS_DIRNAME).resolve()
 
 
@@ -60,7 +60,7 @@ def resolve_project_root(module_file: str | Path, preferred: Path | None = None)
 
 
 def resolve_assets_root_for_module(module_file: str | Path, project_root: Path | None = None) -> Path:
-    module_assets = resolve_common_package_assets_root(module_file)
+    module_assets = resolve_package_assets_root(module_file)
     if module_assets.is_dir():
         return module_assets
 
@@ -81,14 +81,14 @@ def compute_standard_paths(module_file: str | Path) -> dict[str, Path]:
     package_root = _module_package_root(module_file)
     project_root = resolve_project_root(module_file)
     package_assets_root = (package_root / "assets").resolve()
-    common_package_assets_root = resolve_common_package_assets_root(module_file)
-    project_assets_root = common_package_assets_root
+    package_assets_bundle_root = resolve_package_assets_root(module_file)
+    project_assets_root = package_assets_bundle_root
     assets_root = resolve_assets_root_for_module(module_file, project_root=project_root)
     return {
         "PACKAGE_ROOT": package_root,
         "PROJECT_ROOT": project_root,
         "PACKAGE_ASSETS_ROOT": package_assets_root,
-        "COMMON_PACKAGE_ASSETS_ROOT": common_package_assets_root,
+        "BUNDLED_ASSETS_ROOT": package_assets_bundle_root,
         "PROJECT_ASSETS_ROOT": project_assets_root,
         "ASSETS_ROOT": assets_root,
         "TESTS_ROOT": project_root / "tests",

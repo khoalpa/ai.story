@@ -7,7 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from common.gui.user_messages import (
+from image.gui.user_messages import (
     UserMessage,
     render_user_message,
 )

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-studio-shell"
+version = "0.1.0"
+description = "Integrated shell for the standalone AI Story Studio feature packages."
+license = {text = "MIT"}
+authors = [{name = "AI Story Studio"}]
+requires-python = ">=3.10"
+dependencies = ["ai-story>=0.1,<0.2", "ai-audio>=0.1,<0.2", "ai-image>=0.1,<0.2", "ai-video>=0.1,<0.2", "streamlit>=1.43,<2"]
+
+[project.scripts]
+ai-studio-gui = "studio.gui_entry:main"
+
+[tool.setuptools]
+package-dir = {"" = "../.."}
+
+[tool.setuptools.packages.find]
+where = ["../.."]
+include = ["studio*"]

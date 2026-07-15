@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from common.gui.state import prepare_embedded_view_selection, sync_embedded_view_selection
+from image.gui.shared_state import prepare_embedded_view_selection, sync_embedded_view_selection
 
 from .tabs import (
     render_doctor_tab,

@@ -6,7 +6,7 @@ from typing import Optional
 
 from audio.runtime_diagnostics import (
     RuntimeDiagnosticsReport,
-    collect_runtime_diagnostics as collect_common_runtime_diagnostics,
+    collect_runtime_diagnostics as _collect_runtime_diagnostics,
     format_runtime_diagnostics,
     resolve_tool_path,
 )
@@ -60,7 +60,7 @@ def _resolve_command(executable: str, label: str, exc_type=DependencyError) -> s
 
 
 def collect_runtime_diagnostics(ffmpeg_exe: str, ffprobe_exe: str) -> RuntimeDiagnostics:
-    return collect_common_runtime_diagnostics(
+    return _collect_runtime_diagnostics(
         tool_configs=(("ffmpeg", ffmpeg_exe), ("ffprobe", ffprobe_exe)),
         dependency_modules=("edge_tts", "streamlit", "vieneu"),
     )
@@ -139,7 +139,7 @@ def collect_runtime_diagnostics_for_settings(ffmpeg_exe: str, ffprobe_exe: str, 
     dependencies = ["edge_tts", "streamlit"]
     if descriptor.optional_dependency:
         dependencies.append(descriptor.optional_dependency)
-    return collect_common_runtime_diagnostics(
+    return _collect_runtime_diagnostics(
         tool_configs=(("ffmpeg", ffmpeg_exe), ("ffprobe", ffprobe_exe)),
         dependency_modules=tuple(dict.fromkeys(dependencies)),
     )

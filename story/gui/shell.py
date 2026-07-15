@@ -6,7 +6,7 @@ from typing import Callable
 
 import streamlit as st
 
-from .state import (
+from .workspace_state import (
     clear_global_run_timeline,
     ensure_global_run_monitor_state,
     ensure_workspace_shell_state,

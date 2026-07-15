@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from common.gui.input_bundle import scan_input_bundle
+from story.gui.input_bundle import scan_input_bundle
 
 
 def test_scan_input_bundle_detects_story_and_prompt_files(tmp_path) -> None:

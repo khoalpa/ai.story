@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import subprocess
 from pathlib import Path
@@ -15,7 +15,7 @@ def test_video_launchers_use_canonical_gui_app() -> None:
     assert "video.gui_app" not in video_launcher
     assert "video.gui_app" not in studio_launcher
     assert "video.gui.app" in video_launcher
-    assert "video.gui.app" in studio_launcher
+    assert "video.app_api" in studio_launcher
 
 
 def test_no_legacy_gui_wrappers_left_in_repo() -> None:
@@ -31,16 +31,17 @@ def test_no_legacy_gui_wrappers_left_in_repo() -> None:
         assert not (ROOT / rel_path).exists(), rel_path
 
 
-def test_pytest_ini_collects_root_tests() -> None:
-    content = (ROOT / "pytest.ini").read_text(encoding="utf-8")
-    assert "testpaths = tests" in content
-    assert "python_files = test_*.py" in content
+def test_pyproject_collects_root_tests() -> None:
+    content = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "[tool.pytest.ini_options]" in content
+    assert 'testpaths = ["tests"]' in content
 
 
 def test_no_dead_streamlit_helper() -> None:
-    runtime_text = (ROOT / "common/runtime.py").read_text(encoding="utf-8")
-    assert "def launch_streamlit_app" not in runtime_text
-    assert "_streamlit_app.py" not in runtime_text
+    for package in ("image", "video"):
+        runtime_text = (ROOT / package / "runtime.py").read_text(encoding="utf-8")
+        assert "def launch_streamlit_app" not in runtime_text
+        assert "_streamlit_app.py" not in runtime_text
 
 
 def test_no_cache_or_runtime_artifacts_in_repo() -> None:

@@ -8,10 +8,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from common.image_sequence import ZONE_IMAGE_SEQUENCE
-from video.config import IMAGE_EXTENSIONS, ZONE_IMAGE_ALIASES
+from video.config import IMAGE_EXTENSIONS, ZONE_IMAGE_ALIASES, ZONE_IMAGE_SEQUENCE
 from video.validation import collect_scene_images
-
 
 STORY_ZONE_SEQUENCE: tuple[str, ...] = (
     "greeting",

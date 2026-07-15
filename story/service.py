@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-"""Backward-compatible facade for split generation modules."""
+"""Canonical application-service exports for Story generation.
+
+Implementations remain in the focused parsing, prompting, normalization and
+orchestration modules; this module contains no duplicate pipeline logic.
+"""
 
 from .client import LLMClient, LLMConfig
 from .common import (

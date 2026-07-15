@@ -18,7 +18,7 @@ class SessionState(dict):
 
 
 MODULES = [
-    'common.gui.state',
+    'story.gui.workspace_state',
     'audio.gui.run_panel',
     'image.gui.tabs',
     'video.gui.tabs',
@@ -38,7 +38,7 @@ def _load_modules(session_state: SessionState):
 def test_story_to_audio_handoff_prefills_run_text_and_navigation() -> None:
     state = SessionState()
     mods = _load_modules(state)
-    shell = mods['common.gui.state']
+    shell = mods['story.gui.workspace_state']
     audio_run = mods['audio.gui.run_panel']
 
     shell.send_story_to_audio(plain_script_text='[VO] hello story')
@@ -57,7 +57,7 @@ def test_story_to_audio_handoff_prefills_run_text_and_navigation() -> None:
 def test_story_to_image_handoff_prefills_inputs_and_output_dir() -> None:
     state = SessionState()
     mods = _load_modules(state)
-    shell = mods['common.gui.state']
+    shell = mods['story.gui.workspace_state']
     image_tabs = mods['image.gui.tabs']
 
     shell.send_story_to_image(handoff_dir='output/story/image_bundle')
@@ -75,7 +75,7 @@ def test_story_to_image_handoff_prefills_inputs_and_output_dir() -> None:
 def test_audio_and_image_handoff_prefill_video_inputs() -> None:
     state = SessionState()
     mods = _load_modules(state)
-    shell = mods['common.gui.state']
+    shell = mods['story.gui.workspace_state']
     video_tabs = mods['video.gui.tabs']
 
     shell.send_audio_to_video(audio_output_path='output/story.wav', srt_output_path='output/story.srt')

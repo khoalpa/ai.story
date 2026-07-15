@@ -15,7 +15,7 @@ from PIL import Image, ImageColor, ImageDraw, ImageOps
 
 from image.runtime import package_root
 from image.workflow_routing import resolve_workflow_file
-from common.model_store import (
+from image.model_store import (
     configure_hf_runtime,
     list_local_models,
     provider_hub_snapshots_dir,

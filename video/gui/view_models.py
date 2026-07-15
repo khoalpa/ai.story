@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from common.gui.view_model_utils import path_to_text, pick_mapping_values
+from video.gui.view_model_utils import path_to_text, pick_mapping_values
 
 
 _VIDEO_SETTINGS_FIELDS = (

@@ -4,7 +4,6 @@ import os
 import sys
 from typing import Literal
 
-from common.image_sequence import ZONE_IMAGE_SEQUENCE
 from video.paths import default_profile_root
 from video.runtime_tools import (
     DEFAULT_WINDOWS_FFMPEG,
@@ -20,6 +19,11 @@ ASPECT_RESOLUTIONS: dict[AspectRatio, tuple[int, int]] = {
 }
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+
+ZONE_IMAGE_SEQUENCE: list[str] = [
+    "intro_card", "greeting", "opening", "introduction", "development",
+    "climax", "falling", "ending", "farewell", "outro_card",
+]
 
 
 ZONE_IMAGE_ALIASES: dict[str, tuple[str, ...]] = {

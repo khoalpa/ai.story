@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from studio._shared.project_cleanup import apply_cleanup_plan, build_cleanup_plan
+from audio.project_cleanup import apply_cleanup_plan, build_cleanup_plan
 
 
 def _format_rel(path: Path, root: Path) -> str:

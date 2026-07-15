@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import importlib
 
@@ -105,7 +105,7 @@ def test_vieneu_runtime_backend_respects_native_override(monkeypatch) -> None:
 def test_edge_runtime_diagnostics_do_not_require_vieneu() -> None:
     runtime_checks = importlib.import_module("audio.runtime_checks")
     captured: dict[str, object] = {}
-    original_collect = runtime_checks.collect_common_runtime_diagnostics
+    original_collect = runtime_checks._collect_runtime_diagnostics
 
     def fake_collect_runtime_diagnostics(*, tool_configs, dependency_modules):
         captured["tool_configs"] = tuple(tool_configs)
@@ -113,10 +113,10 @@ def test_edge_runtime_diagnostics_do_not_require_vieneu() -> None:
         return object()
 
     try:
-        runtime_checks.collect_common_runtime_diagnostics = fake_collect_runtime_diagnostics  # type: ignore[assignment]
+        runtime_checks._collect_runtime_diagnostics = fake_collect_runtime_diagnostics  # type: ignore[assignment]
         runtime_checks.collect_runtime_diagnostics_for_settings("ffmpeg", "ffprobe", tts_provider="edge")
     finally:
-        runtime_checks.collect_common_runtime_diagnostics = original_collect  # type: ignore[assignment]
+        runtime_checks._collect_runtime_diagnostics = original_collect  # type: ignore[assignment]
 
     assert captured["tool_configs"] == (("ffmpeg", "ffmpeg"), ("ffprobe", "ffprobe"))
     assert captured["dependency_modules"] == ("edge_tts", "streamlit")

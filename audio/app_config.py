@@ -18,7 +18,7 @@ APP_CONFIG_DEFAULTS: dict[str, Any] = {
     "ffmpeg_exe": "ffmpeg",
     "ffprobe_exe": "ffprobe",
     "output_dir": "output",
-    "audio_format": "mp3",
+    "audio_format": "wav",
     "tts_provider": DEFAULT_TTS_PROVIDER,
     "validate_only": False,
     "debug": False,
@@ -56,8 +56,8 @@ def _normalize_required_string(value: object, field_name: str) -> str:
 
 
 def _normalize_audio_format(value: object) -> str:
-    normalized = str(value or "mp3").strip().lower()
-    return normalized if normalized in {"wav", "mp3"} else "mp3"
+    normalized = str(value or "wav").strip().lower()
+    return normalized if normalized in {"mp3", "wav"} else "wav"
 
 
 @dataclass(frozen=True)

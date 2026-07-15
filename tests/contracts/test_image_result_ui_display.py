@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import importlib
 import sys
@@ -20,24 +20,24 @@ class SessionState(dict):
 def _install_streamlit(session_state: SessionState) -> None:
     sys.modules["streamlit"] = types.SimpleNamespace(session_state=session_state)
 
-    handoff_utils = types.ModuleType("common.gui.handoff_utils")
+    handoff_utils = types.ModuleType("image.gui.handoff_utils")
     handoff_utils.HandoffAction = object
     handoff_utils.render_handoff_action_row = lambda *args, **kwargs: None
-    sys.modules["common.gui.handoff_utils"] = handoff_utils
+    sys.modules["image.gui.handoff_utils"] = handoff_utils
 
-    state_mod = types.ModuleType("common.gui.state")
+    state_mod = types.ModuleType("image.gui.shared_state")
     state_mod.send_image_to_video = lambda *args, **kwargs: None
     state_mod.set_image_handoff = lambda *args, **kwargs: None
-    sys.modules["common.gui.state"] = state_mod
+    sys.modules["image.gui.shared_state"] = state_mod
 
-    user_messages = types.ModuleType("common.gui.user_messages")
+    user_messages = types.ModuleType("image.gui.user_messages")
     user_messages.show_empty_result = lambda *args, **kwargs: None
     user_messages.show_preview_warning = lambda *args, **kwargs: None
-    sys.modules["common.gui.user_messages"] = user_messages
+    sys.modules["image.gui.user_messages"] = user_messages
 
-    workspace_source_outputs = types.ModuleType("common.gui.workspace_source_outputs")
+    workspace_source_outputs = types.ModuleType("image.gui.workspace_source_outputs")
     workspace_source_outputs.workspace_source_outputs = lambda *args, **kwargs: types.SimpleNamespace(image_cover_output="", image_scenes_dir="")
-    sys.modules["common.gui.workspace_source_outputs"] = workspace_source_outputs
+    sys.modules["image.gui.workspace_source_outputs"] = workspace_source_outputs
 
     common_ui = types.ModuleType("image.gui.common_ui")
     common_ui._copy_path_hint = lambda *args, **kwargs: None
@@ -63,10 +63,10 @@ def _install_streamlit(session_state: SessionState) -> None:
 def test_display_value_distinguishes_missing_vs_empty() -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -93,10 +93,10 @@ def test_display_value_distinguishes_missing_vs_empty() -> None:
 def test_latest_run_cover_preview_prefers_result_cover_over_temp_cover(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -130,10 +130,10 @@ def test_latest_run_cover_preview_prefers_result_cover_over_temp_cover(tmp_path)
 def test_prompt_card_scene_preview_does_not_fallback_to_latest_scene_by_mtime(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -179,10 +179,10 @@ def test_prompt_card_scene_preview_does_not_fallback_to_latest_scene_by_mtime(tm
 def test_prompt_card_scene_prefers_current_versioned_output(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -239,10 +239,10 @@ def test_prompt_card_scene_prefers_current_versioned_output(tmp_path) -> None:
 def test_prompt_card_resolves_batch_outputs_for_entry(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -289,10 +289,10 @@ def test_prompt_card_resolves_batch_outputs_for_entry(tmp_path) -> None:
 def test_prompt_card_scene_shows_actual_path_when_version_differs(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -346,10 +346,10 @@ def test_prompt_card_scene_shows_actual_path_when_version_differs(tmp_path) -> N
 def test_scene_prompt_without_image_key_uses_suggested_output_name(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -397,10 +397,10 @@ def test_scene_prompt_without_image_key_uses_suggested_output_name(tmp_path) -> 
 def test_expected_output_path_shared_for_cover_and_scene(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -462,10 +462,10 @@ def test_expected_output_path_shared_for_cover_and_scene(tmp_path) -> None:
 def test_existing_run_preview_result_uses_previous_version_pair(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -511,10 +511,10 @@ def test_next_run_version_index_increments_from_existing_pairs(tmp_path) -> None
 def test_double_click_image_view_opens_new_window_at_native_size(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -547,10 +547,10 @@ def test_double_click_image_view_opens_new_window_at_native_size(tmp_path) -> No
 def test_double_click_image_view_supports_custom_gallery_tooltip(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",
@@ -582,10 +582,10 @@ def test_double_click_image_view_supports_custom_gallery_tooltip(tmp_path) -> No
 def test_prompt_card_meta_text_shows_expected_when_missing(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
-        "common.gui.handoff_utils",
-        "common.gui.state",
-        "common.gui.user_messages",
-        "common.gui.workspace_source_outputs",
+        "image.gui.handoff_utils",
+        "image.gui.shared_state",
+        "image.gui.user_messages",
+        "image.gui.workspace_source_outputs",
         "image.gui.common_ui",
         "image.gui.prompt_state",
         "image.workflow_routing",

@@ -12,19 +12,19 @@ try:
 except Exception:  # pragma: no cover - fallback for lightweight test stubs
     components = SimpleNamespace(html=lambda *args, **kwargs: None)
 
-from common.gui.handoff_utils import (
+from image.gui.handoff_utils import (
     HandoffAction,
     render_handoff_action_row,
 )
-from common.gui.state import (
+from image.gui.shared_state import (
     send_image_to_video,
     set_image_handoff,
 )
-from common.gui.user_messages import (
+from image.gui.user_messages import (
     show_empty_result,
     show_preview_warning,
 )
-from common.gui.workspace_source_outputs import (
+from image.gui.workspace_source_outputs import (
     workspace_source_outputs,
 )
 from image.gui.common_ui import (
