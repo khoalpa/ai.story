@@ -29,6 +29,30 @@ def main() -> int:
 
     app_title = "AI Story Studio"
 
+    # Streamlit keeps elements from the previous rerun in the DOM with the
+    # ``data-stale="true"`` attribute until their replacements arrive.  That transition is
+    # useful for small widget updates, but it leaves a faded copy of a taller
+    # workspace visible when the user navigates to a shorter one.
+    st.html(
+        """
+        <style>
+        [data-testid="stElementContainer"][data-stale="true"] {
+            display: none !important;
+        }
+
+        /* Expander is a Streamlit block rather than an element container, so
+           it has no data-stale attribute. Hide expanders only while a rerun is
+           active; the current page's expanders return as soon as it finishes. */
+        body:has(
+            [data-testid="stStatusWidgetRunningIcon"],
+            [data-testid="stStatusWidgetRunningManIcon"]
+        ) [data-testid="stExpander"] {
+            display: none !important;
+        }
+        </style>
+        """
+    )
+
     def render_overview() -> None:
         st.subheader("Recommended workflow")
         st.markdown(
