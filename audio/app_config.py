@@ -19,6 +19,10 @@ APP_CONFIG_DEFAULTS: dict[str, Any] = {
     "ffprobe_exe": "ffprobe",
     "output_dir": "output",
     "audio_format": "wav",
+    "loudness_profile": "narration",
+    "output_channels": 2,
+    "mp3_bitrate_kbps": 192,
+    "quality_gate": True,
     "tts_provider": DEFAULT_TTS_PROVIDER,
     "validate_only": False,
     "debug": False,
@@ -66,6 +70,10 @@ class AppConfig:
     ffprobe_exe: str
     output_dir: Path
     audio_format: str
+    loudness_profile: str
+    output_channels: int
+    mp3_bitrate_kbps: int
+    quality_gate: bool
     tts_provider: str
     validate_only: bool
     debug: bool
@@ -96,6 +104,10 @@ class AppConfig:
         object.__setattr__(self, "ffprobe_exe", _normalize_required_string(self.ffprobe_exe, "ffprobe_exe"))
         object.__setattr__(self, "output_dir", Path(self.output_dir))
         object.__setattr__(self, "audio_format", _normalize_audio_format(self.audio_format))
+        object.__setattr__(self, "loudness_profile", str(self.loudness_profile or "narration").strip().lower())
+        object.__setattr__(self, "output_channels", max(1, min(2, int(self.output_channels))))
+        object.__setattr__(self, "mp3_bitrate_kbps", min(320, max(96, int(self.mp3_bitrate_kbps))))
+        object.__setattr__(self, "quality_gate", bool(self.quality_gate))
         object.__setattr__(self, "tts_provider", normalize_tts_provider(self.tts_provider))
         object.__setattr__(self, "validate_only", bool(self.validate_only))
         object.__setattr__(self, "debug", bool(self.debug))
@@ -128,6 +140,8 @@ class AppConfig:
             raise ValueError("store_path is required")
         if self.audio_format not in {"wav", "mp3"}:
             raise ValueError(f"Unsupported audio_format: {self.audio_format}")
+        if self.loudness_profile not in {"narration", "social_video", "broadcast"}:
+            raise ValueError(f"Unsupported loudness_profile: {self.loudness_profile}")
         if not self.tts_provider:
             raise ValueError("tts_provider is required")
         if self.max_concurrent_tts < 1:
@@ -159,6 +173,10 @@ class AppConfig:
             "ffprobe_exe": self.ffprobe_exe,
             "output_dir": str(self.output_dir) if serialize_paths else self.output_dir,
             "audio_format": self.audio_format,
+            "loudness_profile": self.loudness_profile,
+            "output_channels": self.output_channels,
+            "mp3_bitrate_kbps": self.mp3_bitrate_kbps,
+            "quality_gate": self.quality_gate,
             "tts_provider": self.tts_provider,
             "validate_only": self.validate_only,
             "debug_mode": self.debug,
@@ -195,6 +213,10 @@ class AppConfig:
             "input_path": input_path,
             "output_dir": self.output_dir,
             "audio_format": self.audio_format,
+            "loudness_profile": self.loudness_profile,
+            "output_channels": self.output_channels,
+            "mp3_bitrate_kbps": self.mp3_bitrate_kbps,
+            "quality_gate": self.quality_gate,
             "tts_provider": self.tts_provider,
             "validate_only": self.validate_only,
             "debug": self.debug,

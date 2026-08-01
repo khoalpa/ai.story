@@ -8,6 +8,10 @@ from audio.gui.view_model_utils import pick_mapping_values
 _AUDIO_SETTINGS_FIELDS = (
     'asset_profile',
     'audio_format',
+    'loudness_profile',
+    'output_channels',
+    'mp3_bitrate_kbps',
+    'quality_gate',
     'tts_provider',
     'bgm',
     'output_dir',

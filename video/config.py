@@ -14,8 +14,8 @@ from video.runtime_tools import (
 AspectRatio = Literal["9x16", "16x9"]
 
 ASPECT_RESOLUTIONS: dict[AspectRatio, tuple[int, int]] = {
-    "9x16": (1080, 1920),
-    "16x9": (1920, 1080),
+    "9x16": (2160, 3840),
+    "16x9": (3840, 2160),
 }
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}

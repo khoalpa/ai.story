@@ -40,3 +40,4 @@ class RenderJobArtifacts:
     wav_dir: Optional[Path] = None
     out_file: Optional[Path] = None
     srt_path: Optional[Path] = None
+    quality_report: Optional[Path] = None

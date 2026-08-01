@@ -19,6 +19,11 @@ from audio.exceptions import (
 )
 from audio.logging_utils import get_logger
 from audio.paths import PACKAGE_PROFILE_ROOT
+from audio.runtime_binaries import (
+    DEFAULT_WINDOWS_FFMPEG,
+    DEFAULT_WINDOWS_FFPROBE,
+    prefer_real_binary,
+)
 
 logger = get_logger(__name__)
 
@@ -52,8 +57,11 @@ def _resolve_command(executable: str, label: str, exc_type=DependencyError) -> s
     raw = str(executable or "").strip()
     if not raw:
         raise exc_type(f"{label} executable is not configured")
-    if resolve_tool_path(raw):
-        return raw
+    fallback = DEFAULT_WINDOWS_FFMPEG if label == "ffmpeg" else DEFAULT_WINDOWS_FFPROBE
+    preferred = prefer_real_binary(raw, fallback)
+    resolved = resolve_tool_path(preferred)
+    if resolved:
+        return resolved
     raise exc_type(
         f"{label} executable not found: {raw}. Install {_USER_FACING_LABELS.get(label, label)} and make sure the binary is in PATH or the configured path is correct."
     )

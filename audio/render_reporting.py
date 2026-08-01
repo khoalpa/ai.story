@@ -140,6 +140,9 @@ class RenderReporter:
         self.used_files.add("Rendered audio", artifacts.out_file)
         print(f"[OK] Created subtitle file: {artifacts.srt_path}")
         self.used_files.add("Rendered subtitle", artifacts.srt_path)
+        if artifacts.quality_report and artifacts.quality_report.is_file():
+            print(f"[OK] Audio quality report: {artifacts.quality_report}")
+            self.used_files.add("Audio quality report", artifacts.quality_report)
 
 
     def report_batch_summary(self, manifest_path: str | Path, *, total: int, succeeded: int, failed: int) -> None:

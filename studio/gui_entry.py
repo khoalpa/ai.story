@@ -40,15 +40,6 @@ def main() -> int:
             display: none !important;
         }
 
-        /* Expander is a Streamlit block rather than an element container, so
-           it has no data-stale attribute. Hide expanders only while a rerun is
-           active; the current page's expanders return as soon as it finishes. */
-        body:has(
-            [data-testid="stStatusWidgetRunningIcon"],
-            [data-testid="stStatusWidgetRunningManIcon"]
-        ) [data-testid="stExpander"] {
-            display: none !important;
-        }
         </style>
         """
     )

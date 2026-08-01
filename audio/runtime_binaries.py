@@ -18,6 +18,29 @@ DEFAULT_WINDOWS_FFPROBE: Final[Path] = Path(
 )
 
 
+def prefer_real_binary(path_or_name: str, windows_fallback: Path) -> str:
+    """Replace a Chocolatey shim with its real binary when available."""
+
+    raw = str(path_or_name or "").strip()
+    if not raw:
+        return raw
+    candidate = Path(raw)
+    if (
+        platform.system().lower().startswith("win")
+        and windows_fallback.is_file()
+        and candidate.parent.name.lower() == "bin"
+        and candidate.parent.parent.name.lower() == "chocolatey"
+    ):
+        logger.warning(
+            "Configured executable is a Chocolatey shim (%s); using the real binary %s "
+            "to avoid Windows Application Control blocking the shim.",
+            candidate,
+            windows_fallback,
+        )
+        return str(windows_fallback)
+    return raw
+
+
 def resolve_tool_path(env_var: str, executable_name: str, windows_fallback: Path) -> str:
     """Resolve binary path in order: ENV -> PATH -> existing legacy Windows fallback -> executable name.
 
@@ -27,11 +50,11 @@ def resolve_tool_path(env_var: str, executable_name: str, windows_fallback: Path
 
     env_value = os.environ.get(env_var, "").strip()
     if env_value:
-        return env_value
+        return prefer_real_binary(env_value, windows_fallback)
 
     discovered = shutil.which(executable_name)
     if discovered:
-        return discovered
+        return prefer_real_binary(discovered, windows_fallback)
 
     if platform.system().lower().startswith("win") and windows_fallback.is_file():
         logger.warning(

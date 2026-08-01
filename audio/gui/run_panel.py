@@ -93,9 +93,10 @@ def _audio_download_meta(out_file: str | None, summary: dict) -> tuple[str, str]
 def render_output_downloads(summary: dict) -> None:
     out_file = summary.get("out_file")
     srt_path = summary.get("srt_path")
+    quality_report = summary.get("quality_report")
     debug_json = summary.get("debug_json")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         if out_file and Path(out_file).is_file():
             label, mime = _audio_download_meta(out_file, summary)
@@ -117,6 +118,15 @@ def render_output_downloads(summary: dict) -> None:
                 width="stretch",
             )
     with col3:
+        if quality_report and Path(quality_report).is_file():
+            st.download_button(
+                "Download Quality Report",
+                data=Path(quality_report).read_bytes(),
+                file_name=Path(quality_report).name,
+                mime="application/json",
+                width="stretch",
+            )
+    with col4:
         if debug_json and Path(debug_json).is_file():
             st.download_button(
                 "Download Debug JSON",

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
+import math
 import os
+import re
 import shutil
+import statistics
 import subprocess
 import sys
 import tempfile
 import time
 import wave
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
@@ -20,8 +25,18 @@ POST_FX_PRESET_NONE = "none"
 POST_FX_PRESET_STORYTELLING_VI = "storytelling_vi"
 SUPPORTED_AUDIO_FORMATS = {"wav", "mp3"}
 DEFAULT_AUDIO_FORMAT = "wav"
-FINAL_OUTPUT_GAIN_DB = 3.0
-FINAL_OUTPUT_LIMITER = "alimiter=limit=0.97"
+LOUDNESS_PROFILE_NARRATION = "narration"
+LOUDNESS_PROFILE_SOCIAL_VIDEO = "social_video"
+LOUDNESS_PROFILE_BROADCAST = "broadcast"
+DEFAULT_LOUDNESS_PROFILE = LOUDNESS_PROFILE_NARRATION
+SUPPORTED_LOUDNESS_PROFILES = {
+    LOUDNESS_PROFILE_NARRATION,
+    LOUDNESS_PROFILE_SOCIAL_VIDEO,
+    LOUDNESS_PROFILE_BROADCAST,
+}
+INTERMEDIATE_PCM_CODEC = "pcm_f32le"
+DEFAULT_OUTPUT_CHANNELS = 2
+DEFAULT_MP3_BITRATE_KBPS = 192
 
 logger = get_logger(__name__)
 
@@ -43,14 +58,35 @@ def normalize_audio_format(value: object) -> str:
     return normalized if normalized in SUPPORTED_AUDIO_FORMATS else DEFAULT_AUDIO_FORMAT
 
 
+@dataclass(frozen=True)
+class LoudnessTarget:
+    integrated_lufs: float
+    true_peak_dbtp: float
+    loudness_range_lu: float
+
+
+LOUDNESS_TARGETS = {
+    LOUDNESS_PROFILE_NARRATION: LoudnessTarget(-16.0, -1.5, 9.0),
+    LOUDNESS_PROFILE_SOCIAL_VIDEO: LoudnessTarget(-14.0, -1.0, 9.0),
+    LOUDNESS_PROFILE_BROADCAST: LoudnessTarget(-23.0, -2.0, 7.0),
+}
+
+
+def normalize_loudness_profile(value: object) -> str:
+    normalized = str(value or DEFAULT_LOUDNESS_PROFILE).strip().lower()
+    return normalized if normalized in SUPPORTED_LOUDNESS_PROFILES else DEFAULT_LOUDNESS_PROFILE
+
+
+def get_loudness_target(profile: str) -> LoudnessTarget:
+    return LOUDNESS_TARGETS[normalize_loudness_profile(profile)]
+
+
 def build_post_fx_filter_chain(preset: str) -> Optional[str]:
     """Return an ffmpeg audio filter chain for a named post-FX preset.
 
-    Presets are intentionally conservative because the source material is already
-    synthetic/narrated speech. The storytelling_vi chain follows the requested
-    order: noise reduction -> EQ -> compressor -> de-esser -> light reverb ->
-    peak trim. Some DAW-style parameters do not map 1:1 to ffmpeg filters, so
-    we use stable ffmpeg-native approximations instead.
+    The source is synthetic narration, so the default chain avoids denoising and
+    reverb. Both can create audible artifacts on already-clean TTS. Loudness is
+    handled separately by a measured two-pass loudnorm stage.
     """
     normalized = (preset or POST_FX_PRESET_NONE).strip().lower()
     if normalized in {"", POST_FX_PRESET_NONE}:
@@ -59,36 +95,71 @@ def build_post_fx_filter_chain(preset: str) -> Optional[str]:
         raise ValueError(f"Unsupported post FX preset: {preset}")
 
     return ",".join([
-        "afftdn=nr=8:nf=-32:tn=1",
-        "equalizer=f=80:t=q:w=1.0:g=-6",
-        "equalizer=f=150:t=q:w=1.0:g=2",
-        "equalizer=f=300:t=q:w=1.0:g=-3",
-        "equalizer=f=3000:t=q:w=1.2:g=4",
-        "equalizer=f=9000:t=q:w=1.0:g=2",
-        "acompressor=threshold=0.1:ratio=3:attack=1:release=100:makeup=1",
-        "deesser=i=0.20:m=0.50:f=0.50:s=o",
-        "aecho=1.0:0.10:35|55:0.05|0.03",
-        "volume=-1dB",
+        "highpass=f=75",
+        "equalizer=f=180:t=q:w=1.0:g=1.0",
+        "equalizer=f=320:t=q:w=1.0:g=-1.5",
+        "equalizer=f=3000:t=q:w=1.2:g=2.0",
+        "acompressor=threshold=0.125:ratio=2:attack=10:release=150:makeup=1.5",
+        "deesser=i=0.12:m=0.35:f=0.50:s=i",
     ])
 
 
 def build_final_output_filter_chain(preset: str) -> Optional[str]:
-    """Return the final ffmpeg filter chain applied to exported audio."""
-    filter_parts = []
-    preset_chain = build_post_fx_filter_chain(preset)
-    if preset_chain:
-        filter_parts.append(preset_chain)
-    if abs(float(FINAL_OUTPUT_GAIN_DB)) >= 1e-9:
-        filter_parts.append(f"volume={float(FINAL_OUTPUT_GAIN_DB)}dB")
-        filter_parts.append(FINAL_OUTPUT_LIMITER)
-    return ",".join(filter_parts) if filter_parts else None
+    """Return tone-processing filters; loudness normalization is added later."""
+    return build_post_fx_filter_chain(preset)
 
 
-def get_output_codec_args(audio_format: str) -> list[str]:
+def get_output_codec_args(audio_format: str, mp3_bitrate_kbps: int = DEFAULT_MP3_BITRATE_KBPS) -> list[str]:
     fmt = normalize_audio_format(audio_format)
     if fmt == "mp3":
-        return ["-acodec", "libmp3lame", "-qscale:a", "2"]
+        bitrate = min(320, max(96, int(mp3_bitrate_kbps)))
+        return ["-acodec", "libmp3lame", "-b:a", f"{bitrate}k", "-write_xing", "1"]
     return ["-acodec", "pcm_s24le"]
+
+
+_LOUDNORM_JSON_RE = re.compile(r"\{\s*\"input_i\".*?\}", re.DOTALL)
+
+
+def _loudnorm_base_filter(target: LoudnessTarget, *, print_format: str) -> str:
+    return (
+        f"loudnorm=I={target.integrated_lufs}:LRA={target.loudness_range_lu}:"
+        f"TP={target.true_peak_dbtp}:print_format={print_format}"
+    )
+
+
+def analyze_loudness(
+    input_file: Path,
+    ffmpeg_exe: str,
+    target: LoudnessTarget,
+    prefix_filter: Optional[str] = None,
+) -> dict[str, float]:
+    filters = [prefix_filter] if prefix_filter else []
+    filters.append(_loudnorm_base_filter(target, print_format="json"))
+    cmd = [
+        ffmpeg_exe, "-hide_banner", "-nostats", "-i", str(input_file),
+        "-af", ",".join(filters), "-f", "null", os.devnull,
+    ]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Unable to measure audio loudness: {proc.stderr[-2000:]}")
+    matches = _LOUDNORM_JSON_RE.findall(proc.stderr or "")
+    if not matches:
+        raise RuntimeError("FFmpeg loudnorm did not return measurement JSON")
+    raw = json.loads(matches[-1])
+    keys = ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")
+    try:
+        return {key: float(raw[key]) for key in keys}
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"Invalid FFmpeg loudnorm measurements: {raw!r}") from exc
+
+
+def build_two_pass_loudnorm_filter(target: LoudnessTarget, measured: dict[str, float]) -> str:
+    return (
+        f"loudnorm=I={target.integrated_lufs}:LRA={target.loudness_range_lu}:TP={target.true_peak_dbtp}:"
+        f"measured_I={measured['input_i']}:measured_LRA={measured['input_lra']}:"
+        f"measured_TP={measured['input_tp']}:measured_thresh={measured['input_thresh']}:"
+        f"offset={measured['target_offset']}:linear=true:print_format=summary"
+    )
 
 
 def get_output_progress_label(audio_format: str, has_filter_chain: bool = False) -> str:
@@ -132,10 +203,18 @@ def apply_post_fx(
     preset: str,
     audio_format: str = DEFAULT_AUDIO_FORMAT,
     sample_rate: int = 48000,
+    loudness_profile: str = DEFAULT_LOUDNESS_PROFILE,
+    output_channels: int = DEFAULT_OUTPUT_CHANNELS,
+    mp3_bitrate_kbps: int = DEFAULT_MP3_BITRATE_KBPS,
     progress_callback: Optional[Callable[[dict], None]] = None,
 ) -> Path:
-    filter_chain = build_final_output_filter_chain(preset)
-    codec_args = get_output_codec_args(audio_format)
+    tone_filter_chain = build_final_output_filter_chain(preset)
+    loudness_target = get_loudness_target(loudness_profile)
+    measured = analyze_loudness(input_wav, ffmpeg_exe, loudness_target, tone_filter_chain)
+    filter_parts = [tone_filter_chain] if tone_filter_chain else []
+    filter_parts.append(build_two_pass_loudnorm_filter(loudness_target, measured))
+    filter_chain = ",".join(filter_parts)
+    codec_args = get_output_codec_args(audio_format, mp3_bitrate_kbps)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     fd, staged_output_name = tempfile.mkstemp(
         prefix=f"{output_file.stem}.",
@@ -152,14 +231,13 @@ def apply_post_fx(
         "-loglevel", "error",
         "-i", str(input_wav),
     ]
-    if filter_chain:
-        cmd.extend(["-af", filter_chain])
-    cmd.extend(["-ar", str(sample_rate)])
+    cmd.extend(["-af", filter_chain])
+    cmd.extend(["-ar", str(sample_rate), "-ac", str(max(1, min(2, int(output_channels))))])
     cmd.extend(codec_args)
     cmd.append(str(staged_output))
 
     total_seconds = get_audio_duration_seconds(input_wav, ffprobe_exe) or 0.001
-    label = get_output_progress_label(audio_format, has_filter_chain=bool(filter_chain))
+    label = get_output_progress_label(audio_format, has_filter_chain=True)
     try:
         run_ffmpeg_with_progress(cmd, total_seconds, label=label, progress_callback=progress_callback)
     except Exception:
@@ -237,6 +315,11 @@ class FfmpegMixConfig:
     bgm_fade_in_default: float = 0.6
     bgm_fade_out_default: float = 0.6
     post_fx_preset: str = POST_FX_PRESET_NONE
+    loudness_profile: str = DEFAULT_LOUDNESS_PROFILE
+    output_channels: int = DEFAULT_OUTPUT_CHANNELS
+    mp3_bitrate_kbps: int = DEFAULT_MP3_BITRATE_KBPS
+    enable_bgm_ducking: bool = True
+    quality_gate: bool = True
 
 
 def get_audio_duration_seconds(audio_path: Path, ffprobe_exe: str) -> Optional[float]:
@@ -271,6 +354,129 @@ def get_audio_duration_seconds(audio_path: Path, ffprobe_exe: str) -> Optional[f
         return duration if duration > 0 else wav_duration()
     except Exception:
         return wav_duration()
+
+
+def probe_audio_stream(audio_path: Path, ffprobe_exe: str) -> dict:
+    cmd = [
+        ffprobe_exe, "-v", "error", "-select_streams", "a:0",
+        "-show_entries", "stream=codec_name,sample_fmt,sample_rate,channels,channel_layout,bit_rate",
+        "-show_entries", "format=duration,bit_rate", "-of", "json", str(audio_path),
+    ]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Unable to inspect final audio: {proc.stderr[-2000:]}")
+    return json.loads(proc.stdout or "{}")
+
+
+def write_audio_quality_report(
+    audio_path: Path,
+    *,
+    source_duration_seconds: float,
+    ffmpeg_exe: str,
+    ffprobe_exe: str,
+    loudness_profile: str,
+    expected_sample_rate: int,
+    expected_channels: int,
+    segment_files: Optional[list[Path]] = None,
+    mix_segments: Optional[List[Segment]] = None,
+    bgm_ducking_enabled: bool = True,
+) -> tuple[Path, dict]:
+    profile = normalize_loudness_profile(loudness_profile)
+    target = get_loudness_target(profile)
+    measured = analyze_loudness(audio_path, ffmpeg_exe, target)
+    probe = probe_audio_stream(audio_path, ffprobe_exe)
+    streams = probe.get("streams") or [{}]
+    stream = streams[0] if streams else {}
+    actual_duration = get_audio_duration_seconds(audio_path, ffprobe_exe) or 0.0
+    duration_delta = abs(actual_duration - max(0.0, float(source_duration_seconds)))
+    segment_measurements: list[dict] = []
+    valid_segment_files = [path for path in (segment_files or []) if path.is_file()]
+
+    def measure_segment(path: Path) -> Optional[dict]:
+        try:
+            value = analyze_loudness(path, ffmpeg_exe, target)["input_i"]
+        except Exception as exc:
+            logger.warning("Unable to measure segment loudness for %s: %s", path, exc)
+            return None
+        if not math.isfinite(value):
+            return None
+        return {"file": path.name, "integrated_lufs": value}
+
+    if valid_segment_files:
+        with ThreadPoolExecutor(max_workers=min(4, len(valid_segment_files))) as executor:
+            segment_measurements = [item for item in executor.map(measure_segment, valid_segment_files) if item]
+
+    segment_loudness_values = [item["integrated_lufs"] for item in segment_measurements]
+    segment_median = statistics.median(segment_loudness_values) if segment_loudness_values else None
+    quiet_segment_limit = (segment_median - 3.0) if segment_median is not None else None
+    quiet_segments = [
+        item for item in segment_measurements
+        if quiet_segment_limit is not None and item["integrated_lufs"] < quiet_segment_limit
+    ]
+    bgm_gains = [
+        float(segment.bgm_gain_db) if segment.bgm_gain_db is not None else -18.0
+        for segment in (mix_segments or [])
+        if str(segment.bgm or "").strip()
+    ]
+    ambience_gains = [
+        float(segment.ambience_gain_db) if segment.ambience_gain_db is not None else -24.0
+        for segment in (mix_segments or [])
+        if str(segment.ambience or "").strip()
+    ]
+    voice_background_balance = (
+        (not bgm_gains or (bgm_ducking_enabled and max(bgm_gains) <= -12.0))
+        and (not ambience_gains or max(ambience_gains) <= -18.0)
+    )
+    checks = {
+        "integrated_loudness": abs(measured["input_i"] - target.integrated_lufs) <= 1.0,
+        "true_peak": measured["input_tp"] <= target.true_peak_dbtp + 0.2,
+        "duration": duration_delta <= 0.1,
+        "sample_rate": int(stream.get("sample_rate") or 0) == int(expected_sample_rate),
+        "channels": int(stream.get("channels") or 0) == int(expected_channels),
+        "segment_loudness_consistency": not quiet_segments,
+        "voice_background_balance": voice_background_balance,
+    }
+    report = {
+        "schema_version": 1,
+        "audio_file": str(audio_path.resolve()),
+        "profile": profile,
+        "target": {
+            "integrated_lufs": target.integrated_lufs,
+            "true_peak_dbtp": target.true_peak_dbtp,
+            "loudness_range_lu": target.loudness_range_lu,
+        },
+        "measured": {
+            "integrated_lufs": measured["input_i"],
+            "true_peak_dbtp": measured["input_tp"],
+            "loudness_range_lu": measured["input_lra"],
+            "threshold_lufs": measured["input_thresh"],
+        },
+        "duration": {
+            "source_seconds": source_duration_seconds,
+            "output_seconds": actual_duration,
+            "delta_seconds": duration_delta,
+        },
+        "stream": stream,
+        "segments": {
+            "measured_count": len(segment_measurements),
+            "median_lufs": segment_median,
+            "maximum_drop_from_median_lu": 3.0,
+            "quiet_segments": quiet_segments,
+            "measurements": segment_measurements,
+        },
+        "mix": {
+            "bgm_ducking_enabled": bool(bgm_ducking_enabled),
+            "maximum_bgm_gain_db": max(bgm_gains) if bgm_gains else None,
+            "maximum_ambience_gain_db": max(ambience_gains) if ambience_gains else None,
+            "maximum_allowed_bgm_gain_db": -12.0,
+            "maximum_allowed_ambience_gain_db": -18.0,
+        },
+        "checks": checks,
+        "passed": all(checks.values()),
+    }
+    report_path = audio_path.with_name(f"{audio_path.stem}.audio_quality.json")
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return report_path, report
 
 
 def resolve_audio_clip_path(file_name: Optional[str], bgm_dir: Path, out_dir: Path) -> Optional[Path]:
@@ -389,6 +595,7 @@ def ffmpeg_mix_audio(
         raise ValueError("mix_config is required")
 
     normalized_audio_format = normalize_audio_format(audio_format)
+    output_channels = max(1, min(2, int(mix_config.output_channels)))
 
     wav_dir = out_file.parent / f"{out_file.stem}_wav"
     if not wav_dir.is_dir():
@@ -415,7 +622,7 @@ def ffmpeg_mix_audio(
             cmd = [mix_config.ffmpeg_exe, "-y", "-i", str(src_path)]
             if abs(float(gain_db)) >= 1e-9:
                 cmd.extend(["-filter:a", f"volume={float(gain_db)}dB"])
-            cmd.extend(["-ac", "1", "-ar", str(sample_rate), "-acodec", "pcm_s16le", str(prepared)])
+            cmd.extend(["-ac", str(output_channels), "-ar", str(sample_rate), "-acodec", INTERMEDIATE_PCM_CODEC, str(prepared)])
             run_ff(cmd)
             return prepared
     
@@ -423,9 +630,9 @@ def ffmpeg_mix_audio(
             cmd = [
                 mix_config.ffmpeg_exe, "-y",
                 "-f", "lavfi",
-                "-i", f"anullsrc=r={sample_rate}:cl=mono",
+                "-i", f"anullsrc=r={sample_rate}:cl={'stereo' if output_channels == 2 else 'mono'}",
                 "-t", f"{dur_s:.3f}",
-                "-acodec", "pcm_s16le",
+                "-acodec", INTERMEDIATE_PCM_CODEC,
                 str(dst_path),
             ]
             run_ff(cmd)
@@ -434,8 +641,8 @@ def ffmpeg_mix_audio(
             cmd = [
                 mix_config.ffmpeg_exe, "-y",
                 "-i", str(src_path),
-                "-ac", "1", "-ar", str(sample_rate),
-                "-acodec", "pcm_s16le",
+                "-ac", str(output_channels), "-ar", str(sample_rate),
+                "-acodec", INTERMEDIATE_PCM_CODEC,
                 str(dst_path),
             ]
             run_ff(cmd)
@@ -495,7 +702,7 @@ def ffmpeg_mix_audio(
                 mix_config.ffmpeg_exe, "-y",
                 "-f", "concat", "-safe", "0",
                 "-i", str(block_concat_path),
-                "-ac", "1", "-ar", str(sample_rate), "-acodec", "pcm_s16le",
+                "-ac", str(output_channels), "-ar", str(sample_rate), "-acodec", INTERMEDIATE_PCM_CODEC,
                 str(dry_block),
             ]
             run_ff(cmd_concat)
@@ -512,7 +719,12 @@ def ffmpeg_mix_audio(
             fade_out_start = max(0.0, block_dur - fade_out)
             input_args = [mix_config.ffmpeg_exe, "-y", "-i", str(dry_block)]
             filter_parts = []
-            mix_inputs = ["[0:a]"]
+            duck_bgm = bool(has_bgm and mix_config.enable_bgm_ducking)
+            if duck_bgm:
+                filter_parts.append("[0:a]asplit=2[voice][voice_sc]")
+                mix_inputs = ["[voice]"]
+            else:
+                mix_inputs = ["[0:a]"]
             input_idx = 1
             if has_bgm:
                 input_args.extend(["-stream_loop", "-1", "-i", str(block_bgm_path)])
@@ -521,7 +733,14 @@ def ffmpeg_mix_audio(
                     bgm_chain.append(f"afade=t=in:st=0:d={fade_in:.3f}")
                 if fade_out > 0 and block_dur > 0:
                     bgm_chain.append(f"afade=t=out:st={fade_out_start:.3f}:d={fade_out:.3f}")
-                filter_parts.append(f"[{input_idx}:a]{','.join(bgm_chain)}[bgm]")
+                if duck_bgm:
+                    filter_parts.append(f"[{input_idx}:a]{','.join(bgm_chain)}[bgm_raw]")
+                    filter_parts.append(
+                        "[bgm_raw][voice_sc]sidechaincompress="
+                        "threshold=0.05:ratio=6:attack=20:release=400:makeup=1[bgm]"
+                    )
+                else:
+                    filter_parts.append(f"[{input_idx}:a]{','.join(bgm_chain)}[bgm]")
                 mix_inputs.append("[bgm]")
                 input_idx += 1
             if has_ambience:
@@ -533,11 +752,14 @@ def ffmpeg_mix_audio(
                     ambience_chain.append(f"afade=t=out:st={fade_out_start:.3f}:d={fade_out:.3f}")
                 filter_parts.append(f"[{input_idx}:a]{','.join(ambience_chain)}[amb]")
                 mix_inputs.append("[amb]")
-            filter_parts.append(f"{''.join(mix_inputs)}amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=0[a]")
+            filter_parts.append(
+                f"{''.join(mix_inputs)}amix=inputs={len(mix_inputs)}:"
+                "duration=first:dropout_transition=0:normalize=0[a]"
+            )
             cmd_mix = input_args + [
                 "-filter_complex", ";".join(filter_parts),
                 "-map", "[a]",
-                "-ac", "1", "-ar", str(sample_rate), "-acodec", "pcm_s16le",
+                "-ac", str(output_channels), "-ar", str(sample_rate), "-acodec", INTERMEDIATE_PCM_CODEC,
                 str(mixed_block),
             ]
             run_ff(cmd_mix)
@@ -641,8 +863,8 @@ def ffmpeg_mix_audio(
             "-loglevel", "error",
             "-f", "concat", "-safe", "0",
             "-i", str(concat_list_path),
-            "-ac", "1", "-ar", str(sample_rate),
-            "-acodec", "pcm_s16le",
+            "-ac", str(output_channels), "-ar", str(sample_rate),
+            "-acodec", INTERMEDIATE_PCM_CODEC,
             str(pre_fx_wav),
         ]
         run_ffmpeg_with_progress(
@@ -660,8 +882,33 @@ def ffmpeg_mix_audio(
             preset=mix_config.post_fx_preset,
             audio_format=normalized_audio_format,
             sample_rate=sample_rate,
+            loudness_profile=mix_config.loudness_profile,
+            output_channels=output_channels,
+            mp3_bitrate_kbps=mix_config.mp3_bitrate_kbps,
             progress_callback=(lambda data: progress_callback({"stage": "post_fx", **data}) if progress_callback else None),
         )
+
+        if mix_config.quality_gate:
+            report_path, report = write_audio_quality_report(
+                final_out_file,
+                source_duration_seconds=total_seconds,
+                ffmpeg_exe=mix_config.ffmpeg_exe,
+                ffprobe_exe=mix_config.ffprobe_exe,
+                loudness_profile=mix_config.loudness_profile,
+                expected_sample_rate=sample_rate,
+                expected_channels=output_channels,
+                segment_files=[
+                    wav_dir / f"seg_{idx:03d}.wav"
+                    for idx, segment in enumerate(segments)
+                    if segment.text.strip()
+                ],
+                mix_segments=segments,
+                bgm_ducking_enabled=mix_config.enable_bgm_ducking,
+            )
+            if not report["passed"]:
+                failed_checks = ", ".join(name for name, passed in report["checks"].items() if not passed)
+                raise RuntimeError(f"Audio quality gate failed ({failed_checks}). Report: {report_path}")
+            logger.info("Audio quality gate passed: %s", report_path)
     
         actual_total_seconds = get_audio_duration_seconds(final_out_file, mix_config.ffprobe_exe)
         if actual_total_seconds is not None and abs(actual_total_seconds - total_seconds) >= 1.0:

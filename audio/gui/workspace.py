@@ -81,7 +81,7 @@ def render_workspace_tab() -> None:
         help="When enabled, the plain script received from Story can keep updating and overwrite the Audio input/run area.",
     )
 
-    tab_plain, tab_canonical, tab_raw = st.tabs(["Plain Script", "Canonical JSON", "Raw Text"])
+    tab_canonical, tab_plain, tab_raw = st.tabs(["Canonical JSON", "Plain Script", "Raw Text"])
 
     with tab_plain:
         _sync_editor_state(PLAIN_SCRIPT_TEXT_KEY, "plain_script_editor")

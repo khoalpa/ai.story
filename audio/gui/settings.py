@@ -840,6 +840,32 @@ def render_settings_sidebar() -> GuiConfigBundle:
             index=0 if app_defaults["audio_format"] == "wav" else 1,
             help="wav = higher-quality master output, mp3 = lighter release file",
         )
+        loudness_profiles = ["narration", "social_video", "broadcast"]
+        current_loudness_profile = str(app_defaults.get("loudness_profile") or "narration")
+        loudness_profile = st.selectbox(
+            "Loudness profile",
+            loudness_profiles,
+            index=loudness_profiles.index(current_loudness_profile) if current_loudness_profile in loudness_profiles else 0,
+            help="narration = -16 LUFS, social_video = -14 LUFS, broadcast = -23 LUFS",
+        )
+        output_channels = st.selectbox(
+            "Output channels",
+            [2, 1],
+            index=0 if int(app_defaults.get("output_channels", 2)) == 2 else 1,
+            format_func=lambda value: "Stereo" if value == 2 else "Mono",
+            help="Stereo preserves BGM and ambience imaging; mono creates smaller voice-focused files.",
+        )
+        mp3_bitrate_kbps = st.selectbox(
+            "MP3 bitrate",
+            [128, 160, 192, 256, 320],
+            index=[128, 160, 192, 256, 320].index(int(app_defaults.get("mp3_bitrate_kbps", 192))),
+            disabled=audio_format != "mp3",
+        )
+        quality_gate = st.checkbox(
+            "Audio quality gate",
+            value=bool(app_defaults.get("quality_gate", True)),
+            help="Measure loudness, true peak, duration, sample rate, and channel count after export.",
+        )
         st.header(SidebarSection.RENDER)
         validate_only = st.checkbox("Validate only", value=bool(app_defaults["validate_only"]))
         debug_mode = st.checkbox("Debug only (save segments JSON)", value=bool(app_defaults["debug"]))
@@ -902,6 +928,10 @@ def render_settings_sidebar() -> GuiConfigBundle:
         "ffprobe_exe": ffprobe_exe,
         "output_dir": output_dir,
         "audio_format": audio_format,
+        "loudness_profile": loudness_profile,
+        "output_channels": output_channels,
+        "mp3_bitrate_kbps": mp3_bitrate_kbps,
+        "quality_gate": quality_gate,
         "tts_provider": tts_provider,
         "validate_only": validate_only,
         "debug_mode": debug_mode,

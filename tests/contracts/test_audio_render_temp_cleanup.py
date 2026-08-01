@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import json
 import wave
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ from audio.pipeline.segment_planner import Segment
 
 
 def _make_mix_config() -> mixer.FfmpegMixConfig:
-    return mixer.FfmpegMixConfig(ffmpeg_exe="ffmpeg", ffprobe_exe="ffprobe")
+    return mixer.FfmpegMixConfig(ffmpeg_exe="ffmpeg", ffprobe_exe="ffprobe", quality_gate=False)
 
 
 def _make_segment() -> Segment:
@@ -107,21 +108,23 @@ def test_get_audio_duration_seconds_falls_back_to_wave_when_ffprobe_fails(
     assert mixer.get_audio_duration_seconds(wav_path, "missing-ffprobe") == 1.25
 
 
-def test_final_output_filter_increases_volume_for_plain_output() -> None:
+def test_plain_output_has_no_tone_filter_before_loudness_normalization() -> None:
     filter_chain = mixer.build_final_output_filter_chain(mixer.POST_FX_PRESET_NONE)
 
-    assert filter_chain == "volume=3.0dB,alimiter=limit=0.97"
+    assert filter_chain is None
 
 
-def test_final_output_filter_keeps_storytelling_fx_and_adds_output_gain() -> None:
+def test_storytelling_fx_is_lightweight_and_has_no_denoise_or_reverb() -> None:
     filter_chain = mixer.build_final_output_filter_chain(mixer.POST_FX_PRESET_STORYTELLING_VI)
 
     assert filter_chain is not None
-    assert filter_chain.startswith("afftdn=nr=8:nf=-32:tn=1")
-    assert filter_chain.endswith("volume=3.0dB,alimiter=limit=0.97")
+    assert filter_chain.startswith("highpass=f=75")
+    assert "acompressor=" in filter_chain
+    assert "afftdn=" not in filter_chain
+    assert "aecho=" not in filter_chain
 
 
-def test_apply_post_fx_uses_final_output_gain_filter(monkeypatch, tmp_path: Path) -> None:
+def test_apply_post_fx_uses_measured_two_pass_loudness_filter(monkeypatch, tmp_path: Path) -> None:
     input_wav = tmp_path / "input.wav"
     output_file = tmp_path / "story.mp3"
     captured_cmds: list[list[str]] = []
@@ -132,6 +135,17 @@ def test_apply_post_fx_uses_final_output_gain_filter(monkeypatch, tmp_path: Path
         Path(cmd[-1]).write_bytes(b"louder")
 
     monkeypatch.setattr(mixer, "get_audio_duration_seconds", lambda *_args, **_kwargs: 1.0)
+    monkeypatch.setattr(
+        mixer,
+        "analyze_loudness",
+        lambda *_args, **_kwargs: {
+            "input_i": -24.0,
+            "input_tp": -8.0,
+            "input_lra": 4.0,
+            "input_thresh": -34.0,
+            "target_offset": 0.1,
+        },
+    )
     monkeypatch.setattr(mixer, "run_ffmpeg_with_progress", fake_run_ffmpeg_with_progress)
 
     final_out = mixer.apply_post_fx(
@@ -146,5 +160,61 @@ def test_apply_post_fx_uses_final_output_gain_filter(monkeypatch, tmp_path: Path
     assert final_out == output_file
     assert output_file.read_bytes() == b"louder"
     assert captured_cmds
-    assert captured_cmds[0][captured_cmds[0].index("-af") + 1] == "volume=3.0dB,alimiter=limit=0.97"
+    final_filter = captured_cmds[0][captured_cmds[0].index("-af") + 1]
+    assert final_filter.startswith("loudnorm=I=-16.0:LRA=9.0:TP=-1.5")
+    assert "measured_I=-24.0" in final_filter
+    assert "linear=true" in final_filter
+    assert "-b:a" in captured_cmds[0]
+    assert captured_cmds[0][captured_cmds[0].index("-b:a") + 1] == "192k"
+
+
+def test_loudness_profiles_have_expected_delivery_targets() -> None:
+    assert mixer.get_loudness_target("narration") == mixer.LoudnessTarget(-16.0, -1.5, 9.0)
+    assert mixer.get_loudness_target("social_video") == mixer.LoudnessTarget(-14.0, -1.0, 9.0)
+    assert mixer.get_loudness_target("broadcast") == mixer.LoudnessTarget(-23.0, -2.0, 7.0)
+
+
+def test_output_codecs_use_24_bit_wav_and_predictable_mp3_bitrate() -> None:
+    assert mixer.get_output_codec_args("wav") == ["-acodec", "pcm_s24le"]
+    assert mixer.get_output_codec_args("mp3", 256) == [
+        "-acodec", "libmp3lame", "-b:a", "256k", "-write_xing", "1",
+    ]
+
+
+def test_quality_report_records_and_gates_export_measurements(monkeypatch, tmp_path: Path) -> None:
+    audio_path = tmp_path / "story.wav"
+    audio_path.write_bytes(b"audio")
+    monkeypatch.setattr(
+        mixer,
+        "analyze_loudness",
+        lambda *_args, **_kwargs: {
+            "input_i": -16.2,
+            "input_tp": -1.7,
+            "input_lra": 6.5,
+            "input_thresh": -26.0,
+            "target_offset": 0.0,
+        },
+    )
+    monkeypatch.setattr(
+        mixer,
+        "probe_audio_stream",
+        lambda *_args, **_kwargs: {
+            "streams": [{"sample_rate": "48000", "channels": 2, "codec_name": "pcm_s24le"}],
+        },
+    )
+    monkeypatch.setattr(mixer, "get_audio_duration_seconds", lambda *_args, **_kwargs: 10.02)
+
+    report_path, report = mixer.write_audio_quality_report(
+        audio_path,
+        source_duration_seconds=10.0,
+        ffmpeg_exe="ffmpeg",
+        ffprobe_exe="ffprobe",
+        loudness_profile="narration",
+        expected_sample_rate=48000,
+        expected_channels=2,
+    )
+
+    assert report["passed"] is True
+    assert all(report["checks"].values())
+    assert json.loads(report_path.read_text(encoding="utf-8"))["measured"]["integrated_lufs"] == -16.2
 

@@ -90,6 +90,10 @@ REQUEST_DEFAULTS: dict[str, Any] = {
     "max_concurrent_tts": 8,
     "tts_provider": DEFAULT_TTS_PROVIDER,
     "audio_format": "mp3",
+    "loudness_profile": "narration",
+    "output_channels": 2,
+    "mp3_bitrate_kbps": 192,
+    "quality_gate": True,
     "vieneu_core": "local",
     "vieneu_mode": "standard",
     "vieneu_api_base": "",
@@ -149,6 +153,10 @@ class RenderAudioAppRequest:
     voice_en_male_speed: int = 25
     tts_provider: str = DEFAULT_TTS_PROVIDER
     audio_format: str = "mp3"
+    loudness_profile: str = "narration"
+    output_channels: int = 2
+    mp3_bitrate_kbps: int = 192
+    quality_gate: bool = True
     vieneu_core: str = "local"
     vieneu_mode: str = "standard"
     vieneu_api_base: str = ""
@@ -189,6 +197,10 @@ class RenderAudioAppRequest:
         object.__setattr__(self, "max_concurrent_tts", max(1, int(self.max_concurrent_tts)))
         object.__setattr__(self, "tts_provider", normalize_tts_provider(self.tts_provider))
         object.__setattr__(self, "audio_format", _normalize_audio_format(self.audio_format))
+        object.__setattr__(self, "loudness_profile", str(self.loudness_profile or "narration").strip().lower())
+        object.__setattr__(self, "output_channels", max(1, min(2, int(self.output_channels))))
+        object.__setattr__(self, "mp3_bitrate_kbps", min(320, max(96, int(self.mp3_bitrate_kbps))))
+        object.__setattr__(self, "quality_gate", bool(self.quality_gate))
         normalized_vieneu_core = _normalize_vieneu_core(self.vieneu_core)
         normalized_vieneu_mode = resolve_vieneu_effective_mode(normalized_vieneu_core, self.vieneu_mode, self.vieneu_device)
         normalized_vieneu_device = str(self.vieneu_device or "cuda").strip().lower() or "cuda"
@@ -235,6 +247,8 @@ class RenderAudioAppRequest:
             raise ValueError("output_dir is required")
         if self.audio_format not in {"wav", "mp3"}:
             raise ValueError(f"Unsupported audio_format: {self.audio_format}")
+        if self.loudness_profile not in {"narration", "social_video", "broadcast"}:
+            raise ValueError(f"Unsupported loudness_profile: {self.loudness_profile}")
         if self.max_concurrent_tts < 1:
             raise ValueError("max_concurrent_tts must be >= 1")
 
@@ -268,6 +282,10 @@ class RenderAudioAppRequest:
             "max_concurrent_tts": self.max_concurrent_tts,
             "tts_provider": self.tts_provider,
             "audio_format": self.audio_format,
+            "loudness_profile": self.loudness_profile,
+            "output_channels": self.output_channels,
+            "mp3_bitrate_kbps": self.mp3_bitrate_kbps,
+            "quality_gate": self.quality_gate,
             "vieneu_core": self.vieneu_core,
             "vieneu_mode": self.vieneu_mode,
             "vieneu_api_base": self.vieneu_api_base,
@@ -548,10 +566,14 @@ def run_render_audio_app(
         max_concurrent_tts=request.max_concurrent_tts,
         tts_provider=request.tts_provider,
         post_fx_preset=request.post_fx_preset,
-        ffmpeg_exe=ffmpeg_exe,
-        ffprobe_exe=ffprobe_exe,
+        ffmpeg_exe=runtime_bins.ffmpeg_exe,
+        ffprobe_exe=runtime_bins.ffprobe_exe,
         event_sink=event_sink,
         audio_format=request.audio_format,
+        loudness_profile=request.loudness_profile,
+        output_channels=request.output_channels,
+        mp3_bitrate_kbps=request.mp3_bitrate_kbps,
+        quality_gate=request.quality_gate,
         vieneu_core=request.vieneu_core,
         vieneu_mode=request.vieneu_mode,
         vieneu_api_base=request.vieneu_api_base,

@@ -20,7 +20,17 @@ BGM_FADE_IN_DEFAULT = 0.6
 BGM_FADE_OUT_DEFAULT = 0.6
 
 
-def build_mix_config(runtime_ctx: RuntimeContext, post_fx_preset: str, ffmpeg_exe: str, ffprobe_exe: str) -> FfmpegMixConfig:
+def build_mix_config(
+    runtime_ctx: RuntimeContext,
+    post_fx_preset: str,
+    ffmpeg_exe: str,
+    ffprobe_exe: str,
+    *,
+    loudness_profile: str = "narration",
+    output_channels: int = 2,
+    mp3_bitrate_kbps: int = 192,
+    quality_gate: bool = True,
+) -> FfmpegMixConfig:
     return FfmpegMixConfig(
         ffmpeg_exe=ffmpeg_exe,
         ffprobe_exe=ffprobe_exe,
@@ -31,6 +41,10 @@ def build_mix_config(runtime_ctx: RuntimeContext, post_fx_preset: str, ffmpeg_ex
         bgm_fade_in_default=BGM_FADE_IN_DEFAULT,
         bgm_fade_out_default=BGM_FADE_OUT_DEFAULT,
         post_fx_preset=post_fx_preset,
+        loudness_profile=loudness_profile,
+        output_channels=output_channels,
+        mp3_bitrate_kbps=mp3_bitrate_kbps,
+        quality_gate=quality_gate,
     )
 
 
@@ -50,6 +64,10 @@ def run_render_job(
     ffprobe_exe: str,
     event_sink: RenderEventSink | None = None,
     audio_format: str = "wav",
+    loudness_profile: str = "narration",
+    output_channels: int = 2,
+    mp3_bitrate_kbps: int = 192,
+    quality_gate: bool = True,
     vieneu_core: str = "local",
     vieneu_mode: str = "standard",
     vieneu_api_base: str = "",
@@ -119,6 +137,10 @@ def run_render_job(
                 post_fx_preset=post_fx_preset,
                 ffmpeg_exe=ffmpeg_exe,
                 ffprobe_exe=ffprobe_exe,
+                loudness_profile=loudness_profile,
+                output_channels=output_channels,
+                mp3_bitrate_kbps=mp3_bitrate_kbps,
+                quality_gate=quality_gate,
             ),
             audio_format=audio_format,
         ),
@@ -147,4 +169,9 @@ def run_render_job(
         wav_dir=paths.wav_dir,
         out_file=final_out_file,
         srt_path=paths.srt_path,
+        quality_report=(
+            final_out_file.with_name(f"{final_out_file.stem}.audio_quality.json")
+            if quality_gate
+            else None
+        ),
     )

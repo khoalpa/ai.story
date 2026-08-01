@@ -35,6 +35,48 @@ from video.runtime_tools import collect_runtime_diagnostics
 from video.validation import ImageReadinessReport, autodetect_subtitle_from_audio, inspect_video_image_readiness
 
 
+def _existing_picker_directory(path_value: str) -> str:
+    candidate = Path(str(path_value or "").strip()).expanduser()
+    if candidate.is_file():
+        return str(candidate.parent)
+    if candidate.is_dir():
+        return str(candidate)
+    for parent in candidate.parents:
+        if parent.is_dir():
+            return str(parent)
+    return str(Path.cwd())
+
+
+def _choose_local_path(*, state_key: str, directory: bool) -> None:
+    root = None
+    try:
+        from tkinter import Tk, filedialog
+
+        root = Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        initial_dir = _existing_picker_directory(str(st.session_state.get(state_key) or ""))
+        if directory:
+            selected = filedialog.askdirectory(parent=root, initialdir=initial_dir, mustexist=True)
+        else:
+            selected = filedialog.askopenfilename(
+                parent=root,
+                initialdir=initial_dir,
+                filetypes=[
+                    ("Image files", "*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff"),
+                    ("All files", "*.*"),
+                ],
+            )
+        if selected:
+            st.session_state[state_key] = selected
+        st.session_state.pop("video_path_picker_error", None)
+    except Exception as exc:
+        st.session_state["video_path_picker_error"] = f"Could not open the path picker: {exc}"
+    finally:
+        if root is not None:
+            root.destroy()
+
+
 def validate_runtime_settings(*, ffmpeg_exe: str, ffprobe_exe: str) -> list[str]:
     errors: list[str] = []
     if not str(ffmpeg_exe or "").strip():
@@ -554,7 +596,15 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
             horizontal=True,
         )
         if st.session_state.get("video_cover_source") == "input":
-            st.text_input("Input cover image", key="video_input_cover_path")
+            cover_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
+            cover_cols[0].text_input("Input cover image", key="video_input_cover_path")
+            cover_cols[1].button(
+                "Select file",
+                key="video_select_cover_file",
+                width="stretch",
+                on_click=_choose_local_path,
+                kwargs={"state_key": "video_input_cover_path", "directory": False},
+            )
         elif st.session_state.get("video_cover_source") == "profile":
             st.caption(f"Profile cover: {defaults.get('cover') or '-'}")
         else:
@@ -567,11 +617,22 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
             horizontal=True,
         )
         if st.session_state.get("video_scenes_source") == "input":
-            st.text_input("Input scenes directory", key="video_input_scenes_dir")
+            scenes_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
+            scenes_cols[0].text_input("Input scenes directory", key="video_input_scenes_dir")
+            scenes_cols[1].button(
+                "Select folder",
+                key="video_select_scenes_directory",
+                width="stretch",
+                on_click=_choose_local_path,
+                kwargs={"state_key": "video_input_scenes_dir", "directory": True},
+            )
         elif st.session_state.get("video_scenes_source") == "profile":
             st.caption(f"Profile scenes dir: {defaults.get('scenes_dir') or '-'}")
         else:
             st.caption(f"Handoff scenes dir: {workspace_handoff_state(st.session_state).image_scenes_dir or st.session_state.get('video_scenes_input') or '-'}")
+
+        if picker_error := st.session_state.get("video_path_picker_error"):
+            st.error(str(picker_error))
 
         image_manifest = workspace_handoff_state(st.session_state).image_manifest_path
         if image_manifest:

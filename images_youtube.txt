@@ -1,25 +1,31 @@
-for cover, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail, title, series, author, channel
-
-for scene, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for intro card, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for greeting zone, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for opening zone, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for introduction zone, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for development zone, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for climax zone, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for falling zone, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for ending zone, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for farewell zone, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
-for outro card, 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
-
+for cover,
+for scene,
+for intro card,
+for greeting zone,
+for opening zone,
+for introduction zone,
 http://www.youtube.com/@hoptruyenkydieu
+
+for development zone,
+for climax zone,
+for falling zone,
+for ending zone,
+for farewell zone,
+for outro card,
+
+For [scene description], 4K, 16:9, location cue, emotional cue, white cinematic lighting, wholesome realistic style, unified color mood, 35mm cinematic, natural skin texture, consistent character identity, movie still, high detail
+
+, title, series, author, channel
+
+---
+
+for [scene description], set in [specific location and time], featuring [character description, clothing, action and interaction], conveying [emotion and atmosphere].
+
+Photorealistic live-action cinematic film still, real human actors, authentic environment, believable moment, 8K, 16:9 composition. Clean neutral-white cinematic lighting, soft natural highlights, realistic shadows, balanced exposure, unified cinematic color grading. Shot on a 35mm cinema camera with a natural perspective, shallow depth of field, subtle film grain, realistic lens characteristics and professional framing.
+
+Natural human anatomy, realistic facial proportions, detailed eyes, individual hair strands, visible pores, natural skin texture, subtle skin imperfections, realistic fabric and environmental textures. Consistent character identity, facial features, hairstyle, age, body proportions and clothing across every scene. Emotionally expressive but natural performance, candid body language, immersive storytelling, high detail, realistic depth, movie-production quality.
+
+Strictly photorealistic, not animated, not cartoon, not illustration, not 3D render, not CGI.
+
+
+

@@ -8,6 +8,9 @@ from audio.render_batch_runner import RenderBatchRunner
 from audio.render_observers import build_cli_observer_bundle
 
 from audio.adapters.ffmpeg_audio_mixer import (
+    LOUDNESS_PROFILE_BROADCAST,
+    LOUDNESS_PROFILE_NARRATION,
+    LOUDNESS_PROFILE_SOCIAL_VIDEO,
     POST_FX_PRESET_NONE,
     POST_FX_PRESET_STORYTELLING_VI,
 )
@@ -148,6 +151,32 @@ def build_render_audio_arg_parser() -> argparse.ArgumentParser:
         default="wav",
         help="Output audio format. Defaults to wav for the master; choose mp3 to keep the older publishing workflow.",
     )
+    parser.add_argument(
+        "--loudness-profile",
+        choices=[LOUDNESS_PROFILE_NARRATION, LOUDNESS_PROFILE_SOCIAL_VIDEO, LOUDNESS_PROFILE_BROADCAST],
+        default=LOUDNESS_PROFILE_NARRATION,
+        help="Loudness target: narration=-16 LUFS, social_video=-14 LUFS, broadcast=-23 LUFS.",
+    )
+    parser.add_argument(
+        "--output-channels",
+        type=int,
+        choices=[1, 2],
+        default=2,
+        help="Final channel count. Stereo preserves BGM/ambience imaging; mono is smaller.",
+    )
+    parser.add_argument(
+        "--mp3-bitrate-kbps",
+        type=int,
+        choices=[128, 160, 192, 256, 320],
+        default=192,
+        help="Constant MP3 bitrate in kbps (default: 192).",
+    )
+    parser.add_argument(
+        "--quality-gate",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Measure LUFS/true peak/duration after export and fail when checks do not pass.",
+    )
     return parser
 
 
@@ -194,6 +223,10 @@ def _build_template_request_from_args(args):
             "max_concurrent_tts": int(getattr(args, "max_concurrent_tts", template.max_concurrent_tts)),
             "tts_provider": str(getattr(args, "tts_provider", template.tts_provider)).lower(),
             "audio_format": str(getattr(args, "audio_format", template.audio_format)).lower(),
+            "loudness_profile": str(getattr(args, "loudness_profile", template.loudness_profile)).lower(),
+            "output_channels": int(getattr(args, "output_channels", template.output_channels)),
+            "mp3_bitrate_kbps": int(getattr(args, "mp3_bitrate_kbps", template.mp3_bitrate_kbps)),
+            "quality_gate": bool(getattr(args, "quality_gate", template.quality_gate)),
         }
     )
     return template.__class__.from_mapping(payload)

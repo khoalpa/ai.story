@@ -368,6 +368,7 @@ def summarize_result(result: RenderAudioAppResult) -> dict:
         "out_file": out_file,
         "out_file_name": out_file_name,
         "srt_path": str(result.render_artifacts.srt_path) if result.render_artifacts and result.render_artifacts.srt_path else None,
+        "quality_report": str(result.render_artifacts.quality_report) if result.render_artifacts and result.render_artifacts.quality_report else None,
         "wav_dir": str(result.render_artifacts.wav_dir) if result.render_artifacts and result.render_artifacts.wav_dir else None,
         "job_paths": {
             "out_dir": str(result.job_paths.out_dir),
@@ -384,7 +385,7 @@ def summarize_result(result: RenderAudioAppResult) -> dict:
 
 def build_output_zip(summary: dict) -> bytes | None:
     candidates = []
-    for key in ("out_file", "srt_path", "debug_json"):
+    for key in ("out_file", "srt_path", "quality_report", "debug_json"):
         raw = summary.get(key)
         if raw and Path(raw).is_file():
             candidates.append(Path(raw))

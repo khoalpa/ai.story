@@ -82,6 +82,19 @@ python -m pip install .[all,image-local]
 - `render-video-gui`
 - `ai-studio-gui`
 
+### Audio delivery quality
+
+Audio renders use 48 kHz float intermediates, stereo mixing with BGM ducking,
+and measured two-pass loudness normalization. The default `narration` profile
+targets -16 LUFS / -1.5 dBTP; `social_video` (-14 LUFS / -1.0 dBTP) and
+`broadcast` (-23 LUFS / -2.0 dBTP) are also available in the GUI and CLI.
+WAV masters are PCM 24-bit and MP3 exports default to 192 kbps. With the
+quality gate enabled, each render writes `*.audio_quality.json` and validates
+loudness, true peak, duration, sample rate, and channel count.
+
+Useful CLI options include `--loudness-profile`, `--output-channels`,
+`--mp3-bitrate-kbps`, and `--no-quality-gate`.
+
 ## Requirements
 
 - `pyproject.toml`: canonical dependency and tool configuration

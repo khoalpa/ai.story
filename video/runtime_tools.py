@@ -44,6 +44,21 @@ def resolve_tool_path(env_var: str, executable_name: str, windows_fallback: Path
 
     discovered = shutil.which(executable_name)
     if discovered:
+        discovered_path = Path(discovered)
+        if (
+            platform.system().lower().startswith("win")
+            and windows_fallback.is_file()
+            and discovered_path.parent.name.lower() == "bin"
+            and discovered_path.parent.parent.name.lower() == "chocolatey"
+        ):
+            logger.warning(
+                "PATH resolved %s to a Chocolatey shim (%s); using the real binary %s "
+                "to avoid Windows Application Control blocking the shim.",
+                executable_name,
+                discovered_path,
+                windows_fallback,
+            )
+            return str(windows_fallback)
         return discovered
 
     if platform.system().lower().startswith("win") and windows_fallback.is_file():
