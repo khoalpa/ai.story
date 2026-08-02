@@ -733,6 +733,9 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     video_codec=settings.get("video_codec"),
                     audio_codec=settings.get("audio_codec"),
                     audio_bitrate=settings.get("audio_bitrate"),
+                    encoding_profile=settings.get("encoding_profile"),
+                    loudness_profile=settings.get("loudness_profile"),
+                    quality_gate=settings.get("quality_gate"),
                     video_preset=settings.get("video_preset"),
                     video_crf=settings.get("video_crf"),
                     video_fps=settings.get("video_fps"),
@@ -769,6 +772,7 @@ def render_run_tab(settings: dict[str, Any]) -> None:
             st.session_state["video_last_error"] = ""
             workspace_source_outputs(st.session_state).video_output = str(inputs["output"])
             st.session_state["video_last_result_history_file"] = result.get("history_file", "")
+            st.session_state["video_last_quality_report"] = result.get("quality_report_path", "")
             set_video_handoff(video_output_path=workspace_source_outputs(st.session_state).video_output)
             update_global_run_monitor(
                 app="Video",
@@ -836,6 +840,14 @@ def render_run_tab(settings: dict[str, Any]) -> None:
             st.video(out)
             out_path = Path(out)
             render_download_button_from_path("Download MP4", out_path, mime="video/mp4", file_name=out_path.name)
+        quality_path = Path(str(st.session_state.get("video_last_quality_report") or ""))
+        if quality_path.is_file():
+            render_download_button_from_path(
+                "Download Video Quality Report",
+                quality_path,
+                mime="application/json",
+                file_name=quality_path.name,
+            )
 
 
 

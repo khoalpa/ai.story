@@ -29,6 +29,7 @@ def write_result_manifest(
     manifest_path: Path,
     *,
     video: Path,
+    quality_report: Path | None = None,
     input_manifests: Iterable[Path] = (),
     duration_seconds: float | None = None,
     resolution: str | None = None,
@@ -44,12 +45,15 @@ def write_result_manifest(
         metadata["duration_seconds"] = duration_seconds
     if resolution:
         metadata["resolution"] = resolution
+    artifacts = {"video": _describe(manifest_path, video)}
+    if quality_report is not None and quality_report.is_file():
+        artifacts["quality_report"] = _describe(manifest_path, quality_report)
     payload = {
         "schema_version": SCHEMA_VERSION,
         "kind": "video.result-manifest",
         "producer": "video",
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "artifacts": {"video": _describe(manifest_path, video)},
+        "artifacts": artifacts,
         "metadata": metadata,
         "provenance": {
             "input_manifests": [str(path.resolve()) for path in input_manifests],

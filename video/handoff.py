@@ -56,6 +56,7 @@ def _read(manifest_path: Path, kind: str, producer: str) -> dict[str, object]:
 class AudioVideoHandoff:
     audio: Path
     subtitle: Path | None
+    quality_report: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -72,7 +73,11 @@ def read_audio_handoff(manifest_path: Path) -> AudioVideoHandoff:
         raise ValueError("Audio video handoff is missing artifacts.audio")
     if not audio.is_file() or audio.suffix.lower() not in {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}:
         raise ValueError(f"Unsupported audio artifact in {manifest_path}: {audio}")
-    return AudioVideoHandoff(audio, _resolve(manifest_path, artifacts.get("subtitle")))
+    return AudioVideoHandoff(
+        audio,
+        _resolve(manifest_path, artifacts.get("subtitle")),
+        _resolve(manifest_path, artifacts.get("quality_report")),
+    )
 
 
 def read_image_handoff(manifest_path: Path) -> ImageVideoHandoff:

@@ -8,3 +8,7 @@ def test_slideshow_subtitle_filter_generates_frames_before_burning_subtitles() -
 
     assert ",fps=25,subtitles=" in vf_filter
     assert vf_filter.index(",fps=25") < vf_filter.index(",subtitles=")
+    assert "flags=lanczos" in vf_filter
+    assert "setsar=1" in vf_filter
+    assert "color_primaries=bt709" in vf_filter
+    assert "BorderStyle=3" in vf_filter

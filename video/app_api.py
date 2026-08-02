@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import os
+import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -21,19 +23,21 @@ def render_video_studio(*args: Any, **kwargs: Any) -> None:
     render_video_workspace(*args, **kwargs)
 
 from video import config
-import video.render_static as render_static_module
 from video.asset_profile_utils import apply_profile_runtime_defaults, resolve_profile_defaults
 from video.config import get_ffmpeg_exe, get_ffprobe_exe
+from video.encoding_profiles import PROFILE_AUTO, resolve_encoding_profile
 from video.error_handling import USER_FACING_EXCEPTIONS
-from video.ffmpeg_runner import ensure_tools
+from video.ffmpeg_runner import ensure_tools, get_media_duration_seconds
 from video.logging_utils import get_logger
 from video.render_slideshow import make_slideshow_video
 from video.render_static import make_static_video
 from video.run_history import append_run_history, write_run_log
 from video.runtime_tools import format_runtime_diagnostics
-from video.validation import autodetect_subtitle_from_audio, inspect_video_image_readiness
+from video.validation import autodetect_subtitle_from_audio, inspect_video_image_readiness, validate_slideshow_inputs
 from video.handoff import read_audio_handoff, read_image_handoff
 from video.result_manifest import write_result_manifest
+from video.media_quality import prepare_audio_for_video, prepare_subtitle_for_video, write_video_quality_report
+from video.story_zone_timeline import build_story_zone_segments
 
 logger = get_logger(__name__)
 
@@ -56,6 +60,9 @@ class RenderVideoRequest:
     video_codec: Optional[str] = None
     audio_codec: Optional[str] = None
     audio_bitrate: Optional[str] = None
+    encoding_profile: Optional[str] = PROFILE_AUTO
+    loudness_profile: Optional[str] = "narration"
+    quality_gate: Optional[bool] = True
     video_preset: Optional[str] = None
     video_crf: Optional[int] = None
     video_fps: Optional[int] = None
@@ -84,6 +91,7 @@ class RenderVideoRequest:
     render_video_history_dir: Optional[str] = None
     render_video_history_file: Optional[str] = None
     audio_handoff: Optional[Path] = None
+    audio_quality_report: Optional[Path] = None
     image_handoff: Optional[Path] = None
 
 
@@ -118,6 +126,7 @@ def _optional_env_value(value: object) -> str | None:
 
 @contextlib.contextmanager
 def _render_runtime_overrides(request: RenderVideoRequest):
+    encoding_profile = resolve_encoding_profile(request.encoding_profile, request.aspect)
     env_overrides = {
         "DEBUG_FFMPEG_EXE": _optional_env_value(request.debug_ffmpeg_exe),
         "SUB_FONT_SIZE": _optional_env_value(request.subtitle_font_size),
@@ -133,14 +142,17 @@ def _render_runtime_overrides(request: RenderVideoRequest):
         "RENDER_VIDEO_HISTORY_FILE": _optional_env_value(request.render_video_history_file),
     }
     config_overrides = {
-        "DEFAULT_VIDEO_CODEC": request.video_codec,
-        "DEFAULT_AUDIO_CODEC": request.audio_codec,
-        "DEFAULT_AUDIO_BITRATE": request.audio_bitrate,
-        "DEFAULT_PRESET": request.video_preset,
-        "DEFAULT_CRF": request.video_crf,
-        "DEFAULT_FPS": request.video_fps,
-        "DEFAULT_TUNE_STILLIMAGE": request.video_tune,
-        "DEFAULT_MOVFLAGS": request.video_movflags,
+        "DEFAULT_ENCODING_PROFILE": encoding_profile.name,
+        "DEFAULT_VIDEO_CODEC": request.video_codec or encoding_profile.video_codec,
+        "DEFAULT_AUDIO_CODEC": request.audio_codec or encoding_profile.audio_codec,
+        "DEFAULT_AUDIO_BITRATE": request.audio_bitrate or encoding_profile.audio_bitrate,
+        "DEFAULT_PRESET": request.video_preset or encoding_profile.preset,
+        "DEFAULT_CRF": request.video_crf if request.video_crf is not None else encoding_profile.crf,
+        "DEFAULT_FPS": request.video_fps if request.video_fps is not None else encoding_profile.fps,
+        "DEFAULT_TUNE_STILLIMAGE": request.video_tune or encoding_profile.tune,
+        "DEFAULT_PIXEL_FORMAT": encoding_profile.pixel_format,
+        "DEFAULT_GOP_SECONDS": encoding_profile.gop_seconds,
+        "DEFAULT_MOVFLAGS": request.video_movflags or config.DEFAULT_MOVFLAGS,
         "SLIDESHOW_MATCH_AUDIO": request.slideshow_match_audio,
         "AUDIO_MATCH_EPSILON": request.audio_match_epsilon,
         "KEEP_CONCAT_LIST": request.keep_concat_list,
@@ -151,23 +163,8 @@ def _render_runtime_overrides(request: RenderVideoRequest):
         "STDERR_TAIL_LINES": request.stderr_tail_lines,
         "PRINT_FFMPEG_VERSION": request.print_ffmpeg_version,
     }
-    static_overrides = {
-        "DEFAULT_VIDEO_CODEC": request.video_codec,
-        "DEFAULT_AUDIO_CODEC": request.audio_codec,
-        "DEFAULT_AUDIO_BITRATE": request.audio_bitrate,
-        "DEFAULT_PRESET": request.video_preset,
-        "DEFAULT_CRF": request.video_crf,
-        "DEFAULT_FPS": request.video_fps,
-        "DEFAULT_TUNE_STILLIMAGE": request.video_tune,
-        "DEFAULT_MOVFLAGS": request.video_movflags,
-    }
     previous_env = {key: os.environ.get(key) for key in env_overrides}
     previous_config = {key: getattr(config, key) for key in config_overrides if hasattr(config, key)}
-    previous_static = {
-        key: getattr(render_static_module, key)
-        for key in static_overrides
-        if hasattr(render_static_module, key)
-    }
     try:
         for key, value in env_overrides.items():
             if value is not None:
@@ -175,9 +172,6 @@ def _render_runtime_overrides(request: RenderVideoRequest):
         for key, value in config_overrides.items():
             if value is not None and hasattr(config, key):
                 setattr(config, key, value)
-        for key, value in static_overrides.items():
-            if value is not None and hasattr(render_static_module, key):
-                setattr(render_static_module, key, value)
         yield
     finally:
         for key, value in previous_env.items():
@@ -187,8 +181,6 @@ def _render_runtime_overrides(request: RenderVideoRequest):
                 os.environ[key] = value
         for key, value in previous_config.items():
             setattr(config, key, value)
-        for key, value in previous_static.items():
-            setattr(render_static_module, key, value)
 
 
 def resolve_asset_profile_runtime(
@@ -214,6 +206,11 @@ def validate_render_request(request: RenderVideoRequest) -> None:
         raise ValueError("mode must be 'static' or 'slideshow'.")
     if request.aspect not in {"9x16", "16x9"}:
         raise ValueError("aspect must be '9x16' or '16x9'.")
+    normalized_profile = str(request.encoding_profile or PROFILE_AUTO).strip().lower()
+    if normalized_profile == "tiktok" and request.aspect != "9x16":
+        raise ValueError("The tiktok encoding profile requires aspect 9x16.")
+    if normalized_profile in {"youtube_4k", "youtube_1080p"} and request.aspect != "16x9":
+        raise ValueError(f"The {normalized_profile} encoding profile requires aspect 16x9.")
     if request.duration_per_image <= 0:
         raise ValueError("duration_per_image must be > 0.")
     if request.audio is None or not str(request.audio).strip():
@@ -259,6 +256,9 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         mode=args.mode,
         aspect=args.aspect,
         duration_per_image=args.duration_per_image,
+        encoding_profile=getattr(args, "encoding_profile", PROFILE_AUTO),
+        loudness_profile=getattr(args, "loudness_profile", "narration"),
+        quality_gate=bool(getattr(args, "quality_gate", True)),
         subtitle=subtitle_path,
         story_json=story_json_path,
         cover=resolved_cover,
@@ -267,6 +267,7 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         profile_root=getattr(args, "profile_root", None),
         zone_aware_slideshow=bool(getattr(args, "zone_aware_slideshow", False)),
         audio_handoff=Path(args.audio_handoff) if getattr(args, "audio_handoff", None) else None,
+        audio_quality_report=audio_bundle.quality_report if audio_bundle else None,
         image_handoff=Path(args.image_handoff) if getattr(args, "image_handoff", None) else None,
     )
     validate_render_request(request)
@@ -311,33 +312,95 @@ def execute_render_request(
                     ),
                 )
                 ensure_tools()
-                if request.mode == "static":
-                    make_static_video(
-                        audio=request.audio,
-                        cover=request.cover,
-                        aspect=request.aspect,
-                        output=request.output,
-                        subtitle=request.subtitle,
-                        progress_callback=progress_callback,
+                with tempfile.TemporaryDirectory(prefix="render_video_audio_") as temp_dir:
+                    prepared_audio, audio_preflight = prepare_audio_for_video(
+                        request.audio,
+                        Path(temp_dir) / "normalized_audio.flac",
+                        ffmpeg_exe=request.ffmpeg_exe or get_ffmpeg_exe(),
+                        loudness_profile=request.loudness_profile or config.DEFAULT_LOUDNESS_PROFILE,
                     )
-                elif request.mode == "slideshow":
-                    make_slideshow_video(
-                        audio=request.audio,
-                        scenes_dir=request.scenes_dir,
-                        aspect=request.aspect,
-                        output=request.output,
-                        duration_per_image=request.duration_per_image,
-                        subtitle=request.subtitle,
-                        story_json=request.story_json,
-                        zone_aware=bool(request.zone_aware_slideshow),
-                        progress_callback=progress_callback,
+                    source_quality_report = request.audio_quality_report
+                    if source_quality_report is None:
+                        candidate = request.audio.with_name(f"{request.audio.stem}.audio_quality.json")
+                        source_quality_report = candidate if candidate.is_file() else None
+                    if source_quality_report is not None and source_quality_report.is_file():
+                        source_quality = json.loads(source_quality_report.read_text(encoding="utf-8"))
+                        audio_preflight["source_quality_report"] = str(source_quality_report.resolve())
+                        audio_preflight["source_quality_passed"] = bool(source_quality.get("passed"))
+                    render_subtitle, subtitle_auto_wrapped = prepare_subtitle_for_video(
+                        request.subtitle,
+                        Path(temp_dir) / "wrapped_subtitle.srt",
                     )
-                else:
-                    raise ValueError("mode must be 'static' or 'slideshow'.")
+                    if request.mode == "static":
+                        make_static_video(
+                            audio=prepared_audio,
+                            cover=request.cover,
+                            aspect=request.aspect,
+                            output=request.output,
+                            subtitle=render_subtitle,
+                            progress_callback=progress_callback,
+                        )
+                        reference_images = [request.cover] if request.cover is not None else []
+                    elif request.mode == "slideshow":
+                        make_slideshow_video(
+                            audio=prepared_audio,
+                            scenes_dir=request.scenes_dir,
+                            aspect=request.aspect,
+                            output=request.output,
+                            duration_per_image=request.duration_per_image,
+                            subtitle=render_subtitle,
+                            story_json=request.story_json,
+                            zone_aware=bool(request.zone_aware_slideshow),
+                            progress_callback=progress_callback,
+                        )
+                        if request.zone_aware_slideshow and request.story_json and request.subtitle and request.scenes_dir:
+                            zone_segments = build_story_zone_segments(
+                                story_json=request.story_json,
+                                subtitle=request.subtitle,
+                                scenes_dir=request.scenes_dir,
+                            )
+                            reference_images = [
+                                (segment.image, (segment.start + segment.end) / 2.0)
+                                for segment in zone_segments
+                            ]
+                        else:
+                            ordered_images = (
+                                validate_slideshow_inputs(prepared_audio, request.scenes_dir)
+                                if request.scenes_dir
+                                else []
+                            )
+                            prepared_duration = get_media_duration_seconds(prepared_audio)
+                            reference_images = [
+                                (image, index * request.duration_per_image + request.duration_per_image / 2.0)
+                                for index, image in enumerate(ordered_images)
+                                if index * request.duration_per_image < prepared_duration
+                            ]
+                    else:
+                        raise ValueError("mode must be 'static' or 'slideshow'.")
+
+                output_width, output_height = config.get_output_resolution(request.aspect)
+                quality_report, quality = write_video_quality_report(
+                    request.output,
+                    ffmpeg_exe=request.ffmpeg_exe or get_ffmpeg_exe(),
+                    ffprobe_exe=request.ffprobe_exe or get_ffprobe_exe(),
+                    loudness_profile=request.loudness_profile or config.DEFAULT_LOUDNESS_PROFILE,
+                    expected_width=output_width,
+                    expected_height=output_height,
+                    expected_fps=config.DEFAULT_FPS,
+                    subtitle=request.subtitle,
+                    reference_images=reference_images,
+                    audio_preflight=audio_preflight,
+                    subtitle_auto_wrapped=subtitle_auto_wrapped,
+                )
+                if bool(request.quality_gate) and not quality["passed"]:
+                    failed_checks = ", ".join(name for name, passed in quality["checks"].items() if not passed)
+                    raise RuntimeError(f"Video quality gate failed ({failed_checks}). Report: {quality_report}")
                 result_manifest = write_result_manifest(
                     request.output.with_suffix(".result.json"),
                     video=request.output,
-                    resolution=request.aspect,
+                    quality_report=quality_report,
+                    duration_seconds=quality["duration"]["container_seconds"],
+                    resolution=f"{output_width}x{output_height}",
                     input_manifests=(
                         path for path in (request.audio_handoff, request.image_handoff) if path is not None
                     ),
@@ -365,6 +428,7 @@ def execute_render_request(
         result["elapsed_seconds"] = str(elapsed_seconds)
         if status == "ok":
             result["result_manifest_path"] = str(result_manifest)
+            result["quality_report_path"] = str(quality_report)
     return result
 
 

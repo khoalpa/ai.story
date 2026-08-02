@@ -79,7 +79,7 @@ def make_slideshow_video(
     vf_filter = build_vf_filter(
         aspect,
         subtitle,
-        pre_subtitle_fps=config.DEFAULT_FPS if subtitle is not None else None,
+        pre_subtitle_fps=config.DEFAULT_FPS,
     )
     if zone_aware:
         if story_json is None:
@@ -98,6 +98,7 @@ def make_slideshow_video(
             with tempfile.NamedTemporaryFile(delete=False, suffix=".ffconcat") as tmp:
                 tmp_list_path = Path(tmp.name)
             write_timeline_concat_list(segments, tmp_list_path)
+            force_key_frames = ",".join(f"{segment.start:.3f}" for segment in segments)
             cmd = build_slideshow_ffmpeg_cmd(
                 ffmpeg_base=ffmpeg_base_args(),
                 concat_list=tmp_list_path,
@@ -111,6 +112,14 @@ def make_slideshow_video(
                 audio_codec=config.DEFAULT_AUDIO_CODEC,
                 audio_bitrate=config.DEFAULT_AUDIO_BITRATE,
                 movflags=config.DEFAULT_MOVFLAGS,
+                fps=config.DEFAULT_FPS,
+                pixel_format=config.DEFAULT_PIXEL_FORMAT,
+                color_primaries=config.DEFAULT_COLOR_PRIMARIES,
+                color_transfer=config.DEFAULT_COLOR_TRANSFER,
+                color_space=config.DEFAULT_COLOR_SPACE,
+                color_range=config.DEFAULT_COLOR_RANGE,
+                gop_seconds=config.DEFAULT_GOP_SECONDS,
+                force_key_frames=force_key_frames,
             )
             run_ffmpeg(cmd, expected_duration_s=expected_out, progress_callback=progress_callback)
         finally:
@@ -159,6 +168,14 @@ def make_slideshow_video(
             audio_codec=config.DEFAULT_AUDIO_CODEC,
             audio_bitrate=config.DEFAULT_AUDIO_BITRATE,
             movflags=config.DEFAULT_MOVFLAGS,
+            fps=config.DEFAULT_FPS,
+            pixel_format=config.DEFAULT_PIXEL_FORMAT,
+            color_primaries=config.DEFAULT_COLOR_PRIMARIES,
+            color_transfer=config.DEFAULT_COLOR_TRANSFER,
+            color_space=config.DEFAULT_COLOR_SPACE,
+            color_range=config.DEFAULT_COLOR_RANGE,
+            gop_seconds=config.DEFAULT_GOP_SECONDS,
+            force_key_frames=",".join(f"{index * duration_per_image:.3f}" for index in range(len(images))),
         )
         run_ffmpeg(cmd, expected_duration_s=expected_out, progress_callback=progress_callback)
     finally:

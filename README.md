@@ -95,6 +95,22 @@ loudness, true peak, duration, sample rate, and channel count.
 Useful CLI options include `--loudness-profile`, `--output-channels`,
 `--mp3-bitrate-kbps`, and `--no-quality-gate`.
 
+### Video delivery quality
+
+Video renders preflight the input audio and apply measured two-pass loudness
+normalization only when it is outside the selected target. The renderer ships
+`auto`, `balanced`, `youtube_4k`, `youtube_1080p`, `tiktok`, `master`, and optional 10-bit `master_hevc`
+encoding profiles with platform-appropriate resolution, CRF, FPS, GOP, and
+keyframes. Output uses Lanczos scaling, square pixels, explicit BT.709 color,
+AAC 48 kHz stereo, CFR, and MP4 faststart.
+
+Each completed render writes `*.video_quality.json`. The quality gate validates
+loudness, true peak, A/V sync, resolution, frame rate, codecs, color metadata,
+negative timestamps, decode errors, prolonged black frames, subtitle timing and
+wrapping, faststart, and sampled SSIM against the source scene images. Useful
+CLI options include `--encoding-profile`, `--loudness-profile`, and
+`--no-quality-gate`.
+
 ## Requirements
 
 - `pyproject.toml`: canonical dependency and tool configuration

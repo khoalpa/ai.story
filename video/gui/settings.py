@@ -12,6 +12,7 @@ from video.asset_profile_utils import (
     resolve_profile_defaults,
 )
 from video.config import DEFAULT_PROFILE_ROOT
+from video.encoding_profiles import PROFILE_CHOICES
 from video.error_handling import USER_FACING_EXCEPTIONS, format_user_facing_error
 from video.runtime_tools import collect_runtime_diagnostics
 from video.providers.base import VideoProviderDescriptor
@@ -47,23 +48,43 @@ def _option_index(options: list[str], value: object, default: int = 0) -> int:
 
 def _render_advanced_encoding_settings() -> dict[str, Any]:
     with st.expander("Advanced encoding", expanded=False):
-        video_codec = st.text_input("Video codec", value=str(config.DEFAULT_VIDEO_CODEC))
-        audio_codec = st.text_input("Audio codec", value=str(config.DEFAULT_AUDIO_CODEC))
-        audio_bitrate = st.text_input("Audio bitrate", value=str(config.DEFAULT_AUDIO_BITRATE))
-        video_preset = st.text_input("Video preset", value=str(config.DEFAULT_PRESET))
-        video_crf = st.number_input("CRF", min_value=0, max_value=63, value=int(config.DEFAULT_CRF), step=1)
-        video_fps = st.number_input("FPS (static mode)", min_value=1, max_value=120, value=int(config.DEFAULT_FPS), step=1)
-        video_tune = st.text_input("Video tune", value=str(config.DEFAULT_TUNE_STILLIMAGE))
-        video_movflags = st.text_input("MP4 movflags", value=str(config.DEFAULT_MOVFLAGS))
+        encoding_profile = st.selectbox(
+            "Encoding profile",
+            options=list(PROFILE_CHOICES),
+            index=_option_index(list(PROFILE_CHOICES), config.DEFAULT_ENCODING_PROFILE),
+            help="auto selects YouTube 4K for 16:9 and TikTok 1080x1920 for 9:16.",
+        )
+        loudness_profile = st.selectbox(
+            "Loudness profile",
+            options=["narration", "social_video", "broadcast"],
+            index=_option_index(["narration", "social_video", "broadcast"], config.DEFAULT_LOUDNESS_PROFILE),
+        )
+        quality_gate = st.checkbox("Video quality gate", value=bool(config.DEFAULT_QUALITY_GATE))
+        custom_encoding = st.checkbox(
+            "Custom encoder overrides",
+            value=False,
+            help="Leave disabled to use the selected encoding profile without manual overrides.",
+        )
+        video_codec = st.text_input("Video codec", value=str(config.DEFAULT_VIDEO_CODEC), disabled=not custom_encoding)
+        audio_codec = st.text_input("Audio codec", value=str(config.DEFAULT_AUDIO_CODEC), disabled=not custom_encoding)
+        audio_bitrate = st.text_input("Audio bitrate", value=str(config.DEFAULT_AUDIO_BITRATE), disabled=not custom_encoding)
+        video_preset = st.text_input("Video preset", value=str(config.DEFAULT_PRESET), disabled=not custom_encoding)
+        video_crf = st.number_input("CRF", min_value=0, max_value=63, value=int(config.DEFAULT_CRF), step=1, disabled=not custom_encoding)
+        video_fps = st.number_input("FPS", min_value=1, max_value=120, value=int(config.DEFAULT_FPS), step=1, disabled=not custom_encoding)
+        video_tune = st.text_input("Video tune", value=str(config.DEFAULT_TUNE_STILLIMAGE), disabled=not custom_encoding)
+        video_movflags = st.text_input("MP4 movflags", value=str(config.DEFAULT_MOVFLAGS), disabled=not custom_encoding)
     return {
-        "video_codec": video_codec,
-        "audio_codec": audio_codec,
-        "audio_bitrate": audio_bitrate,
-        "video_preset": video_preset,
-        "video_crf": int(video_crf),
-        "video_fps": int(video_fps),
-        "video_tune": video_tune,
-        "video_movflags": video_movflags,
+        "encoding_profile": encoding_profile,
+        "loudness_profile": loudness_profile,
+        "quality_gate": bool(quality_gate),
+        "video_codec": video_codec if custom_encoding else None,
+        "audio_codec": audio_codec if custom_encoding else None,
+        "audio_bitrate": audio_bitrate if custom_encoding else None,
+        "video_preset": video_preset if custom_encoding else None,
+        "video_crf": int(video_crf) if custom_encoding else None,
+        "video_fps": int(video_fps) if custom_encoding else None,
+        "video_tune": video_tune if custom_encoding else None,
+        "video_movflags": video_movflags if custom_encoding else None,
     }
 
 

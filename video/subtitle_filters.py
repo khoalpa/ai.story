@@ -4,7 +4,8 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from video.config import ASPECT_RESOLUTIONS, AspectRatio
+from video import config
+from video.config import AspectRatio
 
 
 def escape_subtitle_path(path: Path | str) -> str:
@@ -16,8 +17,12 @@ def escape_subtitle_path(path: Path | str) -> str:
 
 
 def build_scale_pad_filter(aspect: AspectRatio) -> str:
-    w, h = ASPECT_RESOLUTIONS[aspect]
-    return f"scale={w}:{h}:force_original_aspect_ratio=decrease," f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2"
+    w, h = config.get_output_resolution(aspect)
+    return (
+        f"scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos,"
+        f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format={config.DEFAULT_PIXEL_FORMAT},"
+        "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709"
+    )
 
 
 def build_vf_filter(
@@ -86,10 +91,18 @@ def build_vf_filter(
         f"Fontsize={sub_fontsize},"
         f"Outline={sub_outline},"
         f"Shadow={sub_shadow},"
+        "BorderStyle=3,"
+        "BackColour=&H80000000,"
+        "OutlineColour=&H00000000,"
+        "WrapStyle=0,"
         f"Alignment={sub_alignment},"
         f"MarginV={sub_margin_v},"
         f"MarginL={sub_margin_l},"
         f"MarginR={sub_margin_r}"
     )
     force_style = os.getenv("SUB_FORCE_STYLE", force_style_default).replace("'", "\\'")
-    return f"{base},subtitles='{sub_esc}':force_style='{force_style}'"
+    output_width, output_height = config.get_output_resolution(aspect)
+    return (
+        f"{base},subtitles='{sub_esc}':original_size={output_width}x{output_height}:"
+        f"force_style='{force_style}'"
+    )

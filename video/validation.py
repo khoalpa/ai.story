@@ -6,7 +6,8 @@ from typing import Literal, Optional
 
 from PIL import Image, UnidentifiedImageError
 
-from video.config import ASPECT_RESOLUTIONS, IMAGE_EXTENSIONS, ZONE_IMAGE_ALIASES, ZONE_IMAGE_SEQUENCE
+from video import config
+from video.config import IMAGE_EXTENSIONS, ZONE_IMAGE_ALIASES, ZONE_IMAGE_SEQUENCE
 
 
 ReadinessLevel = Literal["ok", "warning", "error"]
@@ -155,9 +156,8 @@ def validate_slideshow_inputs(audio: Path | None, scenes_dir: Path | None) -> li
 
 
 def _expected_resolution(aspect: str) -> tuple[int, int]:
-    if aspect in ASPECT_RESOLUTIONS:
-        return ASPECT_RESOLUTIONS[aspect]  # type: ignore[index]
-    return ASPECT_RESOLUTIONS["9x16"]
+    normalized = aspect if aspect in {"9x16", "16x9"} else "9x16"
+    return config.get_output_resolution(normalized)  # type: ignore[arg-type]
 
 
 def _inspect_image_file(

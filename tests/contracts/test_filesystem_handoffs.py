@@ -48,8 +48,12 @@ def test_audio_and_image_video_handoffs_are_consumed_locally(tmp_path: Path) -> 
     audio = tmp_path / "audio" / "story.mp3"
     audio.parent.mkdir()
     audio.touch()
+    quality = audio.with_name("story.audio_quality.json")
+    quality.write_text('{"passed": true}', encoding="utf-8")
     audio_manifest = write_audio(audio.parent / "manifest.json", audio=audio)
-    assert read_audio_handoff(audio_manifest).audio == audio
+    audio_bundle = read_audio_handoff(audio_manifest)
+    assert audio_bundle.audio == audio
+    assert audio_bundle.quality_report == quality
 
     scenes = tmp_path / "images" / "scenes"
     scenes.mkdir(parents=True)

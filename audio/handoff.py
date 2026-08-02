@@ -51,12 +51,23 @@ def _validate_envelope(data: object, kind: str, producer: str) -> None:
         raise ValueError("Handoff manifest is missing created_at")
 
 
-def write_video_handoff(manifest_path: Path, *, audio: Path, subtitle: Path | None = None) -> Path:
+def write_video_handoff(
+    manifest_path: Path,
+    *,
+    audio: Path,
+    subtitle: Path | None = None,
+    quality_report: Path | None = None,
+) -> Path:
     manifest_path = manifest_path.resolve()
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     artifacts = {"audio": _describe(manifest_path, audio)}
     if subtitle is not None:
         artifacts["subtitle"] = _describe(manifest_path, subtitle)
+    if quality_report is None:
+        candidate = audio.with_name(f"{audio.stem}.audio_quality.json")
+        quality_report = candidate if candidate.is_file() else None
+    if quality_report is not None and quality_report.is_file():
+        artifacts["quality_report"] = _describe(manifest_path, quality_report)
     payload = {"schema_version": SCHEMA_VERSION, "kind": "audio.video-handoff",
                "created_at": datetime.now(timezone.utc).isoformat(), "producer": "audio",
                "artifacts": artifacts}

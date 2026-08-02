@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 from video.cli_utils import UsedFilesTracker, setup_stdio
 from video.config import DEFAULT_PROFILE_ROOT
+from video.encoding_profiles import PROFILE_CHOICES
 from video.error_handling import USER_FACING_EXCEPTIONS, format_user_facing_error
 from video.ffmpeg_runner import ensure_tools
 from video.app_api import execute_render_request, request_from_args
@@ -67,6 +68,24 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=60.0,
         help="Duration of each slideshow image in seconds. Default: 60.0",
+    )
+    parser.add_argument(
+        "--encoding-profile",
+        choices=PROFILE_CHOICES,
+        default="auto",
+        help="Encoding profile: auto, balanced, youtube_4k, youtube_1080p, tiktok, master, or master_hevc.",
+    )
+    parser.add_argument(
+        "--loudness-profile",
+        choices=["narration", "social_video", "broadcast"],
+        default="narration",
+        help="Output loudness target used for MP4 audio.",
+    )
+    parser.add_argument(
+        "--quality-gate",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Validate audio, video, sync, subtitle, decode, faststart, and sampled SSIM after render.",
     )
     parser.add_argument(
         "--subtitle",
@@ -162,6 +181,9 @@ def run_from_args(args: argparse.Namespace) -> Path:
 
     print(f"Created video file: {request.output}")
     print(f"Created result manifest: {result['result_manifest_path']}")
+    quality_report = Path(result["quality_report_path"])
+    print(f"Created video quality report: {quality_report}")
+    used_files.add("Video quality report", quality_report)
     used_files.print_summary()
     return request.output
 
