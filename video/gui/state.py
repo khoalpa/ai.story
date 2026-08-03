@@ -42,7 +42,7 @@ VIDEO_INPUT_COVER_PATH_KEY = "video_input_cover_path"
 VIDEO_INPUT_SCENES_DIR_KEY = "video_input_scenes_dir"
 
 VIDEO_INPUT_DEFAULTS: dict[str, object] = {
-    VIDEO_AUDIO_INPUT_KEY: "output/story.mp3",
+    VIDEO_AUDIO_INPUT_KEY: "output/story.wav",
     VIDEO_SUBTITLE_INPUT_KEY: "",
     VIDEO_OUTPUT_INPUT_KEY: "output/story.mp4",
     VIDEO_COVER_INPUT_KEY: "",

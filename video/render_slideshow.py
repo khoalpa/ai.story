@@ -15,13 +15,21 @@ from video.ffmpeg_runner import (
 from video.logging_utils import get_logger
 from video.runtime_tools import is_available_tool
 from video.slideshow_concat import (
+    append_outro_segment,
+    build_slideshow_segments,
     estimate_slideshow_duration as estimate_slideshow_duration_core,
+    prepend_cover_segment,
 )
 from video.slideshow_concat import write_concat_list as write_concat_list_core
 from video.slideshow_concat import write_timeline_concat_list
 from video.story_zone_timeline import build_story_zone_segments, estimate_story_zone_duration
 from video.subtitle_filters import build_vf_filter
-from video.validation import collect_scene_images, validate_slideshow_inputs
+from video.validation import (
+    collect_scene_images,
+    resolve_slideshow_cover,
+    resolve_slideshow_outro,
+    validate_slideshow_inputs,
+)
 
 logger = get_logger(__name__)
 
@@ -61,6 +69,11 @@ def make_slideshow_video(
     scenes_dir: Optional[Path],
     aspect: config.AspectRatio,
     output: Path,
+    cover: Optional[Path] = None,
+    cover_first: bool = True,
+    cover_duration: float = 3.0,
+    outro_last: bool = True,
+    outro_duration: float = 5.0,
     duration_per_image: float = 10.0,
     subtitle: Optional[Path] = None,
     story_json: Optional[Path] = None,
@@ -68,6 +81,29 @@ def make_slideshow_video(
     progress_callback: Optional[Callable[[float, str], None]] = None,
 ) -> None:
     images = validate_slideshow_inputs(audio, scenes_dir)
+    slideshow_cover = resolve_slideshow_cover(cover, scenes_dir, cover_first=cover_first)
+    slideshow_outro = resolve_slideshow_outro(scenes_dir, outro_last=outro_last)
+    if slideshow_cover is not None:
+        if slideshow_cover.is_file():
+            cover_resolved = slideshow_cover.resolve(strict=False)
+            images = [
+                image for image in images if image.resolve(strict=False) != cover_resolved
+            ]
+            if not images and not zone_aware:
+                raise ValueError("Slideshow needs at least one scene image besides cover.png.")
+        else:
+            logger.warning(
+                "Slideshow cover not found; starting with the first scene: %s",
+                slideshow_cover,
+            )
+            slideshow_cover = None
+    if slideshow_outro is not None:
+        outro_resolved = slideshow_outro.resolve(strict=False)
+        images = [
+            image for image in images if image.resolve(strict=False) != outro_resolved
+        ]
+        if not images and not zone_aware:
+            raise ValueError("Slideshow needs at least one scene image besides outro.png.")
     ensure_output_dir(output)
     if scenes_dir is not None:
         raw_images = collect_scene_images(scenes_dir)
@@ -92,6 +128,8 @@ def make_slideshow_video(
             subtitle=subtitle,
             scenes_dir=scenes_dir,
         )
+        segments = prepend_cover_segment(segments, slideshow_cover, cover_duration)
+        segments = append_outro_segment(segments, slideshow_outro, outro_duration)
         expected_out = estimate_story_zone_duration(segments)
         tmp_list_path: Optional[Path] = None
         try:
@@ -142,19 +180,21 @@ def make_slideshow_video(
         )
 
     audio_dur = get_media_duration_seconds(audio)
-    expected_out = estimate_slideshow_duration(
-        len(images), duration_per_image, audio_duration=audio_dur
+    segments = build_slideshow_segments(
+        images,
+        duration_per_image,
+        audio_duration=audio_dur,
+        match_audio=config.SLIDESHOW_MATCH_AUDIO,
+        audio_match_epsilon=config.AUDIO_MATCH_EPSILON,
     )
+    segments = prepend_cover_segment(segments, slideshow_cover, cover_duration)
+    segments = append_outro_segment(segments, slideshow_outro, outro_duration)
+    expected_out = estimate_story_zone_duration(segments)
     tmp_list_path: Optional[Path] = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".ffconcat") as tmp:
             tmp_list_path = Path(tmp.name)
-        write_concat_list(
-            images=images,
-            duration_per_image=duration_per_image,
-            out_list_file=tmp_list_path,
-            audio_duration=audio_dur,
-        )
+        write_timeline_concat_list(segments, tmp_list_path)
         cmd = build_slideshow_ffmpeg_cmd(
             ffmpeg_base=ffmpeg_base_args(),
             concat_list=tmp_list_path,
@@ -175,7 +215,7 @@ def make_slideshow_video(
             color_space=config.DEFAULT_COLOR_SPACE,
             color_range=config.DEFAULT_COLOR_RANGE,
             gop_seconds=config.DEFAULT_GOP_SECONDS,
-            force_key_frames=",".join(f"{index * duration_per_image:.3f}" for index in range(len(images))),
+            force_key_frames=",".join(f"{segment.start:.3f}" for segment in segments),
         )
         run_ffmpeg(cmd, expected_duration_s=expected_out, progress_callback=progress_callback)
     finally:

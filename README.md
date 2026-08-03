@@ -111,6 +111,18 @@ wrapping, faststart, and sampled SSIM against the source scene images. Useful
 CLI options include `--encoding-profile`, `--loudness-profile`, and
 `--no-quality-gate`.
 
+In slideshow mode, a configured `cover.png` (or other supported cover image)
+is shown for the first 3 seconds by default. It replaces the beginning of the
+first scene instead of extending the audio or MP4 duration. Use
+`--cover-duration` to change that interval or `--no-cover-first` to start
+directly with the first scene.
+
+When `outro.png` exists in the scenes directory (or its parent), slideshow mode
+uses it as the final 5-second end-screen background by default. This replaces
+the tail of the last scene without extending the audio or MP4. Use
+`--outro-duration` to change the interval or `--no-outro-last` to disable it.
+Clickable YouTube end-screen elements are configured separately in YouTube Studio.
+
 ## Requirements
 
 - `pyproject.toml`: canonical dependency and tool configuration

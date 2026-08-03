@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--cover",
         type=str,
         default=None,
-        help="Cover image for static mode (for example: cover/cover_story.jpg).",
+        help="Cover image for static mode or the opening frame of slideshow mode.",
     )
     parser.add_argument(
         "--scenes-dir", type=str, default=None, help="Directory containing scene images for slideshow mode."
@@ -68,6 +68,30 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=60.0,
         help="Duration of each slideshow image in seconds. Default: 60.0",
+    )
+    parser.add_argument(
+        "--cover-first",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Show the cover at the start of slideshow videos (default: enabled).",
+    )
+    parser.add_argument(
+        "--cover-duration",
+        type=float,
+        default=3.0,
+        help="Seconds to show the opening cover without extending the audio timeline (default: 3.0).",
+    )
+    parser.add_argument(
+        "--outro-last",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Use outro.png as the slideshow end screen (default: enabled).",
+    )
+    parser.add_argument(
+        "--outro-duration",
+        type=float,
+        default=5.0,
+        help="Seconds to show outro.png at the end without extending the audio timeline (default: 5.0).",
     )
     parser.add_argument(
         "--encoding-profile",
@@ -141,6 +165,8 @@ def run_from_args(args: argparse.Namespace) -> Path:
         aspect=request.aspect,
         cover=request.cover,
         scenes_dir=request.scenes_dir,
+        cover_first=request.cover_first,
+        outro_last=request.outro_last,
     )
     if getattr(args, "check_images", False):
         _print_image_readiness(image_readiness)

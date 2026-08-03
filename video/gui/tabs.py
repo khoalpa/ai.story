@@ -28,11 +28,22 @@ from video.error_handling import (
     format_unexpected_error,
     format_user_facing_error,
 )
+from video.ffmpeg_runner import get_media_duration_seconds
 from video.gui.service import run_video_job
 from video.gui.state import ensure_session_defaults, video_session
 from video.gui.view_models import build_video_run_summary
 from video.runtime_tools import collect_runtime_diagnostics
-from video.validation import ImageReadinessReport, autodetect_subtitle_from_audio, inspect_video_image_readiness
+from video.slideshow_concat import append_outro_segment, build_slideshow_segments, prepend_cover_segment
+from video.story_zone_timeline import StoryZoneSegment, build_story_zone_segments
+from video.validation import (
+    ImageReadinessReport,
+    autodetect_subtitle_from_audio,
+    build_zone_slideshow_images,
+    collect_scene_images,
+    inspect_video_image_readiness,
+    resolve_slideshow_cover,
+    resolve_slideshow_outro,
+)
 
 
 def _existing_picker_directory(path_value: str) -> str:
@@ -392,11 +403,19 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
         story_json_path = _autodetect_story_json(settings, audio_path)
     cover_path = _resolve_cover_path(settings)
     scenes_dir = _resolve_scenes_dir(settings)
+    if str(settings["mode"]) == "slideshow":
+        cover_path = resolve_slideshow_cover(
+            cover_path,
+            scenes_dir,
+            cover_first=bool(settings.get("cover_first", True)),
+        )
     image_readiness = inspect_video_image_readiness(
         mode=str(settings["mode"]),
         aspect=str(settings["aspect"]),
         cover=cover_path,
         scenes_dir=scenes_dir,
+        cover_first=bool(settings.get("cover_first", True)),
+        outro_last=bool(settings.get("outro_last", True)),
     )
 
     errors = validate_inputs(
@@ -495,6 +514,8 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
             aspect=str(settings.get("aspect") or ""),
             cover=cover_path,
             scenes_dir=scenes_dir,
+            cover_first=bool(settings.get("cover_first", True)),
+            outro_last=bool(settings.get("outro_last", True)),
         )
     )
     render_runtime_diagnostics_block({
@@ -728,6 +749,10 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     story_json=inputs["story_json"],
                     cover=inputs["cover"],
                     scenes_dir=inputs["scenes_dir"],
+                    cover_first=bool(settings.get("cover_first", True)),
+                    cover_duration=float(settings.get("cover_duration", 3.0)),
+                    outro_last=bool(settings.get("outro_last", True)),
+                    outro_duration=float(settings.get("outro_duration", 5.0)),
                     ffmpeg_exe=settings["ffmpeg_exe"],
                     ffprobe_exe=settings["ffprobe_exe"],
                     video_codec=settings.get("video_codec"),
@@ -851,6 +876,109 @@ def render_run_tab(settings: dict[str, Any]) -> None:
 
 
 
+def _build_test_slideshow_segments(
+    inputs: dict[str, Any],
+    settings: dict[str, Any],
+) -> tuple[list[StoryZoneSegment], Optional[str]]:
+    scenes_dir = inputs.get("scenes_dir")
+    if scenes_dir is None or not Path(scenes_dir).is_dir():
+        return [], None
+
+    cover = resolve_slideshow_cover(
+        inputs.get("cover"),
+        Path(scenes_dir),
+        cover_first=bool(settings.get("cover_first", True)),
+    )
+    outro = resolve_slideshow_outro(
+        Path(scenes_dir),
+        outro_last=bool(settings.get("outro_last", True)),
+    )
+    try:
+        if bool(settings.get("zone_aware_slideshow")):
+            story_json = inputs.get("story_json")
+            subtitle = inputs.get("subtitle")
+            if story_json and subtitle and Path(story_json).is_file() and Path(subtitle).is_file():
+                segments = build_story_zone_segments(
+                    story_json=Path(story_json),
+                    subtitle=Path(subtitle),
+                    scenes_dir=Path(scenes_dir),
+                )
+                segments = prepend_cover_segment(
+                    segments,
+                    cover if cover and Path(cover).is_file() else None,
+                    float(settings.get("cover_duration", 3.0)),
+                )
+                return append_outro_segment(
+                    segments,
+                    outro,
+                    float(settings.get("outro_duration", 5.0)),
+                ), None
+
+        images = build_zone_slideshow_images(collect_scene_images(Path(scenes_dir)))
+        if cover is not None and Path(cover).is_file():
+            cover_resolved = Path(cover).resolve(strict=False)
+            images = [
+                image for image in images if image.resolve(strict=False) != cover_resolved
+            ]
+        if outro is not None:
+            outro_resolved = outro.resolve(strict=False)
+            images = [
+                image for image in images if image.resolve(strict=False) != outro_resolved
+            ]
+        if not images:
+            return [], None
+        audio = inputs.get("audio")
+        audio_duration = (
+            get_media_duration_seconds(Path(audio))
+            if audio and Path(audio).is_file()
+            else None
+        )
+        segments = build_slideshow_segments(
+            images,
+            float(settings.get("duration_per_image", 60.0)),
+            audio_duration=audio_duration,
+            match_audio=bool(settings.get("slideshow_match_audio", True)),
+            audio_match_epsilon=float(settings.get("audio_match_epsilon", 0.2)),
+        )
+        segments = prepend_cover_segment(
+            segments,
+            cover if cover and Path(cover).is_file() else None,
+            float(settings.get("cover_duration", 3.0)),
+        )
+        return append_outro_segment(
+            segments,
+            outro,
+            float(settings.get("outro_duration", 5.0)),
+        ), None
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        return [], str(exc)
+
+
+def _render_slideshow_order_gallery(
+    inputs: dict[str, Any],
+    settings: dict[str, Any],
+) -> None:
+    segments, error = _build_test_slideshow_segments(inputs, settings)
+    st.subheader("Slideshow image order")
+    if error:
+        st.warning(f"Could not build the exact slideshow timeline: {error}")
+        return
+    if not segments:
+        st.info("No slideshow image timeline is available yet.")
+        return
+
+    st.caption(f"The renderer will use {len(segments)} image segment(s) in this order.")
+    for row_start in range(0, len(segments), 4):
+        columns = st.columns(4)
+        for offset, segment in enumerate(segments[row_start : row_start + 4]):
+            index = row_start + offset + 1
+            columns[offset].image(str(segment.image), width=160)
+            columns[offset].caption(
+                f"#{index:02d} {segment.image.name}\n"
+                f"{segment.zone} · {segment.start:.1f}s–{segment.end:.1f}s"
+            )
+
+
 def render_test_tab(settings: dict[str, Any]) -> None:
     st.subheader("Test")
     inputs = _collect_inputs(settings)
@@ -861,6 +989,57 @@ def render_test_tab(settings: dict[str, Any]) -> None:
             show_missing_input("video input", hint=err, actions=["Check the selected source again in the Inputs tab."])
     else:
         st.success("Current video inputs resolve successfully.")
+
+    if str(settings.get("mode") or "") == "slideshow":
+        st.subheader("Slideshow opening")
+        cover_first = bool(settings.get("cover_first", True))
+        cover_duration = float(settings.get("cover_duration", 3.0))
+        cover_path = inputs.get("cover")
+        if not cover_first:
+            st.info("Cover-first is disabled. The video will start with the first scene image.")
+        elif cover_path and Path(cover_path).is_file():
+            st.success(
+                f"Cover-first is active: {Path(cover_path).name} will be shown for "
+                f"{cover_duration:g} seconds without extending the MP4 duration."
+            )
+        else:
+            st.warning(
+                "Cover-first is enabled, but the selected cover is unavailable. "
+                "The video will start with the first scene image."
+            )
+        st.write(
+            {
+                "cover_first": cover_first,
+                "cover_duration_seconds": cover_duration,
+                "cover_path": str(cover_path or ""),
+                "effective_first_image": (
+                    str(cover_path)
+                    if cover_first and cover_path and Path(cover_path).is_file()
+                    else str(inputs.get("scenes_dir") or "")
+                ),
+            }
+        )
+
+        st.subheader("Slideshow ending")
+        outro_last = bool(settings.get("outro_last", True))
+        outro_duration = float(settings.get("outro_duration", 5.0))
+        outro_path = resolve_slideshow_outro(
+            inputs.get("scenes_dir"),
+            outro_last=outro_last,
+        )
+        if not outro_last:
+            st.info("End screen is disabled. The video will keep its final scene.")
+        elif outro_path is not None:
+            st.success(
+                f"End screen is active: {outro_path.name} will be shown for "
+                f"the final {outro_duration:g} seconds without extending the MP4 duration."
+            )
+            st.image(str(outro_path), caption="YouTube end screen background", width=320)
+        else:
+            st.warning(
+                "End screen is enabled, but outro.png was not found. "
+                "The video will keep its final scene."
+            )
 
     st.subheader("Image readiness")
     _render_image_readiness_report(inputs["image_readiness"])
@@ -886,15 +1065,13 @@ def render_test_tab(settings: dict[str, Any]) -> None:
         st.audio(str(audio_path))
 
     cover_path = inputs.get("cover")
-    if cover_path and Path(cover_path).is_file():
-        st.image(str(cover_path), caption=Path(cover_path).name, width='stretch')
+    if str(settings.get("mode") or "") != "slideshow" and cover_path and Path(cover_path).is_file():
+        cover_caption = Path(cover_path).name
+        st.image(str(cover_path), caption=cover_caption, width=240)
 
     scenes_dir = inputs.get("scenes_dir")
-    if scenes_dir and Path(scenes_dir).is_dir():
-        image_files = sorted([p for p in Path(scenes_dir).iterdir() if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}])
-        st.caption(f"Available scenes: {len(image_files)} file(s)")
-        for image_path in image_files[:12]:
-            st.image(str(image_path), caption=image_path.name, width='stretch')
+    if str(settings.get("mode") or "") == "slideshow" and scenes_dir and Path(scenes_dir).is_dir():
+        _render_slideshow_order_gallery(inputs, settings)
 
     render_json_summary_expander("Test input summary", summary, expanded=False)
 

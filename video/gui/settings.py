@@ -29,7 +29,7 @@ _SUBTITLE_POSITION_OPTIONS = ["bottom", "top", "middle"]
 def _render_dependency_diagnostics(provider: VideoProviderDescriptor, settings: dict[str, Any]) -> None:
     collector = provider.collect_runtime_diagnostics
     report = collector(settings) if collector is not None else collect_runtime_diagnostics()
-    render_runtime_diagnostics_block(report, serializer=lambda info: info.as_dict())
+    render_runtime_diagnostics_block(report, expanded=True, serializer=lambda info: info.as_dict())
 
 
 def _safe_ui_call(name: str, *args, **kwargs):
@@ -95,7 +95,13 @@ def _render_subtitle_style_settings() -> dict[str, Any]:
             options=_SUBTITLE_POSITION_OPTIONS,
             index=_option_index(_SUBTITLE_POSITION_OPTIONS, "bottom"),
         )
-        subtitle_font_size = st.number_input("Subtitle font size", min_value=1, max_value=200, value=8, step=1)
+        subtitle_font_size = st.number_input(
+            "Subtitle font size",
+            min_value=1,
+            max_value=200,
+            value=int(config.DEFAULT_SUBTITLE_FONT_SIZE),
+            step=1,
+        )
         subtitle_outline = st.number_input("Subtitle outline", min_value=0, max_value=20, value=2, step=1)
         subtitle_shadow = st.number_input("Subtitle shadow", min_value=0, max_value=20, value=0, step=1)
         subtitle_alignment_raw = st.text_input("Subtitle alignment override", value="")
@@ -126,6 +132,32 @@ def _render_slideshow_behavior_settings() -> dict[str, Any]:
             key="zone_aware_slideshow",
             help="When enabled, slideshow image durations come from story.json zones and subtitle timestamps.",
         )
+        cover_first = st.checkbox(
+            "Use cover as first slideshow image",
+            value=bool(config.SLIDESHOW_COVER_FIRST),
+            help="Shows the selected cover from the start of the video without extending the audio timeline.",
+        )
+        cover_duration = st.number_input(
+            "Cover duration (seconds)",
+            min_value=0.5,
+            max_value=30.0,
+            value=float(config.COVER_DURATION_SECONDS),
+            step=0.5,
+            disabled=not cover_first,
+        )
+        outro_last = st.checkbox(
+            "Use outro.png as end screen",
+            value=bool(config.SLIDESHOW_OUTRO_LAST),
+            help="Shows outro.png at the end without extending the audio timeline.",
+        )
+        outro_duration = st.number_input(
+            "End screen duration (seconds)",
+            min_value=0.5,
+            max_value=20.0,
+            value=float(config.OUTRO_DURATION_SECONDS),
+            step=0.5,
+            disabled=not outro_last,
+        )
         audio_match_epsilon = st.number_input(
             "Audio match epsilon",
             min_value=0.0,
@@ -137,6 +169,10 @@ def _render_slideshow_behavior_settings() -> dict[str, Any]:
     return {
         "slideshow_match_audio": bool(slideshow_match_audio),
         "zone_aware_slideshow": bool(zone_aware_slideshow),
+        "cover_first": bool(cover_first),
+        "cover_duration": float(cover_duration),
+        "outro_last": bool(outro_last),
+        "outro_duration": float(outro_duration),
         "audio_match_epsilon": float(audio_match_epsilon),
         "keep_concat_list": bool(keep_concat_list),
     }
@@ -231,8 +267,19 @@ def get_video_settings() -> dict[str, Any]:
         output_dir = st.text_input("Output directory", value="output")
 
         st.header(SidebarSection.RENDER)
-        mode = st.radio("Mode", options=["static", "slideshow"], index=0, horizontal=True)
-        aspect = st.selectbox("Aspect", options=["9x16", "16x9"], index=0)
+        render_modes = ["static", "slideshow"]
+        mode = st.radio(
+            "Mode",
+            options=render_modes,
+            index=_option_index(render_modes, config.DEFAULT_RENDER_MODE, default=1),
+            horizontal=True,
+        )
+        aspect_options = ["9x16", "16x9"]
+        aspect = st.selectbox(
+            "Aspect",
+            options=aspect_options,
+            index=_option_index(aspect_options, config.DEFAULT_ASPECT, default=1),
+        )
         duration_per_image = st.number_input(
             "Duration per image (slideshow)", min_value=1.0, value=60.0, step=1.0
         )
@@ -244,8 +291,7 @@ def get_video_settings() -> dict[str, Any]:
             **_render_persistent_history_settings(),
         }
 
-        with st.expander(SidebarSection.RUNTIME, expanded=True):
-            _render_dependency_diagnostics(provider_descriptor, provider_values)
+        _render_dependency_diagnostics(provider_descriptor, provider_values)
 
     return {
         **provider_values,

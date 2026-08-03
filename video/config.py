@@ -108,6 +108,9 @@ DEFAULT_COLOR_TRANSFER = os.getenv("VIDEO_COLOR_TRANSFER", "bt709")
 DEFAULT_COLOR_SPACE = os.getenv("VIDEO_COLOR_SPACE", "bt709")
 DEFAULT_COLOR_RANGE = os.getenv("VIDEO_COLOR_RANGE", "tv")
 DEFAULT_GOP_SECONDS = float(os.getenv("VIDEO_GOP_SECONDS", "2.0"))
+DEFAULT_RENDER_MODE = os.getenv("VIDEO_RENDER_MODE", "slideshow").strip().lower()
+DEFAULT_ASPECT = os.getenv("VIDEO_ASPECT", "16x9").strip().lower()
+DEFAULT_SUBTITLE_FONT_SIZE = int(os.getenv("SUB_FONT_SIZE", "12"))
 
 FFMPEG_LOGLEVEL = os.getenv("FFMPEG_LOGLEVEL", "warning").strip()
 FFMPEG_STREAM_LOG = os.getenv("FFMPEG_STREAM_LOG", "0").strip() == "1"
@@ -125,6 +128,10 @@ STDERR_TAIL_LINES = int(os.getenv("STDERR_TAIL_LINES", "40"))
 KEEP_CONCAT_LIST = os.getenv("KEEP_CONCAT_LIST", "0").strip() == "1"
 SLIDESHOW_MATCH_AUDIO = os.getenv("SLIDESHOW_MATCH_AUDIO", "1").strip() == "1"
 SLIDESHOW_ZONE_AWARE = os.getenv("SLIDESHOW_ZONE_AWARE", "1").strip() == "1"
+SLIDESHOW_COVER_FIRST = os.getenv("SLIDESHOW_COVER_FIRST", "1").strip().lower() not in {"0", "false", "no"}
+COVER_DURATION_SECONDS = float(os.getenv("COVER_DURATION_SECONDS", "3.0"))
+SLIDESHOW_OUTRO_LAST = os.getenv("SLIDESHOW_OUTRO_LAST", "1").strip().lower() not in {"0", "false", "no"}
+OUTRO_DURATION_SECONDS = float(os.getenv("OUTRO_DURATION_SECONDS", "5.0"))
 AUDIO_MATCH_EPSILON = float(os.getenv("AUDIO_MATCH_EPSILON", "0.2"))
 PRINT_FFMPEG_VERSION = os.getenv("PRINT_FFMPEG_VERSION", "0").strip() == "1"
 DEFAULT_PROFILE_ROOT = str(default_profile_root())

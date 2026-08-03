@@ -64,3 +64,10 @@ def test_sidebar_sections_follow_shared_order() -> None:
         indexed_sections = [order_index[section] for section in first_seen_sections]
         assert indexed_sections == sorted(indexed_sections), f"{path} sidebar sections are out of order: {sections}"
 
+
+def test_video_runtime_diagnostics_replaces_runtime_wrapper() -> None:
+    content = Path("video/gui/settings.py").read_text(encoding="utf-8")
+
+    assert "with st.expander(SidebarSection.RUNTIME" not in content
+    assert "render_runtime_diagnostics_block(report, expanded=True" in content
+

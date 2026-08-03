@@ -10,6 +10,10 @@
 - Assigned prompts, BGM, workflows, and video profiles to their owning packages.
 - Added versioned, portable filesystem handoff manifests with artifact provenance and checksums.
 - Added Video CLI and GUI support for Audio and Image handoff manifests.
+- Added optional cover-first slideshow rendering with a configurable duration
+  that preserves the original audio and MP4 timeline length.
+- Added automatic `outro.png` end-screen rendering for the final five seconds,
+  with CLI and GUI controls and no change to the original timeline length.
 
 ### Quality
 

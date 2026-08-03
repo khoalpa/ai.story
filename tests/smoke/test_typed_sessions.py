@@ -58,7 +58,7 @@ class TypedSessionSmokeTest(unittest.TestCase):
     def test_video_session_defaults_and_round_trip(self) -> None:
         module = importlib.import_module('video.gui.state')
         session = module.video_session()
-        self.assertEqual(session.audio_input, 'output/story.mp3')
+        self.assertEqual(session.audio_input, 'output/story.wav')
         self.assertFalse(session.lock_to_audio_handoff)
         session.audio_input = 'output/custom.mp3'
         session.subtitle_input = 'output/custom.srt'

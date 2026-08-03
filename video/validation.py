@@ -98,6 +98,7 @@ def _build_scene_alias_index() -> dict[str, str]:
 
 
 SCENE_ALIAS_INDEX = _build_scene_alias_index()
+GENERIC_SCENE_STEMS = {"cover", "scene"}
 
 
 def collect_scene_images(scenes_dir: Path) -> list[Path]:
@@ -106,6 +107,42 @@ def collect_scene_images(scenes_dir: Path) -> list[Path]:
         for p in sorted(scenes_dir.iterdir())
         if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
     ]
+
+
+def resolve_slideshow_cover(
+    cover: Path | None,
+    scenes_dir: Path | None,
+    *,
+    cover_first: bool,
+) -> Path | None:
+    """Prefer a generated cover.png over a packaged default cover for slideshows."""
+    if not cover_first:
+        return None
+    current = Path(cover) if cover is not None else None
+    current_is_default = current is None or current.name.casefold() == "default_cover.png"
+    if current_is_default and scenes_dir is not None:
+        scene_root = Path(scenes_dir)
+        for directory in (scene_root, scene_root.parent):
+            candidate = directory / "cover.png"
+            if candidate.is_file():
+                return candidate
+    return current
+
+
+def resolve_slideshow_outro(
+    scenes_dir: Path | None,
+    *,
+    outro_last: bool,
+) -> Path | None:
+    """Find the generated outro.png used as the slideshow end screen."""
+    if not outro_last or scenes_dir is None:
+        return None
+    scene_root = Path(scenes_dir)
+    for directory in (scene_root, scene_root.parent):
+        candidate = directory / "outro.png"
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _scene_key_for_path(image: Path) -> Optional[str]:
@@ -123,10 +160,14 @@ def _scene_key_for_path(image: Path) -> Optional[str]:
 
 def build_zone_slideshow_images(images: list[Path]) -> list[Path]:
     matched: dict[str, Path] = {}
+    generic_leading: list[Path] = []
     unmatched: list[Path] = []
     for image in images:
         scene_key = _scene_key_for_path(image)
         if scene_key is None:
+            if _normalize_scene_stem(image.stem) == "scene":
+                generic_leading.append(image)
+                continue
             unmatched.append(image)
             continue
         matched.setdefault(scene_key, image)
@@ -134,7 +175,8 @@ def build_zone_slideshow_images(images: list[Path]) -> list[Path]:
     if not matched:
         return images
 
-    ordered = [matched[key] for key in ZONE_IMAGE_SEQUENCE if key in matched]
+    ordered = list(generic_leading)
+    ordered.extend(matched[key] for key in ZONE_IMAGE_SEQUENCE if key in matched)
     ordered.extend(unmatched)
     return ordered
 
@@ -248,7 +290,14 @@ def inspect_video_image_readiness(
     aspect: str,
     cover: Path | None = None,
     scenes_dir: Path | None = None,
+    cover_first: bool = False,
+    outro_last: bool = False,
 ) -> ImageReadinessReport:
+    if mode == "slideshow":
+        cover = resolve_slideshow_cover(cover, scenes_dir, cover_first=cover_first)
+        outro = resolve_slideshow_outro(scenes_dir, outro_last=outro_last)
+    else:
+        outro = None
     expected_width, expected_height = _expected_resolution(aspect)
     assets: list[ImageAssetStatus] = []
     errors: list[str] = []
@@ -264,18 +313,51 @@ def inspect_video_image_readiness(
 
     scene_count = 0
     if mode == "slideshow":
+        if cover_first:
+            if cover is None:
+                warnings.append(
+                    "Cover-first is enabled, but no cover is selected; video will start with the first scene."
+                )
+            elif not cover.is_file():
+                warnings.append(
+                    f"Opening cover was not found; video will start with the first scene: {cover}"
+                )
+            else:
+                assets.append(_inspect_image_file(cover, role="opening cover", aspect=aspect))
+        if outro_last:
+            if outro is None:
+                warnings.append(
+                    "End screen is enabled, but outro.png was not found; video will keep the final scene."
+                )
+            else:
+                assets.append(_inspect_image_file(outro, role="end screen", aspect=aspect))
         if scenes_dir is None:
             errors.append("Slideshow mode requires a scenes directory.")
         elif not scenes_dir.is_dir():
             errors.append(f"Scenes directory not found: {scenes_dir}")
         else:
             images = collect_scene_images(scenes_dir)
+            if cover_first and cover is not None:
+                cover_resolved = cover.resolve(strict=False)
+                images = [
+                    image
+                    for image in images
+                    if image.resolve(strict=False) != cover_resolved
+                ]
+            if outro_last and outro is not None:
+                outro_resolved = outro.resolve(strict=False)
+                images = [
+                    image
+                    for image in images
+                    if image.resolve(strict=False) != outro_resolved
+                ]
             scene_count = len(images)
             if not images:
                 errors.append(f"No .jpg/.png images found in: {scenes_dir}")
             for image in build_zone_slideshow_images(images):
                 zone = _scene_key_for_path(image)
-                if zone is None:
+                normalized_stem = _normalize_scene_stem(image.stem)
+                if zone is None and normalized_stem not in GENERIC_SCENE_STEMS:
                     unmatched_files.append(image)
                 elif zone not in mapped_zones:
                     mapped_zones.append(zone)

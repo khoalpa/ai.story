@@ -33,11 +33,18 @@ from video.render_slideshow import make_slideshow_video
 from video.render_static import make_static_video
 from video.run_history import append_run_history, write_run_log
 from video.runtime_tools import format_runtime_diagnostics
-from video.validation import autodetect_subtitle_from_audio, inspect_video_image_readiness, validate_slideshow_inputs
+from video.validation import (
+    autodetect_subtitle_from_audio,
+    inspect_video_image_readiness,
+    resolve_slideshow_cover,
+    resolve_slideshow_outro,
+    validate_slideshow_inputs,
+)
 from video.handoff import read_audio_handoff, read_image_handoff
 from video.result_manifest import write_result_manifest
 from video.media_quality import prepare_audio_for_video, prepare_subtitle_for_video, write_video_quality_report
 from video.story_zone_timeline import build_story_zone_segments
+from video.slideshow_concat import append_outro_segment, build_slideshow_segments, prepend_cover_segment
 
 logger = get_logger(__name__)
 
@@ -53,6 +60,10 @@ class RenderVideoRequest:
     story_json: Optional[Path] = None
     cover: Optional[Path] = None
     scenes_dir: Optional[Path] = None
+    cover_first: bool = True
+    cover_duration: float = 3.0
+    outro_last: bool = True
+    outro_duration: float = 5.0
     ffmpeg_exe: Optional[str] = None
     ffprobe_exe: Optional[str] = None
     asset_profile: Optional[str] = None
@@ -213,6 +224,10 @@ def validate_render_request(request: RenderVideoRequest) -> None:
         raise ValueError(f"The {normalized_profile} encoding profile requires aspect 16x9.")
     if request.duration_per_image <= 0:
         raise ValueError("duration_per_image must be > 0.")
+    if request.mode == "slideshow" and request.cover_first and request.cover_duration <= 0:
+        raise ValueError("cover_duration must be > 0 when cover_first is enabled.")
+    if request.mode == "slideshow" and request.outro_last and request.outro_duration <= 0:
+        raise ValueError("outro_duration must be > 0 when outro_last is enabled.")
     if request.audio is None or not str(request.audio).strip():
         raise ValueError("audio path cannot be empty.")
     if request.output is None or not str(request.output).strip():
@@ -246,6 +261,13 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         scenes_dir=direct_scenes or manifest_scenes,
     )
     story_json_path = Path(args.story_json) if getattr(args, "story_json", None) else None
+    cover_first = bool(getattr(args, "cover_first", True))
+    if getattr(args, "mode", None) == "slideshow":
+        resolved_cover = resolve_slideshow_cover(
+            resolved_cover,
+            resolved_scenes_dir,
+            cover_first=cover_first,
+        )
     if audio_path is None:
         raise ValueError("Provide --audio or --audio-handoff.")
     if subtitle_path is None:
@@ -263,6 +285,10 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         story_json=story_json_path,
         cover=resolved_cover,
         scenes_dir=resolved_scenes_dir,
+        cover_first=cover_first,
+        cover_duration=float(getattr(args, "cover_duration", 3.0)),
+        outro_last=bool(getattr(args, "outro_last", True)),
+        outro_duration=float(getattr(args, "outro_duration", 5.0)),
         asset_profile=getattr(args, "asset_profile", None),
         profile_root=getattr(args, "profile_root", None),
         zone_aware_slideshow=bool(getattr(args, "zone_aware_slideshow", False)),
@@ -284,14 +310,30 @@ def execute_render_request(
     stderr_buffer = io.StringIO()
     status = "ok"
     validate_render_request(request)
+    effective_cover = (
+        resolve_slideshow_cover(
+            request.cover,
+            request.scenes_dir,
+            cover_first=request.cover_first,
+        )
+        if request.mode == "slideshow"
+        else request.cover
+    )
+    effective_outro = (
+        resolve_slideshow_outro(request.scenes_dir, outro_last=request.outro_last)
+        if request.mode == "slideshow"
+        else None
+    )
     try:
         with _runtime_tool_env(request.ffmpeg_exe, request.ffprobe_exe), _render_runtime_overrides(request):
             with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
                 image_readiness = inspect_video_image_readiness(
                     mode=request.mode,
                     aspect=request.aspect,
-                    cover=request.cover,
+                    cover=effective_cover,
                     scenes_dir=request.scenes_dir,
+                    cover_first=request.cover_first,
+                    outro_last=request.outro_last,
                 )
                 if image_readiness.errors:
                     raise ValueError(
@@ -334,7 +376,7 @@ def execute_render_request(
                     if request.mode == "static":
                         make_static_video(
                             audio=prepared_audio,
-                            cover=request.cover,
+                            cover=effective_cover,
                             aspect=request.aspect,
                             output=request.output,
                             subtitle=render_subtitle,
@@ -347,6 +389,11 @@ def execute_render_request(
                             scenes_dir=request.scenes_dir,
                             aspect=request.aspect,
                             output=request.output,
+                            cover=request.cover,
+                            cover_first=request.cover_first,
+                            cover_duration=request.cover_duration,
+                            outro_last=request.outro_last,
+                            outro_duration=request.outro_duration,
                             duration_per_image=request.duration_per_image,
                             subtitle=render_subtitle,
                             story_json=request.story_json,
@@ -359,6 +406,17 @@ def execute_render_request(
                                 subtitle=request.subtitle,
                                 scenes_dir=request.scenes_dir,
                             )
+                            if request.cover_first and effective_cover is not None and effective_cover.is_file():
+                                zone_segments = prepend_cover_segment(
+                                    zone_segments,
+                                    effective_cover,
+                                    request.cover_duration,
+                                )
+                            zone_segments = append_outro_segment(
+                                zone_segments,
+                                effective_outro,
+                                request.outro_duration,
+                            )
                             reference_images = [
                                 (segment.image, (segment.start + segment.end) / 2.0)
                                 for segment in zone_segments
@@ -370,10 +428,42 @@ def execute_render_request(
                                 else []
                             )
                             prepared_duration = get_media_duration_seconds(prepared_audio)
+                            if effective_cover is not None and effective_cover.is_file():
+                                effective_cover_resolved = effective_cover.resolve(strict=False)
+                                ordered_images = [
+                                    image
+                                    for image in ordered_images
+                                    if image.resolve(strict=False) != effective_cover_resolved
+                                ]
+                            if effective_outro is not None and effective_outro.is_file():
+                                effective_outro_resolved = effective_outro.resolve(strict=False)
+                                ordered_images = [
+                                    image
+                                    for image in ordered_images
+                                    if image.resolve(strict=False) != effective_outro_resolved
+                                ]
+                            slideshow_segments = build_slideshow_segments(
+                                ordered_images,
+                                request.duration_per_image,
+                                audio_duration=prepared_duration,
+                                match_audio=config.SLIDESHOW_MATCH_AUDIO,
+                                audio_match_epsilon=config.AUDIO_MATCH_EPSILON,
+                            ) if ordered_images else []
+                            if request.cover_first and effective_cover is not None and effective_cover.is_file():
+                                slideshow_segments = prepend_cover_segment(
+                                    slideshow_segments,
+                                    effective_cover,
+                                    request.cover_duration,
+                                )
+                            slideshow_segments = append_outro_segment(
+                                slideshow_segments,
+                                effective_outro,
+                                request.outro_duration,
+                            )
                             reference_images = [
-                                (image, index * request.duration_per_image + request.duration_per_image / 2.0)
-                                for index, image in enumerate(ordered_images)
-                                if index * request.duration_per_image < prepared_duration
+                                (segment.image, (segment.start + segment.end) / 2.0)
+                                for segment in slideshow_segments
+                                if segment.start < prepared_duration
                             ]
                     else:
                         raise ValueError("mode must be 'static' or 'slideshow'.")
@@ -417,6 +507,8 @@ def execute_render_request(
         history_path = append_run_history(
             {
                 **asdict(request),
+                "effective_cover": str(effective_cover) if effective_cover is not None else None,
+                "effective_outro": str(effective_outro) if effective_outro is not None else None,
                 "status": status,
                 "elapsed_seconds": elapsed_seconds,
                 "log_file": str(log_path),
