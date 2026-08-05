@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 import streamlit as st
 
+from video import config
 from video.gui.diagnostics_blocks import render_runtime_diagnostics_block
 from video.gui.history_utils import append_capped_history_entry
 from video.gui.panel_utils import (
@@ -22,7 +23,7 @@ from video.gui.workspace_handoff import workspace_handoff_state
 from video.gui.workspace_source_outputs import workspace_source_outputs
 from video.gui.user_messages import show_missing_input, show_provider_error
 from video.handoff import read_audio_handoff, read_image_handoff
-from video.app_api import RenderVideoRequest
+from video.app_api import RenderVideoRequest, VideoQualityGateError
 from video.error_handling import (
     USER_FACING_EXCEPTIONS,
     format_unexpected_error,
@@ -33,7 +34,11 @@ from video.gui.service import run_video_job
 from video.gui.state import ensure_session_defaults, video_session
 from video.gui.view_models import build_video_run_summary
 from video.runtime_tools import collect_runtime_diagnostics
-from video.slideshow_concat import append_outro_segment, build_slideshow_segments, prepend_cover_segment
+from video.slideshow_concat import (
+    append_outro_segment,
+    build_slideshow_segments,
+    prepend_cover_segment,
+)
 from video.story_zone_timeline import StoryZoneSegment, build_story_zone_segments
 from video.validation import (
     ImageReadinessReport,
@@ -773,6 +778,8 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     subtitle_font_size=settings.get("subtitle_font_size"),
                     subtitle_outline=settings.get("subtitle_outline"),
                     subtitle_shadow=settings.get("subtitle_shadow"),
+                    subtitle_background_color=settings.get("subtitle_background_color"),
+                    subtitle_background_opacity=settings.get("subtitle_background_opacity"),
                     subtitle_position=settings.get("subtitle_position"),
                     subtitle_alignment=settings.get("subtitle_alignment"),
                     subtitle_margin_l=settings.get("subtitle_margin_l"),
@@ -816,6 +823,49 @@ def render_run_tab(settings: dict[str, Any]) -> None:
             )
             progress.progress(1.0, text=format_progress_text(100, "Complete", [f"mode={settings.get('mode')}", f"aspect={settings.get('aspect')}", f"output={inputs['output'].name if inputs.get('output') else '-'}"]))
             status.success("Video render completed successfully")
+            _append_history(inputs["summary"])
+        except VideoQualityGateError as exc:
+            st.session_state["video_last_summary"] = inputs["summary"]
+            st.session_state["video_last_stdout"] = ""
+            st.session_state["video_last_stderr"] = ""
+            st.session_state["video_last_error"] = ""
+            st.session_state["video_last_result_history_file"] = ""
+            st.session_state["video_last_quality_report"] = str(exc.report_path)
+            workspace_source_outputs(st.session_state).video_output = str(exc.output_path)
+            set_video_handoff(video_output_path=str(exc.output_path))
+            failed_checks = ", ".join(exc.failed_checks)
+            warning_message = (
+                f"Video created successfully: {exc.output_path.name}. "
+                f"Quality checks need review: {failed_checks}."
+            )
+            update_global_run_monitor(
+                app="Video",
+                stage="Render",
+                status="completed",
+                progress=100,
+                output_path=str(exc.output_path),
+                summary=inputs["summary"],
+            )
+            append_global_run_event(
+                app="Video",
+                stage="Render",
+                status="completed",
+                message=warning_message,
+                output_path=str(exc.output_path),
+            )
+            progress.progress(
+                1.0,
+                text=format_progress_text(
+                    100,
+                    "Complete with quality warnings",
+                    [
+                        f"mode={settings.get('mode')}",
+                        f"aspect={settings.get('aspect')}",
+                        f"output={exc.output_path.name}",
+                    ],
+                ),
+            )
+            status.warning(warning_message)
             _append_history(inputs["summary"])
         except USER_FACING_EXCEPTIONS as exc:
             message = format_user_facing_error(exc)
@@ -979,6 +1029,61 @@ def _render_slideshow_order_gallery(
             )
 
 
+def _render_slideshow_endpoint(
+    *,
+    title: str,
+    status: str,
+    message: str,
+    image_path: Path | None,
+    image_caption: str,
+    details: dict[str, Any],
+) -> None:
+    """Render opening and ending settings with the same visual structure."""
+    st.subheader(title)
+    getattr(st, status)(message)
+    if image_path is not None and image_path.is_file():
+        image_column, details_column = st.columns([1, 2], gap="large")
+        with image_column:
+            st.image(str(image_path), caption=image_caption, width=320)
+        with details_column:
+            st.write(details)
+    else:
+        st.write(details)
+
+
+def _render_test_media_inputs(inputs: dict[str, Any], summary: dict[str, Any]) -> None:
+    """Render resolved test inputs around the audio preview without raw JSON blocks."""
+    st.subheader("Audio & resolved inputs")
+    audio_path = inputs.get("audio")
+    if audio_path and Path(audio_path).is_file():
+        st.audio(str(audio_path))
+    else:
+        st.info("No playable audio input is available yet.")
+
+    rows = []
+    for label, key, source_key in (
+        ("Audio", "audio", None),
+        ("Subtitle", "subtitle", None),
+        ("Story JSON", "story_json", None),
+        ("Video output", "output", None),
+        ("Cover", "cover", "cover_source"),
+        ("Scenes", "scenes_dir", "scenes_source"),
+    ):
+        value = inputs.get(key)
+        path = Path(value) if value else None
+        exists = bool(path and path.exists())
+        rows.append(
+            {
+                "input": label,
+                "status": "ready" if exists else ("pending" if key == "output" else "missing"),
+                "file": path.name if path else "",
+                "source": str(summary.get(source_key) or "") if source_key else "",
+                "path": str(path or ""),
+            }
+        )
+    st.dataframe(rows, width="stretch", hide_index=True, height=250)
+
+
 def render_test_tab(settings: dict[str, Any]) -> None:
     st.subheader("Test")
     inputs = _collect_inputs(settings)
@@ -990,37 +1095,54 @@ def render_test_tab(settings: dict[str, Any]) -> None:
     else:
         st.success("Current video inputs resolve successfully.")
 
-    if str(settings.get("mode") or "") == "slideshow":
-        st.subheader("Slideshow opening")
+    _render_test_media_inputs(inputs, summary)
+
+    st.subheader("Image readiness")
+    _render_image_readiness_report(inputs["image_readiness"])
+
+    is_slideshow = str(settings.get("mode") or "") == "slideshow"
+    scenes_dir = inputs.get("scenes_dir")
+    if is_slideshow and scenes_dir and Path(scenes_dir).is_dir():
+        _render_slideshow_order_gallery(inputs, settings)
+
+    if is_slideshow:
         cover_first = bool(settings.get("cover_first", True))
         cover_duration = float(settings.get("cover_duration", 3.0))
-        cover_path = inputs.get("cover")
+        cover_path = Path(inputs["cover"]) if inputs.get("cover") else None
+        cover_available = bool(cover_path and cover_path.is_file())
         if not cover_first:
-            st.info("Cover-first is disabled. The video will start with the first scene image.")
-        elif cover_path and Path(cover_path).is_file():
-            st.success(
-                f"Cover-first is active: {Path(cover_path).name} will be shown for "
+            opening_status = "info"
+            opening_message = "Cover-first is disabled. The video will start with the first scene image."
+        elif cover_available:
+            opening_status = "success"
+            opening_message = (
+                f"Cover-first is active: {cover_path.name} will be shown for "
                 f"{cover_duration:g} seconds without extending the MP4 duration."
             )
         else:
-            st.warning(
+            opening_status = "warning"
+            opening_message = (
                 "Cover-first is enabled, but the selected cover is unavailable. "
                 "The video will start with the first scene image."
             )
-        st.write(
-            {
+        _render_slideshow_endpoint(
+            title="Slideshow opening",
+            status=opening_status,
+            message=opening_message,
+            image_path=cover_path if cover_first and cover_available else None,
+            image_caption=f"Opening cover: {cover_path.name}" if cover_path else "Opening cover",
+            details={
                 "cover_first": cover_first,
                 "cover_duration_seconds": cover_duration,
                 "cover_path": str(cover_path or ""),
                 "effective_first_image": (
                     str(cover_path)
-                    if cover_first and cover_path and Path(cover_path).is_file()
+                    if cover_first and cover_available
                     else str(inputs.get("scenes_dir") or "")
                 ),
-            }
+            },
         )
 
-        st.subheader("Slideshow ending")
         outro_last = bool(settings.get("outro_last", True))
         outro_duration = float(settings.get("outro_duration", 5.0))
         outro_path = resolve_slideshow_outro(
@@ -1028,50 +1150,38 @@ def render_test_tab(settings: dict[str, Any]) -> None:
             outro_last=outro_last,
         )
         if not outro_last:
-            st.info("End screen is disabled. The video will keep its final scene.")
+            ending_status = "info"
+            ending_message = "End screen is disabled. The video will keep its final scene."
         elif outro_path is not None:
-            st.success(
+            ending_status = "success"
+            ending_message = (
                 f"End screen is active: {outro_path.name} will be shown for "
                 f"the final {outro_duration:g} seconds without extending the MP4 duration."
             )
-            st.image(str(outro_path), caption="YouTube end screen background", width=320)
         else:
-            st.warning(
+            ending_status = "warning"
+            ending_message = (
                 "End screen is enabled, but outro.png was not found. "
                 "The video will keep its final scene."
             )
-
-    st.subheader("Image readiness")
-    _render_image_readiness_report(inputs["image_readiness"])
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write({
-            "audio": str(inputs.get("audio") or ""),
-            "subtitle": str(inputs.get("subtitle") or ""),
-            "story_json": str(inputs.get("story_json") or ""),
-            "output": str(inputs.get("output") or ""),
-        })
-    with col2:
-        st.write({
-            "cover": str(inputs.get("cover") or ""),
-            "cover_source": summary.get("cover_source"),
-            "scenes_dir": str(inputs.get("scenes_dir") or ""),
-            "scenes_source": summary.get("scenes_source"),
-        })
-
-    audio_path = inputs.get("audio")
-    if audio_path and Path(audio_path).is_file():
-        st.audio(str(audio_path))
+        _render_slideshow_endpoint(
+            title="Slideshow ending",
+            status=ending_status,
+            message=ending_message,
+            image_path=outro_path,
+            image_caption=f"End screen: {outro_path.name}" if outro_path else "End screen",
+            details={
+                "outro_last": outro_last,
+                "outro_duration_seconds": outro_duration,
+                "outro_path": str(outro_path or ""),
+                "effective_last_image": str(outro_path or ""),
+            },
+        )
 
     cover_path = inputs.get("cover")
-    if str(settings.get("mode") or "") != "slideshow" and cover_path and Path(cover_path).is_file():
+    if not is_slideshow and cover_path and Path(cover_path).is_file():
         cover_caption = Path(cover_path).name
         st.image(str(cover_path), caption=cover_caption, width=240)
-
-    scenes_dir = inputs.get("scenes_dir")
-    if str(settings.get("mode") or "") == "slideshow" and scenes_dir and Path(scenes_dir).is_dir():
-        _render_slideshow_order_gallery(inputs, settings)
 
     render_json_summary_expander("Test input summary", summary, expanded=False)
 

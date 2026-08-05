@@ -30,7 +30,16 @@ def _list_image_files(dir_value: str | Path | None) -> list[Path]:
         return []
     items: list[Path] = []
     for pattern in ("*.png", "*.jpg", "*.jpeg", "*.webp"):
-        items.extend(sorted(directory.glob(pattern)))
+        items.extend(
+            path
+            for path in sorted(directory.glob(pattern))
+            if path.stem.casefold() not in {"scene", "intro"}
+            and not any(
+                path.stem.casefold().startswith(f"{base}_")
+                and path.stem.casefold()[len(base) + 1:].isdigit()
+                for base in ("scene", "intro")
+            )
+        )
     deduped: list[Path] = []
     seen: set[str] = set()
     for item in items:

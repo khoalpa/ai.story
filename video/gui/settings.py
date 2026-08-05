@@ -104,17 +104,50 @@ def _render_subtitle_style_settings() -> dict[str, Any]:
         )
         subtitle_outline = st.number_input("Subtitle outline", min_value=0, max_value=20, value=2, step=1)
         subtitle_shadow = st.number_input("Subtitle shadow", min_value=0, max_value=20, value=0, step=1)
+        default_background_opacity = max(
+            0,
+            min(100, int(config.DEFAULT_SUBTITLE_BACKGROUND_OPACITY)),
+        )
+        transparent_subtitle_background = st.checkbox(
+            "Transparent subtitle outline",
+            value=default_background_opacity == 0,
+            help="Removes the colored outline around each glyph; no rectangular text box is used.",
+        )
+        background_color_column, background_opacity_column = st.columns(2)
+        with background_color_column:
+            subtitle_background_color = st.color_picker(
+                "Subtitle outline color",
+                value=str(config.DEFAULT_SUBTITLE_BACKGROUND_COLOR),
+                disabled=transparent_subtitle_background,
+            )
+        with background_opacity_column:
+            subtitle_background_opacity = st.slider(
+                "Outline opacity (%)",
+                min_value=0,
+                max_value=100,
+                value=default_background_opacity,
+                help="Controls the outline around each glyph. Set to 0 for no colored outline.",
+                disabled=transparent_subtitle_background,
+            )
         subtitle_alignment_raw = st.text_input("Subtitle alignment override", value="")
         subtitle_margin_l = st.number_input("Subtitle margin left", min_value=0, max_value=1000, value=40, step=5)
         subtitle_margin_r = st.number_input("Subtitle margin right", min_value=0, max_value=1000, value=40, step=5)
         subtitle_margin_v = st.number_input("Subtitle margin vertical", min_value=0, max_value=1000, value=240, step=5)
-        subtitle_force_style = st.text_input("Subtitle force style override", value="")
+        subtitle_force_style = st.text_input(
+            "Subtitle force style override",
+            value="",
+            help="When set, this complete ASS style override takes precedence over the background controls above.",
+        )
     subtitle_alignment = int(subtitle_alignment_raw) if subtitle_alignment_raw.strip().isdigit() else None
     return {
         "subtitle_position": subtitle_position,
         "subtitle_font_size": int(subtitle_font_size),
         "subtitle_outline": int(subtitle_outline),
         "subtitle_shadow": int(subtitle_shadow),
+        "subtitle_background_color": subtitle_background_color,
+        "subtitle_background_opacity": (
+            0 if transparent_subtitle_background else int(subtitle_background_opacity)
+        ),
         "subtitle_alignment": subtitle_alignment,
         "subtitle_margin_l": int(subtitle_margin_l),
         "subtitle_margin_r": int(subtitle_margin_r),
@@ -133,7 +166,7 @@ def _render_slideshow_behavior_settings() -> dict[str, Any]:
             help="When enabled, slideshow image durations come from story.json zones and subtitle timestamps.",
         )
         cover_first = st.checkbox(
-            "Use cover as first slideshow image",
+            "Use cover as first screen",
             value=bool(config.SLIDESHOW_COVER_FIRST),
             help="Shows the selected cover from the start of the video without extending the audio timeline.",
         )
@@ -146,9 +179,9 @@ def _render_slideshow_behavior_settings() -> dict[str, Any]:
             disabled=not cover_first,
         )
         outro_last = st.checkbox(
-            "Use outro.png as end screen",
+            "Use outro as end screen",
             value=bool(config.SLIDESHOW_OUTRO_LAST),
-            help="Shows outro.png at the end without extending the audio timeline.",
+            help="Shows the selected outro at the end of the video without extending the audio timeline.",
         )
         outro_duration = st.number_input(
             "End screen duration (seconds)",

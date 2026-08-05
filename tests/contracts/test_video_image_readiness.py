@@ -120,7 +120,7 @@ def test_generated_cover_png_overrides_profile_default_cover(tmp_path: Path) -> 
     assert resolved == generated_cover
 
 
-def test_generic_scene_png_does_not_create_unknown_zone_warning(tmp_path: Path) -> None:
+def test_scene_png_is_excluded_from_readiness(tmp_path: Path) -> None:
     scenes_dir = tmp_path / "scene_images"
     scenes_dir.mkdir()
     _write_image(scenes_dir / "scene.png")
@@ -132,6 +132,57 @@ def test_generic_scene_png_does_not_create_unknown_zone_warning(tmp_path: Path) 
         scenes_dir=scenes_dir,
     )
 
-    assert report.scene_count == 2
+    assert report.scene_count == 1
     assert [path.name for path in report.unmatched_files] == []
     assert not any("do not match a known story zone" in warning for warning in report.warnings)
+
+
+def test_intro_and_outro_cards_are_not_reported_as_story_zones(tmp_path: Path) -> None:
+    scenes_dir = tmp_path / "scene_images"
+    scenes_dir.mkdir()
+    _write_image(scenes_dir / "intro.png")
+    _write_image(scenes_dir / "opening.png")
+    _write_image(scenes_dir / "outro.png")
+
+    report = inspect_video_image_readiness(
+        mode="slideshow",
+        aspect="9x16",
+        scenes_dir=scenes_dir,
+    )
+
+    assert report.mapped_zones == ("opening",)
+    assert "intro_card" not in report.missing_zones
+    assert "outro_card" not in report.missing_zones
+    assert [(asset.path.name, asset.role, asset.zone) for asset in report.assets] == [
+        ("opening.png", "scene", "opening"),
+        ("outro.png", "outro card", None),
+    ]
+    assert not any("intro_card" in warning or "outro_card" in warning for warning in report.warnings)
+
+
+def test_readiness_assets_follow_slideshow_image_order(tmp_path: Path) -> None:
+    scenes_dir = tmp_path / "scene_images"
+    scenes_dir.mkdir()
+    for name in (
+        "farewell.png",
+        "development.png",
+        "greeting.png",
+        "outro.png",
+        "opening.png",
+    ):
+        _write_image(scenes_dir / name)
+
+    report = inspect_video_image_readiness(
+        mode="slideshow",
+        aspect="9x16",
+        scenes_dir=scenes_dir,
+        outro_last=True,
+    )
+
+    assert [asset.path.name for asset in report.assets] == [
+        "greeting.png",
+        "opening.png",
+        "development.png",
+        "farewell.png",
+        "outro.png",
+    ]

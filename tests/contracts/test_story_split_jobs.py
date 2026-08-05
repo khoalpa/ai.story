@@ -23,6 +23,29 @@ def test_story_output_bundle_can_be_story_only() -> None:
     assert "scene_prompt.json" not in names
 
 
+def test_story_output_bundle_excludes_removed_scene_and_intro_prompts() -> None:
+    from story.gui.split_jobs import build_story_output_bundle
+
+    result = {
+        "authoring": {"meta": {"title": "Zone Story"}, "script": []},
+        "plain_script": "TITLE: Zone Story",
+        "image_prompts": {
+            "cover": {"prompt": "cover"},
+            "scene": {"prompt": "legacy scene"},
+            "intro": {"prompt": "legacy intro"},
+            "opening": {"prompt": "opening"},
+        },
+    }
+
+    names = set(zipfile.ZipFile(BytesIO(build_story_output_bundle(result))).namelist())
+
+    assert "cover_prompt.json" in names
+    assert "scene_prompt.json" not in names
+    assert "scene_prompts/scene.json" not in names
+    assert "scene_prompts/intro.json" not in names
+    assert "scene_prompts/opening.json" in names
+
+
 def test_image_prompt_job_attaches_prompts_and_handoff(monkeypatch, tmp_path: Path) -> None:
     from story.gui import split_jobs
 
@@ -86,8 +109,9 @@ def test_story_image_prompts_use_canonical_outline_and_standard_payload() -> Non
 
     prompts = build_image_prompts(authoring)
 
-    assert {"cover", "scene", "intro", *ZONE_IMAGE_SEQUENCE}.issubset(prompts)
-    assert prompts["intro"]["outline_key"] == "opening"
+    assert {"cover", *ZONE_IMAGE_SEQUENCE}.issubset(prompts)
+    assert "scene" not in prompts
+    assert "intro" not in prompts
     assert prompts["intro_card"]["outline_key"] == "opening"
     assert "A lantern flickers beside an old train platform" in prompts["intro_card"]["prompt"]
     assert "language context: English" in prompts["cover"]["prompt"]
@@ -166,6 +190,5 @@ def test_story_summary_shows_image_video_when_prompt_handoff_ready(tmp_path: Pat
         "Tải canonical JSON",
         "Tải gói ZIP kết quả",
         "Tải cover prompt",
-        "Tải scene overview prompt",
     ]
 

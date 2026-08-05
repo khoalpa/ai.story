@@ -75,7 +75,7 @@ def test_outro_is_auto_detected_and_reported_as_end_screen(tmp_path: Path) -> No
 
     assert report.ready is True
     assert report.scene_count == 1
-    assert [asset.role for asset in report.assets] == ["end screen", "scene"]
+    assert [asset.role for asset in report.assets] == ["scene", "end screen"]
     assert not any("outro.png" in warning for warning in report.warnings)
 
 

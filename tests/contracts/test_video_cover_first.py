@@ -68,7 +68,7 @@ def test_audio_matching_still_controls_total_timeline_duration(tmp_path: Path) -
     assert result[-1].end == pytest.approx(35.2)
 
 
-def test_generic_scene_png_precedes_named_zone_images(tmp_path: Path) -> None:
+def test_scene_and_intro_png_are_excluded_from_zone_images(tmp_path: Path) -> None:
     images = [
         tmp_path / "opening.png",
         tmp_path / "scene.png",
@@ -77,4 +77,4 @@ def test_generic_scene_png_precedes_named_zone_images(tmp_path: Path) -> None:
 
     ordered = build_zone_slideshow_images(images)
 
-    assert [image.name for image in ordered] == ["scene.png", "opening.png", "ending.png"]
+    assert [image.name for image in ordered] == ["opening.png", "ending.png"]

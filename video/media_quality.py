@@ -8,7 +8,7 @@ import subprocess
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 
 @dataclass(frozen=True)
@@ -260,8 +260,12 @@ def write_video_quality_report(
 ) -> tuple[Path, dict]:
     probe = probe_media(video, ffprobe_exe)
     streams = probe.get("streams") or []
-    video_stream = next((stream for stream in streams if stream.get("codec_type") == "video"), {})
-    audio_stream = next((stream for stream in streams if stream.get("codec_type") == "audio"), {})
+    video_stream: dict[str, Any] = next(
+        (stream for stream in streams if stream.get("codec_type") == "video"), {}
+    )
+    audio_stream: dict[str, Any] = next(
+        (stream for stream in streams if stream.get("codec_type") == "audio"), {}
+    )
     format_duration = float((probe.get("format") or {}).get("duration") or 0.0)
     video_duration = float(video_stream.get("duration") or format_duration)
     audio_duration = float(audio_stream.get("duration") or format_duration)

@@ -29,6 +29,8 @@ def main() -> int:
 
     app_title = "AI Story Studio"
 
+    st.set_page_config(page_title=app_title, page_icon=":material/movie:", layout="wide")
+
     # Streamlit keeps elements from the previous rerun in the DOM with the
     # ``data-stale="true"`` attribute until their replacements arrive.  That transition is
     # useful for small widget updates, but it leaves a faded copy of a taller
@@ -76,7 +78,6 @@ Render Story handoff -> cover/scenes.""")
 
 Render audio/subtitle + cover/scenes -> MP4.""")
 
-    st.set_page_config(page_title=app_title, page_icon=":material/movie:", layout="wide")
     st.title(app_title)
     st.caption("Unified workspace for the Story -> Audio / Image -> Video pipeline.")
     selected = st.sidebar.radio(

@@ -1,11 +1,25 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
 from video import config
 from video.config import AspectRatio
+
+
+def subtitle_background_to_ass(color: str, opacity: int | float) -> str:
+    """Convert #RRGGBB plus opacity percent to ASS &HAABBGGRR format."""
+    normalized = str(color or "").strip()
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", normalized):
+        normalized = "#000000"
+    opacity_percent = min(100.0, max(0.0, float(opacity)))
+    alpha = round(255 * (1.0 - opacity_percent / 100.0))
+    red = normalized[1:3]
+    green = normalized[3:5]
+    blue = normalized[5:7]
+    return f"&H{alpha:02X}{blue}{green}{red}".upper()
 
 
 def escape_subtitle_path(path: Path | str) -> str:
@@ -44,6 +58,8 @@ def build_vf_filter(
     sub_fontsize = int(os.getenv("SUB_FONT_SIZE", "8"))
     sub_outline = int(os.getenv("SUB_OUTLINE", "2"))
     sub_shadow = int(os.getenv("SUB_SHADOW", "0"))
+    sub_background_color = os.getenv("SUB_BACKGROUND_COLOR", "#000000")
+    sub_background_opacity = int(os.getenv("SUB_BACKGROUND_OPACITY", "50"))
     sub_position = os.getenv("SUB_POSITION", "bottom").strip().lower()
     sub_alignment_override = os.getenv("SUB_ALIGNMENT", "").strip()
 
@@ -87,13 +103,17 @@ def build_vf_filter(
     else:
         sub_alignment = default_alignment
 
+    outline_background = subtitle_background_to_ass(
+        sub_background_color,
+        sub_background_opacity,
+    )
     force_style_default = (
         f"Fontsize={sub_fontsize},"
         f"Outline={sub_outline},"
         f"Shadow={sub_shadow},"
-        "BorderStyle=3,"
-        "BackColour=&H80000000,"
-        "OutlineColour=&H00000000,"
+        "BorderStyle=1,"
+        f"BackColour={outline_background},"
+        f"OutlineColour={outline_background},"
         "WrapStyle=0,"
         f"Alignment={sub_alignment},"
         f"MarginV={sub_margin_v},"

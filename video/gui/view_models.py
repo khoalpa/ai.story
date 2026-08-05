@@ -37,6 +37,8 @@ _VIDEO_SETTINGS_FIELDS = (
     'subtitle_font_size',
     'subtitle_outline',
     'subtitle_shadow',
+    'subtitle_background_color',
+    'subtitle_background_opacity',
     'subtitle_alignment',
     'subtitle_margin_l',
     'subtitle_margin_r',

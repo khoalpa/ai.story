@@ -22,11 +22,6 @@ STORY_ZONE_SEQUENCE: tuple[str, ...] = (
     "farewell",
 )
 
-IMAGE_ZONE_TO_STORY_ZONE: dict[str, str] = {
-    "intro_card": "greeting",
-    "outro_card": "farewell",
-}
-
 ZONE_ALIASES: dict[str, tuple[str, ...]] = {
     "greeting": ("greeting", "loi chao"),
     "opening": ("opening", "intro", "mo truyen", "mo dau"),
@@ -105,10 +100,6 @@ def normalize_image_zone_from_path(path: Path) -> Optional[str]:
     return None
 
 
-def _story_zone_for_image_zone(image_zone: str) -> str:
-    return IMAGE_ZONE_TO_STORY_ZONE.get(image_zone, image_zone)
-
-
 def collect_story_zone_images(scenes_dir: Path) -> dict[str, Path]:
     images = [p for p in collect_scene_images(scenes_dir) if p.suffix.lower() in IMAGE_EXTENSIONS]
     mapped: dict[str, Path] = {}
@@ -116,9 +107,8 @@ def collect_story_zone_images(scenes_dir: Path) -> dict[str, Path]:
         image_zone = normalize_image_zone_from_path(image)
         if image_zone is None:
             continue
-        story_zone = _story_zone_for_image_zone(image_zone)
-        if story_zone in STORY_ZONE_SEQUENCE:
-            mapped.setdefault(story_zone, image)
+        if image_zone in STORY_ZONE_SEQUENCE:
+            mapped.setdefault(image_zone, image)
     return mapped
 
 
@@ -262,9 +252,8 @@ def build_story_zone_segments(
 
     segments: list[StoryZoneSegment] = []
     previous_image: Optional[Path] = None
-    first_image = next(iter(image_by_zone.values()))
     for zone, start, end in zone_ranges:
-        image = image_by_zone.get(zone) or previous_image or first_image
+        image = image_by_zone.get(zone) or previous_image or next(iter(image_by_zone.values()))
         segments.append(StoryZoneSegment(zone=zone, image=image, start=start, end=end))
         previous_image = image
     return segments

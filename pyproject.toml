@@ -29,7 +29,7 @@ dependencies = [
   "edge-tts==7.2.7",
   "vieneu>=2.4.0",
   "neucodec>=0.0.5",
-  "streamlit>=1.43,<2",
+  "streamlit>=1.49,<2",
   "Pillow>=10,<12",
 ]
 

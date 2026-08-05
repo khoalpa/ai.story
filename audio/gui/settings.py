@@ -146,24 +146,23 @@ def _render_audio_local_model_picker(*, provider_id: str, current_model: str, mo
     def _request_use_first_local_model() -> None:
         st.session_state[request_key] = True
 
-    col_manual, col_local = st.columns([3, 1])
-    with col_manual:
-        if selected != "(manual)":
-            st.session_state["vieneu_model_name"] = selected
-        else:
-            st.session_state.setdefault("vieneu_model_name", current_model)
-        manual_value = st.text_input(
-            "VieNeu model/repo",
-            key="vieneu_model_name",
-            help="turbo -> Turbo/GGUF model; standard -> Standard/PyTorch-compatible model. With remote API, this model name is sent to the server.",
-        )
-    with col_local:
-        st.button(
-            "Use first local model",
-            width="stretch",
-            key=f"use_first_local_model::{provider_id}",
-            on_click=_request_use_first_local_model,
-        )
+
+    if selected != "(manual)":
+        st.session_state["vieneu_model_name"] = selected
+    else:
+        st.session_state.setdefault("vieneu_model_name", current_model)
+    manual_value = st.text_input(
+        "VieNeu model/repo",
+        key="vieneu_model_name",
+        help="turbo -> Turbo/GGUF model; standard -> Standard/PyTorch-compatible model. With remote API, this model name is sent to the server.",
+    )
+
+    st.button(
+        "Use first local model",
+        width="stretch",
+        key=f"use_first_local_model::{provider_id}",
+        on_click=_request_use_first_local_model,
+    )
     return (selected if selected != "(manual)" else str(manual_value).strip()), str(target_dir)
 
 

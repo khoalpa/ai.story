@@ -22,9 +22,17 @@ ASPECT_RESOLUTIONS: dict[AspectRatio, tuple[int, int]] = {
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 ZONE_IMAGE_SEQUENCE: list[str] = [
-    "intro_card", "greeting", "opening", "introduction", "development",
-    "climax", "falling", "ending", "farewell", "outro_card",
+    "greeting", "opening", "introduction", "development",
+    "climax", "falling", "ending", "farewell",
 ]
+
+# Cards participate in slideshow ordering, but they are not story zones.
+CARD_IMAGE_SEQUENCE: tuple[str, ...] = ("intro_card", "outro_card")
+SLIDESHOW_IMAGE_SEQUENCE: tuple[str, ...] = (
+    "intro_card",
+    *ZONE_IMAGE_SEQUENCE,
+    "outro_card",
+)
 
 
 ZONE_IMAGE_ALIASES: dict[str, tuple[str, ...]] = {
@@ -111,6 +119,8 @@ DEFAULT_GOP_SECONDS = float(os.getenv("VIDEO_GOP_SECONDS", "2.0"))
 DEFAULT_RENDER_MODE = os.getenv("VIDEO_RENDER_MODE", "slideshow").strip().lower()
 DEFAULT_ASPECT = os.getenv("VIDEO_ASPECT", "16x9").strip().lower()
 DEFAULT_SUBTITLE_FONT_SIZE = int(os.getenv("SUB_FONT_SIZE", "12"))
+DEFAULT_SUBTITLE_BACKGROUND_COLOR = os.getenv("SUB_BACKGROUND_COLOR", "#000000")
+DEFAULT_SUBTITLE_BACKGROUND_OPACITY = int(os.getenv("SUB_BACKGROUND_OPACITY", "50"))
 
 FFMPEG_LOGLEVEL = os.getenv("FFMPEG_LOGLEVEL", "warning").strip()
 FFMPEG_STREAM_LOG = os.getenv("FFMPEG_STREAM_LOG", "0").strip() == "1"

@@ -940,8 +940,6 @@ This integrated build adds:
 
 - Story image prompt generation for:
   - cover
-  - scene overview
-  - intro
   - intro_card
   - greeting
   - opening

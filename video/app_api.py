@@ -44,9 +44,34 @@ from video.handoff import read_audio_handoff, read_image_handoff
 from video.result_manifest import write_result_manifest
 from video.media_quality import prepare_audio_for_video, prepare_subtitle_for_video, write_video_quality_report
 from video.story_zone_timeline import build_story_zone_segments
-from video.slideshow_concat import append_outro_segment, build_slideshow_segments, prepend_cover_segment
+from video.slideshow_concat import (
+    append_outro_segment,
+    build_slideshow_segments,
+    prepend_cover_segment,
+)
 
 logger = get_logger(__name__)
+
+
+class VideoQualityGateError(RuntimeError):
+    """The MP4 was created, but one or more post-render quality checks failed."""
+
+    def __init__(
+        self,
+        *,
+        failed_checks: list[str],
+        report_path: Path,
+        output_path: Path,
+        result_manifest_path: Path,
+    ) -> None:
+        self.failed_checks = tuple(failed_checks)
+        self.report_path = Path(report_path)
+        self.output_path = Path(output_path)
+        self.result_manifest_path = Path(result_manifest_path)
+        super().__init__(
+            "Video quality gate failed "
+            f"({', '.join(self.failed_checks)}). Report: {self.report_path}"
+        )
 
 
 @dataclass
@@ -86,6 +111,8 @@ class RenderVideoRequest:
     subtitle_font_size: Optional[int] = None
     subtitle_outline: Optional[int] = None
     subtitle_shadow: Optional[int] = None
+    subtitle_background_color: Optional[str] = None
+    subtitle_background_opacity: Optional[int] = None
     subtitle_position: Optional[str] = None
     subtitle_alignment: Optional[int] = None
     subtitle_margin_l: Optional[int] = None
@@ -143,6 +170,8 @@ def _render_runtime_overrides(request: RenderVideoRequest):
         "SUB_FONT_SIZE": _optional_env_value(request.subtitle_font_size),
         "SUB_OUTLINE": _optional_env_value(request.subtitle_outline),
         "SUB_SHADOW": _optional_env_value(request.subtitle_shadow),
+        "SUB_BACKGROUND_COLOR": _optional_env_value(request.subtitle_background_color),
+        "SUB_BACKGROUND_OPACITY": _optional_env_value(request.subtitle_background_opacity),
         "SUB_POSITION": _optional_env_value(request.subtitle_position),
         "SUB_ALIGNMENT": _optional_env_value(request.subtitle_alignment),
         "SUB_MARGIN_L": _optional_env_value(request.subtitle_margin_l),
@@ -482,9 +511,6 @@ def execute_render_request(
                     audio_preflight=audio_preflight,
                     subtitle_auto_wrapped=subtitle_auto_wrapped,
                 )
-                if bool(request.quality_gate) and not quality["passed"]:
-                    failed_checks = ", ".join(name for name, passed in quality["checks"].items() if not passed)
-                    raise RuntimeError(f"Video quality gate failed ({failed_checks}). Report: {quality_report}")
                 result_manifest = write_result_manifest(
                     request.output.with_suffix(".result.json"),
                     video=request.output,
@@ -495,6 +521,19 @@ def execute_render_request(
                         path for path in (request.audio_handoff, request.image_handoff) if path is not None
                     ),
                 )
+                if bool(request.quality_gate) and not quality["passed"]:
+                    failed_checks = [
+                        name for name, passed in quality["checks"].items() if not passed
+                    ]
+                    raise VideoQualityGateError(
+                        failed_checks=failed_checks,
+                        report_path=quality_report,
+                        output_path=request.output,
+                        result_manifest_path=result_manifest,
+                    )
+    except VideoQualityGateError:
+        status = "quality_warning"
+        raise
     except USER_FACING_EXCEPTIONS + (RuntimeError, TypeError, AssertionError):
         status = "error"
         raise
@@ -528,7 +567,7 @@ validate_request = validate_render_request
 execute_request = execute_render_request
 
 __all__ = [
-    "RenderVideoRequest", "execute_render_request", "execute_request",
+    "RenderVideoRequest", "VideoQualityGateError", "execute_render_request", "execute_request",
     "render_video_studio", "render_video_workspace", "request_from_args",
     "resolve_asset_profile_runtime", "validate_render_request", "validate_request",
     "read_audio_handoff", "read_image_handoff", "write_result_manifest",

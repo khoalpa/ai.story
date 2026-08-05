@@ -15,8 +15,7 @@ ProgressCallback = Callable[[float, str], None]
 
 PROMPT_CARD_SEQUENCE: tuple[str, ...] = (
     "cover",
-    "scene",
-    "intro",
+    "intro_card",
     "greeting",
     "opening",
     "introduction",
@@ -25,14 +24,11 @@ PROMPT_CARD_SEQUENCE: tuple[str, ...] = (
     "falling",
     "ending",
     "farewell",
-    "outro",
+    "outro_card",
 )
 
 _PROMPT_CARD_SEQUENCE_INDEX = {slot: index for index, slot in enumerate(PROMPT_CARD_SEQUENCE)}
-_PROMPT_CARD_ALIASES = {
-    "intro_card": "intro",
-    "outro_card": "outro",
-}
+_PROMPT_CARD_ALIASES = {"outro": "outro_card"}
 
 
 def _version_index_from_path(path: Path, *, stem: str) -> int | None:
@@ -60,7 +56,7 @@ def _existing_version_indices(directory: Path, *, stem: str) -> set[int]:
 
 
 def _next_run_version_index(directory: Path) -> int:
-    versions = _existing_version_indices(directory, stem="cover") | _existing_version_indices(directory, stem="scene")
+    versions = _existing_version_indices(directory, stem="cover")
     if not versions:
         return 0
     return max(versions) + 1
@@ -100,7 +96,7 @@ def _prompt_sort_key(prompt_file: Path) -> tuple[int, str]:
 
 
 def _iter_root_scene_prompt_files(handoff_dir: Path) -> Iterable[Path]:
-    reserved_names = {"cover_prompt.json", "scene_prompt.json"}
+    reserved_names = {"cover_prompt.json", "scene_prompt.json", "intro_prompt.json"}
     for prompt_file in sorted(handoff_dir.glob("*_prompt.json"), key=_prompt_sort_key):
         if prompt_file.name in reserved_names:
             continue
@@ -115,17 +111,12 @@ def iter_prompt_files(handoff_dir: Path) -> Iterable[tuple[Path, dict[str, Any],
         prompt_data["kind"] = infer_prompt_kind(prompt_data, cover_prompt)
         yield cover_prompt, prompt_data, handoff_dir / "cover.png"
 
-    scene_prompt = handoff_dir / "scene_prompt.json"
-    if scene_prompt.is_file():
-        prompt_data = _load_json(scene_prompt)
-        prompt_data["kind"] = infer_prompt_kind(prompt_data, scene_prompt)
-        image_key = str(prompt_data.get("image_key") or "scene").strip()
-        yield scene_prompt, prompt_data, handoff_dir / "images" / f"{image_key}.png"
-
     for prompt_file in _iter_root_scene_prompt_files(handoff_dir):
         prompt_data = _load_json(prompt_file)
         prompt_data["kind"] = infer_prompt_kind(prompt_data, prompt_file)
         image_key = str(prompt_data.get("image_key") or _image_key_from_prompt_file(prompt_file)).strip()
+        if image_key.casefold() in {"scene", "intro"}:
+            continue
         yield prompt_file, prompt_data, handoff_dir / "images" / f"{image_key}.png"
 
     scene_prompt_dir = handoff_dir / "scene_prompts"
@@ -134,6 +125,8 @@ def iter_prompt_files(handoff_dir: Path) -> Iterable[tuple[Path, dict[str, Any],
             prompt_data = _load_json(prompt_file)
             prompt_data["kind"] = infer_prompt_kind(prompt_data, prompt_file)
             image_key = str(prompt_data.get("image_key") or prompt_file.stem).strip()
+            if image_key.casefold() in {"scene", "intro"}:
+                continue
             yield prompt_file, prompt_data, handoff_dir / "images" / f"{image_key}.png"
 
 
@@ -188,7 +181,7 @@ def run_image_job(request: RenderImageRequest, progress_callback: ProgressCallba
     if not prompt_items:
         raise FileNotFoundError(
             "Prompt directory does not contain any renderable prompt files. "
-            "Expected cover_prompt.json, scene_prompt.json, *_prompt.json, or scene_prompts/*.json."
+            "Expected cover_prompt.json, a zone *_prompt.json, or scene_prompts/*.json."
         )
     total_prompts = max(1, len(prompt_items))
     logs: list[str] = []

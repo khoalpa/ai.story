@@ -722,15 +722,8 @@ def render_last_result_summary() -> None:
                     mime="application/json",
                     key="download_story_cover_prompt_btn",
                 ),
-                DownloadSpec(
-                    "Download scene overview prompt",
-                    data=dumps_json((result.get("image_prompts") or {}).get("scene") or {}),
-                    file_name="scene_prompt.json",
-                    mime="application/json",
-                    key="download_story_scene_prompt_btn",
-                ),
             ],
-            column_spec=[1.0, 1.0],
+            column_spec=[1.0],
         )
     else:
         st.info("Image prompts have not been created yet. Run Generate image prompts to enable Image/Video handoff.")

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from video import media_quality
+from video.app_api import VideoQualityGateError
 from video.command_builders import build_static_ffmpeg_cmd
 from video.encoding_profiles import resolve_encoding_profile
 
@@ -109,3 +110,17 @@ def test_video_quality_report_gates_delivery_contract(monkeypatch, tmp_path: Pat
     assert report["passed"] is True
     assert all(report["checks"].values())
     assert json.loads(report_path.read_text(encoding="utf-8"))["measured"]["integrated_lufs"] == -16.1
+
+
+def test_quality_gate_error_preserves_created_artifact_paths(tmp_path: Path) -> None:
+    error = VideoQualityGateError(
+        failed_checks=["visual_ssim"],
+        report_path=tmp_path / "story.video_quality.json",
+        output_path=tmp_path / "story.mp4",
+        result_manifest_path=tmp_path / "story.result.json",
+    )
+
+    assert error.failed_checks == ("visual_ssim",)
+    assert error.output_path.name == "story.mp4"
+    assert error.report_path.name == "story.video_quality.json"
+    assert "visual_ssim" in str(error)

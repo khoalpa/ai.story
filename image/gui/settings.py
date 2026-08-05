@@ -160,10 +160,10 @@ def _render_target_path_tools(*, label: str, path_value: str, key_prefix: str) -
     cols = st.columns(2)
     file_uri = Path(path_str).resolve().as_uri() if path_str else ''
     if hasattr(cols[0], 'link_button') and file_uri:
-        cols[0].link_button('Open target folder', file_uri, width="stretch")
+        cols[0].link_button('Open folder', file_uri, width="stretch")
     else:
         cols[0].button('Open target folder', disabled=True, key=f"{key_prefix}_open_disabled", width="stretch")
-    if cols[1].button('Copy target path', key=f"{key_prefix}_copy_target", width="stretch"):
+    if cols[1].button('Copy path', key=f"{key_prefix}_copy_target", width="stretch"):
         _image_provider_message('success', f'Image: target path ready to copy -> {path_str}')
 
 

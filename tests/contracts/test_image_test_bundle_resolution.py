@@ -165,8 +165,6 @@ def test_image_test_tab_loads_root_input_prompts_like_handoff(tmp_path: Path) ->
         assert issues == []
         assert [entry["rel_path"] for entry in entries] == [
             "cover_prompt.json",
-            "scene_prompt.json",
-            "intro_prompt.json",
             "greeting_prompt.json",
             "opening_prompt.json",
             "introduction_prompt.json",
@@ -177,7 +175,7 @@ def test_image_test_tab_loads_root_input_prompts_like_handoff(tmp_path: Path) ->
             "farewell_prompt.json",
             "outro_prompt.json",
         ]
-        assert len(entries) == 12
+        assert len(entries) == 10
     finally:
         _restore_modules(original_modules)
 
@@ -265,7 +263,7 @@ def test_image_test_tab_reports_invalid_prompt_bundle_structure(tmp_path: Path) 
         assert resolved_dir == prompt_dir
         assert entries == []
         assert issues == [
-            "Prompt directory exists but no valid prompt file was found. Expected cover_prompt.json, scene_prompt.json, *_prompt.json, or scene_prompts/*.json."
+            "Prompt directory exists but no valid prompt file was found. Expected cover_prompt.json, a zone *_prompt.json, or scene_prompts/*.json."
         ]
     finally:
         _restore_modules(original_modules)

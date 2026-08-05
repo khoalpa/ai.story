@@ -43,6 +43,14 @@ _IMAGE_TEMP_COVER_PATH_KEY = "image_temp_cover_path"
 _IMAGE_TEMP_COVER_SOURCE_KEY = "image_temp_cover_source"
 
 
+def _is_removed_legacy_image(path: Path) -> bool:
+    stem = path.stem.casefold()
+    return stem in {"scene", "intro"} or any(
+        stem.startswith(f"{base}_") and stem[len(base) + 1:].isdigit()
+        for base in ("scene", "intro")
+    )
+
+
 def _safe_read_manifest(path_value: str | Path | None) -> dict[str, Any]:
     if not path_value:
         return {}
@@ -63,7 +71,7 @@ def _list_image_files(dir_value: str | Path | None) -> list[Path]:
         return []
     items: list[Path] = []
     for pattern in ("*.png", "*.jpg", "*.jpeg", "*.webp"):
-        items.extend(sorted(directory.glob(pattern)))
+        items.extend(path for path in sorted(directory.glob(pattern)) if not _is_removed_legacy_image(path))
     deduped: list[Path] = []
     seen: set[str] = set()
     for item in items:
@@ -107,13 +115,12 @@ def _existing_version_indices(directory: Path, *, stem: str) -> set[int]:
 
 def _previous_complete_run_version(directory: Path) -> int | None:
     cover_versions = _existing_version_indices(directory, stem="cover")
-    scene_versions = _existing_version_indices(directory, stem="scene")
-    common_versions = sorted(cover_versions & scene_versions)
-    if not common_versions:
+    versions = sorted(cover_versions)
+    if not versions:
         return None
-    if len(common_versions) == 1:
-        return common_versions[0]
-    return common_versions[-2]
+    if len(versions) == 1:
+        return versions[0]
+    return versions[-2]
 
 
 def _current_result_version_index(result: Any) -> int | None:
@@ -135,11 +142,9 @@ def _current_result_version_index(result: Any) -> int | None:
             continue
         if not path.is_file():
             continue
-        for stem in ("cover", "scene"):
-            version = _version_index_from_path(path, stem=stem)
-            if version is not None:
-                versions.add(version)
-                break
+        version = _version_index_from_path(path, stem="cover")
+        if version is not None:
+            versions.add(version)
     if versions:
         return max(versions)
     return None
@@ -356,9 +361,15 @@ def _resolve_latest_run_scene_preview(result: Any) -> Path | None:
     preview_version = _previous_complete_run_version(scene_dir)
     if preview_version is None:
         return None
-    scene_path = _versioned_image_path(scene_dir, stem="scene", version_index=preview_version)
-    if scene_path.is_file():
-        return scene_path
+    suffix = "" if preview_version <= 0 else f"_{preview_version}"
+    for scene_path in _list_image_files(scene_dir):
+        if _base_image_stem(scene_path).casefold() in {"scene", "intro"}:
+            continue
+        if scene_path.stem == f"cover{suffix}":
+            continue
+        is_unversioned = "_" not in scene_path.stem or not scene_path.stem.rsplit("_", 1)[1].isdigit()
+        if (preview_version <= 0 and is_unversioned) or (preview_version > 0 and scene_path.stem.endswith(suffix)):
+            return scene_path
     return None
 
 
@@ -378,16 +389,25 @@ def _build_existing_run_preview_result(output_dir_value: str | Path | None) -> A
         return None
 
     cover_image = _versioned_image_path(scene_dir, stem="cover", version_index=preview_version)
-    scene_image = _versioned_image_path(scene_dir, stem="scene", version_index=preview_version)
-    if not cover_image.is_file() or not scene_image.is_file():
+    if not cover_image.is_file():
         return None
+    suffix = "" if preview_version <= 0 else f"_{preview_version}"
+    zone_images = [
+        path for path in _list_image_files(scene_dir)
+        if _base_image_stem(path).casefold() not in {"scene", "intro"}
+        and path != cover_image
+        and (
+            (preview_version <= 0 and ("_" not in path.stem or not path.stem.rsplit("_", 1)[1].isdigit()))
+            or (preview_version > 0 and path.stem.endswith(suffix))
+        )
+    ]
 
     return SimpleNamespace(
         provider=str(manifest_data.get("provider") or ""),
         output_dir=output_dir,
         cover_image=cover_image,
         scene_images_dir=scene_dir,
-        generated_files=[cover_image, scene_image],
+        generated_files=[cover_image, *zone_images],
         manifest_path=manifest_path if manifest_path.is_file() else None,
         logs=[],
         _prefer_filesystem_cover=True,
@@ -718,14 +738,14 @@ def _render_result_preview_panel(result: Any, *, settings: dict[str, Any] | None
         images_dir = _result_images_dir(result)
         preview_version = _previous_complete_run_version(images_dir)
         preview_version_label = _version_pair_label(preview_version or 0)
-        st.caption(f"Showing the {preview_version_label} complete version pair from `output/images`.")
+        st.caption(f"Showing the {preview_version_label} completed image run from `output/images`.")
         if latest_cover_preview is not None and latest_scene_preview is not None and latest_cover_preview.resolve() != latest_scene_preview.resolve():
             cover_col, scene_col = st.columns(2)
             with cover_col:
                 st.image(str(latest_cover_preview), caption=f"Cover version: {latest_cover_preview.name}", width="stretch")
             with scene_col:
-                st.image(str(latest_scene_preview), caption=f"Scene version: {latest_scene_preview.name}", width="stretch")
-            st.caption("The preview always shows the last completed cover/scene pair before the newest version.")
+                st.image(str(latest_scene_preview), caption=f"Zone image: {latest_scene_preview.name}", width="stretch")
+            st.caption("The preview shows the last completed cover and zone-image run before the newest version.")
         else:
             if latest_cover_preview is not None:
                 st.image(str(latest_cover_preview), caption=f"Cover version: {latest_cover_preview.name}", width="stretch")
@@ -733,11 +753,11 @@ def _render_result_preview_panel(result: Any, *, settings: dict[str, Any] | None
                 show_preview_warning("cover version", actions=[f"Expected cover output: {expected_cover}", "Generate a new versioned cover image or choose a scene as the temporary cover."])
             if latest_scene_preview is not None:
                 if latest_cover_preview is None or latest_scene_preview.resolve() != latest_cover_preview.resolve():
-                    st.image(str(latest_scene_preview), caption=f"Scene version: {latest_scene_preview.name}", width="stretch")
+                    st.image(str(latest_scene_preview), caption=f"Zone image: {latest_scene_preview.name}", width="stretch")
                 else:
                     st.caption("Scene version matches the cover version.")
             elif latest_cover_preview is not None:
-                show_preview_warning("scene version", actions=["Generate a new versioned scene image or check the image_key/output mapping."])
+                show_preview_warning("zone image", actions=["Generate the zone images or check the image_key/output mapping."])
             if temp_cover is not None:
                 source_label = str(st.session_state.get(_IMAGE_TEMP_COVER_SOURCE_KEY) or temp_cover.name)
                 st.caption(f"Temporary cover available for the next run: {source_label}")

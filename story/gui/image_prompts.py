@@ -169,10 +169,7 @@ def build_image_prompts(authoring: dict[str, Any]) -> dict[str, dict[str, Any]]:
     audience = _english_or_fallback(meta.get("audience"), "general audience", force_fallback=source_is_vietnamese)
     language = _language_label(meta.get("language"))
 
-    opening_text = _first_nonempty(
-        _outline_summary(outline, "opening", force_fallback=source_is_vietnamese),
-        _english_or_fallback(outline.get("intro"), "an atmospheric establishing scene that opens the story world", force_fallback=source_is_vietnamese),
-    )
+    opening_text = _outline_summary(outline, "opening", force_fallback=source_is_vietnamese)
     cover_summary = _first_nonempty(
         _outline_summary(outline, "climax", force_fallback=source_is_vietnamese),
         _outline_summary(outline, "development", force_fallback=source_is_vietnamese),
@@ -200,44 +197,6 @@ def build_image_prompts(authoring: dict[str, Any]) -> dict[str, dict[str, Any]]:
             ),
             steps=32,
             cfg=6.5,
-        ),
-        "scene": _prompt_payload(
-            kind="scene",
-            slot="scene_overview",
-            image_key="scene",
-            title=title,
-            outline_key="overview",
-            source_summary=overview_summary,
-            prompt=_standard_prompt(
-                role="storyboard overview reference, cohesive scene concept art",
-                title=title,
-                summary=overview_summary,
-                genre=genre,
-                tone=tone,
-                audience=audience,
-                language=language,
-                extra="wide atmospheric reference, recurring story world, consistent mood",
-            ),
-            steps=28,
-            cfg=6.0,
-        ),
-        "intro": _prompt_payload(
-            kind="scene",
-            slot="intro",
-            image_key="intro",
-            title=title,
-            outline_key="opening",
-            source_summary=_first_nonempty(opening_text, cover_summary),
-            prompt=_standard_prompt(
-                role="opening scene, establishing shot",
-                title=title,
-                summary=_first_nonempty(opening_text, cover_summary),
-                genre=genre,
-                tone=tone,
-                audience=audience,
-                language=language,
-                extra="first visual impression, atmospheric establishing composition",
-            ),
         ),
     }
 

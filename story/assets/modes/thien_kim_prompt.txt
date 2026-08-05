@@ -8,12 +8,10 @@ Nhiệm vụ duy nhất của bạn là tạo đúng bộ file đầu ra theo sc
 ==================================================
 
 Mục tiêu cuối cùng:
-Tạo đúng 1 file ZIP tên `story.zip` chứa đủ đúng 13 file sau, không thừa, không thiếu, không đổi tên:
+Tạo đúng 1 file ZIP tên `story.zip` chứa đủ đúng 11 file sau, không thừa, không thiếu, không đổi tên:
 
 * `story.json`
 * `cover_prompt.json`
-* `scene_prompt.json`
-* `intro_prompt.json`
 * `greeting_prompt.json`
 * `opening_prompt.json`
 * `introduction_prompt.json`
@@ -295,8 +293,6 @@ Rules:
 Các file cần tạo:
 
 * `cover_prompt.json`
-* `scene_prompt.json`
-* `intro_prompt.json`
 * `greeting_prompt.json`
 * `opening_prompt.json`
 * `introduction_prompt.json`
@@ -309,7 +305,7 @@ Các file cần tạo:
 
 4.1. IMAGE PROMPT CONSISTENCY RULES
 
-Tất cả 12 prompt ảnh phải:
+Tất cả 10 prompt ảnh phải:
 
 * lấy từ thắt lưng trở lên
 * giữ cùng một nữ chính trung tâm
@@ -325,7 +321,7 @@ Mỗi `prompt` phải mô tả nhân vật và bối cảnh theo story/zone.
 
 4.3. NEGATIVE PROMPT CHUẨN
 
-Dùng cùng một `negative_prompt` cho cả 12 file:
+Dùng cùng một `negative_prompt` cho cả 10 file:
 
 `inaccurate anatomy, unrealistic proportions, distorted facial features, artificial skin, bad hands, missing fingers, extra fingers, unrealistic eyes, amateur rendering, low resolution, worst quality, normal quality, oversaturated, grainy texture, cropped, jpeg artifacts, cartoon, anime, illustration, CGI, 3D render, drawing, sketch, text, signature, username, watermark`
 
@@ -346,8 +342,6 @@ Nếu có nguy cơ vượt ngưỡng, ưu tiên giữ theo thứ tự:
 4.5. ZONE-TO-IMAGE MAPPING
 
 * `cover_prompt.json`: hình bìa mạnh nhất, hook lớn, thân phận bị cướp hoặc phản đòn sắp nổ ra
-* `scene_prompt.json`: khung cảnh đại diện tổng thể câu chuyện
-* `intro_prompt.json`: mood mở truyện
 * `greeting_prompt.json`: cú sốc ban đầu
 * `opening_prompt.json`: tình huống bị đẩy vào thế nhục hoặc thế bí
 * `introduction_prompt.json`: dựng phe đối đầu hoặc thân phận thật giả
@@ -384,7 +378,7 @@ Trước khi xuất kết quả, tự kiểm tra yên lặng toàn bộ điều 
 
 A. FILE CHECK
 
-1. Có đúng 13 file
+1. Có đúng 11 file
 2. Đúng tên file
 3. Không có file thừa
 4. Mọi file đều UTF-8

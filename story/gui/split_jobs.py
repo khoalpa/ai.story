@@ -24,7 +24,7 @@ def story_summary_action_labels(result: dict[str, Any]) -> list[str]:
 def story_summary_download_labels(result: dict[str, Any]) -> list[str]:
     labels = ["Tải canonical JSON", "Tải gói ZIP kết quả"]
     if image_prompt_handoff_ready(result):
-        labels.extend(["Tải cover prompt", "Tải scene overview prompt"])
+        labels.append("Tải cover prompt")
     return labels
 
 
@@ -45,9 +45,8 @@ def build_story_output_bundle(result: dict[str, Any]) -> bytes:
         image_prompts = result.get("image_prompts") or {}
         if image_prompts:
             zf.writestr("cover_prompt.json", json.dumps(image_prompts.get("cover"), ensure_ascii=False, indent=2))
-            zf.writestr("scene_prompt.json", json.dumps(image_prompts.get("scene"), ensure_ascii=False, indent=2))
             for key, payload in sorted(image_prompts.items()):
-                if key in {"cover", "scene"}:
+                if key in {"cover", "scene", "intro"}:
                     continue
                 zf.writestr(f"scene_prompts/{key}.json", json.dumps(payload, ensure_ascii=False, indent=2))
         bundle_dir_raw = str(result.get("image_handoff_dir") or "").strip()

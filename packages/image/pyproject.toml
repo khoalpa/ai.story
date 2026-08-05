@@ -9,7 +9,7 @@ description = "Standalone image generation package for AI Story Studio."
 license = {text = "MIT"}
 authors = [{name = "AI Story Studio"}]
 requires-python = ">=3.10"
-dependencies = ["requests==2.32.3", "streamlit>=1.43,<2", "Pillow>=10,<12"]
+dependencies = ["requests==2.32.3", "streamlit>=1.49,<2", "Pillow>=10,<12"]
 
 [project.scripts]
 render-image-gui = "image.gui_entry:main"

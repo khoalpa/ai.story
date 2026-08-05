@@ -8,8 +8,6 @@ from typing import Any
 
 PROMPT_FILE_NAMES: tuple[str, ...] = (
     "cover_prompt.json",
-    "scene_prompt.json",
-    "intro_prompt.json",
     "greeting_prompt.json",
     "opening_prompt.json",
     "introduction_prompt.json",

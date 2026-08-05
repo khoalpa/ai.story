@@ -160,7 +160,7 @@ def _resolve_test_prompt_bundle(settings: dict[str, Any]) -> tuple[Path | None, 
     if manifest_path.is_file():
         issues.append(
             "Prompt directory exists but no valid prompt file was found. "
-            "Expected cover_prompt.json, scene_prompt.json, *_prompt.json, or scene_prompts/*.json."
+            "Expected cover_prompt.json, a zone *_prompt.json, or scene_prompts/*.json."
         )
     else:
         issues.append(

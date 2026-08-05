@@ -314,9 +314,9 @@ def render_settings_sidebar() -> SettingsDict:
                 value="output/story/story",
                 help="Base path used when saving Story outputs. The GUI writes .txt and .json beside this base path.",
             )
-            seed_cols = st.columns([2, 1])
-            story_seed = seed_cols[0].number_input("Story seed", min_value=1, max_value=2_147_483_647, step=1, key=STORY_SEED_KEY)
-            seed_cols[1].button("Random seed", width="stretch", on_click=_randomize_story_seed)
+            
+            story_seed = st.number_input("Story seed", min_value=1, max_value=2_147_483_647, step=1, key=STORY_SEED_KEY)
+            st.button("Random seed", width="stretch", on_click=_randomize_story_seed)
             timeout_s = st.number_input("Timeout (s)", min_value=10, value=360, step=10)
             max_tokens = st.number_input("Max tokens", min_value=256, value=32768, step=256)
             temperature = st.slider("Temperature", min_value=0.0, max_value=1.5, value=0.7, step=0.1)

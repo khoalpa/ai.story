@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from video.slideshow_concat import write_timeline_concat_list
-from video.story_zone_timeline import build_story_zone_segments, normalize_story_zone
+from video.story_zone_timeline import (
+    build_story_zone_segments,
+    collect_story_zone_images,
+    normalize_story_zone,
+)
 
 
 def _write_story(path: Path, script: list[dict[str, str]]) -> None:
@@ -25,6 +29,18 @@ def test_normalize_story_zone_accepts_vietnamese_labels() -> None:
     assert normalize_story_zone("M\u1ede \u0110\u1ea6U") == "opening"
     assert normalize_story_zone("TRI\u1ec2N KHAI") == "development"
     assert normalize_story_zone("T\u1ea0M BI\u1ec6T") == "farewell"
+
+
+def test_collect_story_zone_images_ignores_intro_and_outro_cards(tmp_path: Path) -> None:
+    scenes_dir = tmp_path / "scene_images"
+    scenes_dir.mkdir()
+    intro = scenes_dir / "intro.png"
+    opening = scenes_dir / "opening.png"
+    outro = scenes_dir / "outro.png"
+    for image in (intro, opening, outro):
+        image.write_bytes(b"")
+
+    assert collect_story_zone_images(scenes_dir) == {"opening": opening}
 
 
 def test_build_story_zone_segments_uses_story_json_srt_and_zone_images(tmp_path: Path) -> None:

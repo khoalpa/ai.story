@@ -34,11 +34,11 @@ def materialize_story_handoff_bundle(*, authoring: dict[str, Any], image_prompts
 
     cover_prompt = dict(image_prompts.get("cover") or {})
     cover_prompt.update({"kind": "cover", "slot": "cover", "image_key": "cover"})
-    scene_prompt = dict(image_prompts.get("scene") or {})
-    scene_prompt.update({"kind": "scene", "slot": "scene_overview", "image_key": "scene"})
-
     _write_json(bundle_dir / "cover_prompt.json", cover_prompt)
-    _write_json(bundle_dir / "scene_prompt.json", scene_prompt)
+    for obsolete_name in ("scene_prompt.json", "intro_prompt.json"):
+        obsolete_path = bundle_dir / obsolete_name
+        if obsolete_path.is_file():
+            obsolete_path.unlink()
 
     expected_scene_images = []
     for idx, zone_key in enumerate(ZONE_IMAGE_SEQUENCE, start=1):
@@ -65,11 +65,6 @@ def materialize_story_handoff_bundle(*, authoring: dict[str, Any], image_prompts
             "slot": "cover",
             "prompt_file": "cover_prompt.json",
             "expected_image_file": "cover.png",
-        },
-        "scene_prompt": {
-            "kind": "scene",
-            "slot": "scene_overview",
-            "prompt_file": "scene_prompt.json",
         },
         "scene_prompts_dir": "scene_prompts",
         "scene_images_dir": "scene_images",

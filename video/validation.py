@@ -7,7 +7,13 @@ from typing import Literal, Optional
 from PIL import Image, UnidentifiedImageError
 
 from video import config
-from video.config import IMAGE_EXTENSIONS, ZONE_IMAGE_ALIASES, ZONE_IMAGE_SEQUENCE
+from video.config import (
+    CARD_IMAGE_SEQUENCE,
+    IMAGE_EXTENSIONS,
+    SLIDESHOW_IMAGE_SEQUENCE,
+    ZONE_IMAGE_ALIASES,
+    ZONE_IMAGE_SEQUENCE,
+)
 
 
 ReadinessLevel = Literal["ok", "warning", "error"]
@@ -88,9 +94,19 @@ def _normalize_scene_stem(value: str) -> str:
     return stem.strip("_")
 
 
+def _is_removed_legacy_image(path: Path) -> bool:
+    stem = path.stem.casefold()
+    for removed_stem in ("scene", "intro"):
+        if stem == removed_stem:
+            return True
+        if stem.startswith(f"{removed_stem}_") and stem[len(removed_stem) + 1:].isdigit():
+            return True
+    return False
+
+
 def _build_scene_alias_index() -> dict[str, str]:
     index: dict[str, str] = {}
-    for scene_key in ZONE_IMAGE_SEQUENCE:
+    for scene_key in SLIDESHOW_IMAGE_SEQUENCE:
         index[_normalize_scene_stem(scene_key)] = scene_key
         for alias in ZONE_IMAGE_ALIASES.get(scene_key, ()):  # pragma: no branch
             index[_normalize_scene_stem(alias)] = scene_key
@@ -98,15 +114,35 @@ def _build_scene_alias_index() -> dict[str, str]:
 
 
 SCENE_ALIAS_INDEX = _build_scene_alias_index()
-GENERIC_SCENE_STEMS = {"cover", "scene"}
+GENERIC_SCENE_STEMS = {"cover"}
 
 
 def collect_scene_images(scenes_dir: Path) -> list[Path]:
     return [
         p
         for p in sorted(scenes_dir.iterdir())
-        if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
+        if p.is_file()
+        and p.suffix.lower() in IMAGE_EXTENSIONS
+        and not _is_removed_legacy_image(p)
     ]
+
+
+def _slideshow_asset_order_key(image: Path) -> tuple[int, str]:
+    """Order readiness assets the same way the slideshow consumes them."""
+    normalized_stem = _normalize_scene_stem(image.stem)
+    if normalized_stem == "cover":
+        rank = 0
+    else:
+        image_key = _scene_key_for_path(image)
+        if image_key == "intro_card":
+            rank = 1
+        elif image_key in ZONE_IMAGE_SEQUENCE:
+            rank = 2 + ZONE_IMAGE_SEQUENCE.index(image_key)
+        elif image_key == "outro_card":
+            rank = 3 + len(ZONE_IMAGE_SEQUENCE)
+        else:
+            rank = 2 + len(ZONE_IMAGE_SEQUENCE)
+    return rank, image.name.casefold()
 
 
 def resolve_slideshow_cover(
@@ -160,23 +196,25 @@ def _scene_key_for_path(image: Path) -> Optional[str]:
 
 def build_zone_slideshow_images(images: list[Path]) -> list[Path]:
     matched: dict[str, Path] = {}
-    generic_leading: list[Path] = []
     unmatched: list[Path] = []
     for image in images:
+        normalized_stem = _normalize_scene_stem(image.stem)
+        if _is_removed_legacy_image(image):
+            continue
         scene_key = _scene_key_for_path(image)
         if scene_key is None:
-            if _normalize_scene_stem(image.stem) == "scene":
-                generic_leading.append(image)
+            if normalized_stem == "cover":
                 continue
             unmatched.append(image)
+            continue
+        if scene_key in CARD_IMAGE_SEQUENCE:
             continue
         matched.setdefault(scene_key, image)
 
     if not matched:
-        return images
+        return unmatched
 
-    ordered = list(generic_leading)
-    ordered.extend(matched[key] for key in ZONE_IMAGE_SEQUENCE if key in matched)
+    ordered = [matched[key] for key in ZONE_IMAGE_SEQUENCE if key in matched]
     ordered.extend(unmatched)
     return ordered
 
@@ -329,8 +367,6 @@ def inspect_video_image_readiness(
                 warnings.append(
                     "End screen is enabled, but outro.png was not found; video will keep the final scene."
                 )
-            else:
-                assets.append(_inspect_image_file(outro, role="end screen", aspect=aspect))
         if scenes_dir is None:
             errors.append("Slideshow mode requires a scenes directory.")
         elif not scenes_dir.is_dir():
@@ -351,17 +387,21 @@ def inspect_video_image_readiness(
                     for image in images
                     if image.resolve(strict=False) != outro_resolved
                 ]
+            images.sort(key=_slideshow_asset_order_key)
             scene_count = len(images)
             if not images:
                 errors.append(f"No .jpg/.png images found in: {scenes_dir}")
-            for image in build_zone_slideshow_images(images):
-                zone = _scene_key_for_path(image)
+            for image in images:
+                image_key = _scene_key_for_path(image)
+                is_card = image_key in CARD_IMAGE_SEQUENCE
+                zone = None if is_card else image_key
                 normalized_stem = _normalize_scene_stem(image.stem)
-                if zone is None and normalized_stem not in GENERIC_SCENE_STEMS:
+                if image_key is None and normalized_stem not in GENERIC_SCENE_STEMS:
                     unmatched_files.append(image)
-                elif zone not in mapped_zones:
+                elif zone is not None and zone not in mapped_zones:
                     mapped_zones.append(zone)
-                assets.append(_inspect_image_file(image, role="scene", aspect=aspect, zone=zone))
+                role = image_key.replace("_", " ") if is_card and image_key is not None else "scene"
+                assets.append(_inspect_image_file(image, role=role, aspect=aspect, zone=zone))
 
             unsupported_images = [
                 p
@@ -374,6 +414,9 @@ def inspect_video_image_readiness(
                 warnings.append(
                     f"Scene image will be ignored because its extension is unsupported: {unsupported.name}"
                 )
+
+        if outro_last and outro is not None:
+            assets.append(_inspect_image_file(outro, role="end screen", aspect=aspect))
 
     for asset in assets:
         if asset.level == "error":

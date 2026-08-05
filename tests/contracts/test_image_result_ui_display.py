@@ -459,7 +459,7 @@ def test_expected_output_path_shared_for_cover_and_scene(tmp_path) -> None:
                 sys.modules[name] = module
 
 
-def test_existing_run_preview_result_uses_previous_version_pair(tmp_path) -> None:
+def test_existing_run_preview_result_uses_previous_completed_zone_run(tmp_path) -> None:
     original_modules = {name: sys.modules.get(name) for name in [
         "streamlit",
         "image.gui.handoff_utils",
@@ -477,14 +477,18 @@ def test_existing_run_preview_result_uses_previous_version_pair(tmp_path) -> Non
         result_ui = importlib.import_module("image.gui.result_ui")
         images_dir = tmp_path / "images"
         images_dir.mkdir()
-        for name in ["cover.png", "scene.png", "cover_1.png", "scene_1.png", "cover_2.png", "scene_2.png"]:
+        for name in [
+            "cover.png", "opening.png", "scene.png", "intro.png",
+            "cover_1.png", "opening_1.png", "scene_1.png", "intro_1.png",
+            "cover_2.png", "opening_2.png",
+        ]:
             (images_dir / name).write_bytes(name.encode("utf-8"))
 
         preview = result_ui._build_existing_run_preview_result(tmp_path)
 
         assert preview is not None
         assert preview.cover_image == images_dir / "cover_1.png"
-        assert preview.generated_files == [images_dir / "cover_1.png", images_dir / "scene_1.png"]
+        assert preview.generated_files == [images_dir / "cover_1.png", images_dir / "opening_1.png"]
     finally:
         for name, module in original_modules.items():
             if module is None:
@@ -493,7 +497,7 @@ def test_existing_run_preview_result_uses_previous_version_pair(tmp_path) -> Non
                 sys.modules[name] = module
 
 
-def test_next_run_version_index_increments_from_existing_pairs(tmp_path) -> None:
+def test_next_run_version_index_increments_from_existing_covers(tmp_path) -> None:
     service = importlib.import_module("image.gui.service")
     images_dir = tmp_path / "images"
     images_dir.mkdir()

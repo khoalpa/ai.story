@@ -9,7 +9,7 @@ description = "Standalone story generation package for AI Story Studio."
 license = {text = "MIT"}
 authors = [{name = "AI Story Studio"}]
 requires-python = ">=3.10"
-dependencies = ["PyYAML==6.0.3", "requests==2.32.3", "streamlit>=1.43,<2"]
+dependencies = ["PyYAML==6.0.3", "requests==2.32.3", "streamlit>=1.49,<2"]
 
 [project.scripts]
 generator-story = "story.cli:main"

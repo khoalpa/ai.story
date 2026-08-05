@@ -5,6 +5,20 @@ on:
   pull_request:
 
 jobs:
+  minimum-streamlit-launchers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install the minimum supported Streamlit
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt "streamlit==1.49.0"
+      - name: Smoke test every Streamlit launcher at the minimum version
+        run: pytest -q tests/smoke/test_streamlit_launchers.py
+
   cross-platform-contracts:
     strategy:
       matrix:
