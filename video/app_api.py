@@ -108,7 +108,9 @@ class RenderVideoRequest:
     zone_aware_slideshow: Optional[bool] = None
     audio_match_epsilon: Optional[float] = None
     keep_concat_list: Optional[bool] = None
+    subtitle_font: Optional[str] = None
     subtitle_font_size: Optional[int] = None
+    subtitle_text_color: Optional[str] = None
     subtitle_outline: Optional[int] = None
     subtitle_shadow: Optional[int] = None
     subtitle_background_color: Optional[str] = None
@@ -167,7 +169,9 @@ def _render_runtime_overrides(request: RenderVideoRequest):
     encoding_profile = resolve_encoding_profile(request.encoding_profile, request.aspect)
     env_overrides = {
         "DEBUG_FFMPEG_EXE": _optional_env_value(request.debug_ffmpeg_exe),
+        "SUB_FONT": _optional_env_value(request.subtitle_font),
         "SUB_FONT_SIZE": _optional_env_value(request.subtitle_font_size),
+        "SUB_TEXT_COLOR": _optional_env_value(request.subtitle_text_color),
         "SUB_OUTLINE": _optional_env_value(request.subtitle_outline),
         "SUB_SHADOW": _optional_env_value(request.subtitle_shadow),
         "SUB_BACKGROUND_COLOR": _optional_env_value(request.subtitle_background_color),

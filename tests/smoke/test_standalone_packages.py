@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGES = ("story", "audio", "image", "video")
+PACKAGES = ("audio", "video")
 
 
 def test_retired_shared_packages_are_absent() -> None:

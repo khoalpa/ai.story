@@ -86,16 +86,19 @@ def render_doctor_tab(settings: dict) -> None:
     col3.metric("Issues", max(issue_count, 0))
 
     render_device = str(settings.get("vieneu_device") or "auto").strip().lower() or "auto"
-    effective_mode = resolve_vieneu_runtime_mode(settings.get("vieneu_core"), settings.get("vieneu_mode"), render_device)
+    effective_mode = resolve_vieneu_runtime_mode(
+        settings.get("vieneu_core"),
+        settings.get("vieneu_mode"),
+        render_device,
+        settings.get("vieneu_model_name"),
+    )
     runtime_device = _resolve_vieneu_device_for_runtime(render_device)
     is_vieneu = str(settings.get("tts_provider") or "edge").strip().lower() == "vieneu"
-    promoted_standard = is_vieneu and render_device == "auto" and runtime_device == "cuda" and effective_mode == "standard"
-
     if render_device == "auto":
-        badge_label = "Render audio: auto -> standard" if promoted_standard else "Render audio: auto -> cpu"
+        badge_label = f"Render audio: auto -> {runtime_device}"
     else:
         badge_label = f"Render audio: {render_device}"
-    badge_color = "#bfdbfe" if promoted_standard else ("#dbeafe" if runtime_device == "cuda" else "#e2e8f0")
+    badge_color = "#dbeafe" if runtime_device == "cuda" else "#e2e8f0"
     badge_text = "#1d4ed8" if runtime_device == "cuda" else "#334155"
 
     st.markdown(
@@ -105,9 +108,7 @@ def render_doctor_tab(settings: dict) -> None:
         unsafe_allow_html=True,
     )
 
-    effective_mode_label = "standard" if promoted_standard else str(effective_mode or settings.get("vieneu_mode") or "standard")
-    if promoted_standard:
-        effective_mode_label = "<span style='color:#1d4ed8;font-weight:700;'>standard</span>"
+    effective_mode_label = str(effective_mode or settings.get("vieneu_mode") or "standard")
     st.caption(
         "VieNeu effective mode: "
         f"{effective_mode_label} | device={render_device} (internal={runtime_device}) | "

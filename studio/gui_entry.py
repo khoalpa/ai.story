@@ -13,8 +13,6 @@ def main() -> int:
     try:
         import streamlit as st
         from audio.app_api import render_audio_workspace
-        from image.app_api import render_image_workspace
-        from story.app_api import render_story_workspace
         from studio.project_tools import render_project_tools_workspace
         from video.app_api import render_video_workspace
     except ModuleNotFoundError as exc:
@@ -27,7 +25,7 @@ def main() -> int:
             return 1
         raise
 
-    app_title = "AI Story Studio"
+    app_title = "AI Audio & Video Studio"
 
     st.set_page_config(page_title=app_title, page_icon=":material/movie:", layout="wide")
 
@@ -50,44 +48,33 @@ def main() -> int:
         st.subheader("Recommended workflow")
         st.markdown(
             """
-            - Open **Story** to create the plain script and image handoff bundle.
-            - Switch to **Audio** to render narration and subtitles.
-            - Switch to **Image** to render cover/scenes from the prompt bundle.
-            - Switch to **Video** to combine audio and images into an MP4.
-            - Track handoff status in the sidebar to see the latest output from each step.
+            - Open **Audio** and provide a plain-text or canonical JSON script.
+            - Render narration, subtitles, and the Audio-to-Video handoff manifest.
+            - Open **Video** and select the audio handoff plus a cover or scene directory.
+            - Render and validate the final MP4.
             """
         )
 
         st.subheader("Unified workspace")
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2 = st.columns(2)
         with col1:
-            st.info("""**1. Story**
+            st.info("""**1. Audio**
 
-Create brief -> canonical -> plain script + prompts.""")
+Render external script -> WAV/MP3 + subtitle.""")
         with col2:
-            st.info("""**2. Audio**
+            st.info("""**2. Video**
 
-Render plain script -> WAV/MP3 + subtitle.""")
-        with col3:
-            st.info("""**3. Image**
-
-Render Story handoff -> cover/scenes.""")
-        with col4:
-            st.info("""**4. Video**
-
-Render audio/subtitle + cover/scenes -> MP4.""")
+Render audio/subtitle + external cover/scenes -> MP4.""")
 
     st.title(app_title)
-    st.caption("Unified workspace for the Story -> Audio / Image -> Video pipeline.")
+    st.caption("Unified workspace for the Audio -> Video pipeline.")
     selected = st.sidebar.radio(
-        "Workspace", ["Overview", "Story", "Audio", "Image", "Video", "Project Tools"]
+        "Workspace", ["Overview", "Audio", "Video", "Project Tools"]
     )
     renderers = {
         "Overview": render_overview,
-        "Story": lambda: render_story_workspace(embedded=True),
         "Audio": lambda: render_audio_workspace(embedded=True),
-        "Image": lambda: render_image_workspace(embedded=True),
         "Video": lambda: render_video_workspace(embedded=True),
         "Project Tools": lambda: render_project_tools_workspace(embedded=True),
     }

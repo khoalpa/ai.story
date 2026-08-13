@@ -22,17 +22,10 @@ def test_streamlit_runtime_meets_supported_minimum() -> None:
 def test_every_streamlit_launcher_opens_in_a_clean_runtime() -> None:
     probe = r'''
 from streamlit.testing.v1 import AppTest
-
+from pathlib import Path
+from tempfile import TemporaryDirectory
 cases = [
-    ("story.gui_entry", {}),
     ("audio.gui_entry", {"tts_provider": "edge_tts"}),
-    (
-        "image.gui_entry",
-        {
-            "image_provider": "stable_diffusion_remote",
-            "image_local_preload_model_on_startup": False,
-        },
-    ),
     ("video.gui_entry", {}),
     ("studio.gui_entry", {}),
 ]
@@ -48,6 +41,23 @@ for launcher_module, initial_state in cases:
     if app.exception:
         messages = [exception.message for exception in app.exception]
         raise AssertionError(f"{launcher_module}: {messages}")
+
+studio = AppTest.from_string("from studio.gui_entry import main\nmain()\n", default_timeout=60)
+studio.session_state["tts_provider"] = "edge_tts"
+studio.run()
+
+for workspace_name, child_radio_label in (
+    ("Audio", "Audio view"),
+    ("Video", "Video view"),
+):
+    workspace = next(radio for radio in studio.radio if radio.label == "Workspace")
+    workspace.set_value(workspace_name).run()
+    if studio.exception:
+        raise AssertionError(
+            f"Studio workspace {workspace_name}: {[item.message for item in studio.exception]}"
+        )
+    if not any(radio.label == child_radio_label for radio in studio.radio):
+        raise AssertionError(f"Studio workspace {workspace_name} did not render {child_radio_label!r}")
 '''
     env = os.environ.copy()
     existing_pythonpath = env.get("PYTHONPATH", "")

@@ -1,29 +1,33 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import streamlit as st
 
 from video import config
-from video.asset_profile_utils import (
-    list_asset_profiles,
-    pick_default_asset_profile,
-    resolve_profile_defaults,
-)
-from video.config import DEFAULT_PROFILE_ROOT
 from video.encoding_profiles import PROFILE_CHOICES
-from video.error_handling import USER_FACING_EXCEPTIONS, format_user_facing_error
 from video.runtime_tools import collect_runtime_diagnostics
 from video.providers.base import VideoProviderDescriptor
 from video.providers.registry import get_video_provider_descriptors, normalize_video_provider
 from video.gui.diagnostics_blocks import render_runtime_diagnostics_block
 from video.gui.sidebar_sections import SidebarSection
-from video.gui.user_messages import show_path_warning
 
 
 _LOGLEVEL_OPTIONS = ["quiet", "panic", "fatal", "error", "warning", "info", "verbose", "debug", "trace"]
 _SUBTITLE_POSITION_OPTIONS = ["bottom", "top", "middle"]
+_SUBTITLE_FONT_OPTIONS = [
+    "Arial",
+    "Calibri",
+    "Tahoma",
+    "Verdana",
+    "Trebuchet MS",
+    "Times New Roman",
+    "Georgia",
+    "Courier New",
+    "Noto Sans",
+    "Noto Serif",
+    "DejaVu Sans",
+]
 
 
 def _render_dependency_diagnostics(provider: VideoProviderDescriptor, settings: dict[str, Any]) -> None:
@@ -113,6 +117,22 @@ def _render_subtitle_style_settings() -> dict[str, Any]:
             value=default_background_opacity == 0,
             help="Removes the colored outline around each glyph; no rectangular text box is used.",
         )
+        font_column, text_color_column = st.columns(2)
+        with font_column:
+            subtitle_font = st.selectbox(
+                "Subtitle font",
+                options=_SUBTITLE_FONT_OPTIONS,
+                index=_option_index(
+                    _SUBTITLE_FONT_OPTIONS,
+                    config.DEFAULT_SUBTITLE_FONT,
+                ),
+                help="The font must be installed on the machine that renders the video.",
+            )
+        with text_color_column:
+            subtitle_text_color = st.color_picker(
+                "Subtitle text color",
+                value=str(config.DEFAULT_SUBTITLE_TEXT_COLOR),
+            )
         background_color_column, background_opacity_column = st.columns(2)
         with background_color_column:
             subtitle_background_color = st.color_picker(
@@ -141,7 +161,9 @@ def _render_subtitle_style_settings() -> dict[str, Any]:
     subtitle_alignment = int(subtitle_alignment_raw) if subtitle_alignment_raw.strip().isdigit() else None
     return {
         "subtitle_position": subtitle_position,
+        "subtitle_font": subtitle_font,
         "subtitle_font_size": int(subtitle_font_size),
+        "subtitle_text_color": subtitle_text_color,
         "subtitle_outline": int(subtitle_outline),
         "subtitle_shadow": int(subtitle_shadow),
         "subtitle_background_color": subtitle_background_color,
@@ -248,35 +270,6 @@ def _render_persistent_history_settings() -> dict[str, Any]:
 
 def get_video_settings() -> dict[str, Any]:
     with st.sidebar:
-        st.header(SidebarSection.PROFILES)
-        profile_root = st.text_input("Profile root", value=str(DEFAULT_PROFILE_ROOT))
-        profiles = list_asset_profiles(profile_root)
-        profile_options = ["", *profiles]
-        default_profile = pick_default_asset_profile(profiles)
-        default_index = profile_options.index(default_profile) if default_profile else 0
-        asset_profile = st.selectbox(
-            "Asset profile",
-            options=profile_options,
-            index=default_index,
-            help="Leave empty if you do not want to use a profile",
-        )
-
-        defaults: dict[str, Optional[Path]] = {
-            "profile_dir": None,
-            "cover": None,
-            "scenes_dir": None,
-        }
-        profile_error: Optional[str] = None
-        if asset_profile:
-            try:
-                defaults = resolve_profile_defaults(profile_root, asset_profile)
-            except USER_FACING_EXCEPTIONS as exc:
-                profile_error = format_user_facing_error(exc)
-        if profile_error:
-            show_path_warning("asset profile", path_value=asset_profile, actions=[profile_error, "Check the profile root again or choose another profile."])
-        elif asset_profile and defaults.get("profile_dir") is not None:
-            _safe_ui_call("caption", f"Profile dir: {defaults['profile_dir']}")
-
         st.header(SidebarSection.PROVIDER)
         provider_descriptors = get_video_provider_descriptors()
         provider_options = list(provider_descriptors)
@@ -296,7 +289,7 @@ def get_video_settings() -> dict[str, Any]:
         provider_values = provider_settings.as_dict()
 
         st.header(SidebarSection.INPUTS_OUTPUTS)
-        input_root = st.text_input("Input root", value="output")
+        input_root = st.text_input("Input root", value="input")
         output_dir = st.text_input("Output directory", value="output")
 
         st.header(SidebarSection.RENDER)
@@ -328,13 +321,13 @@ def get_video_settings() -> dict[str, Any]:
 
     return {
         **provider_values,
-        "profile_root": profile_root,
+        "profile_root": None,
         "input_root": input_root,
         "output_dir": output_dir,
-        "profiles": profiles,
-        "asset_profile": asset_profile,
-        "defaults": defaults,
-        "profile_error": profile_error,
+        "profiles": [],
+        "asset_profile": None,
+        "defaults": {"profile_dir": None, "cover": None, "scenes_dir": None},
+        "profile_error": None,
         "mode": mode,
         "aspect": aspect,
         "duration_per_image": float(duration_per_image),

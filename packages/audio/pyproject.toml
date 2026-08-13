@@ -9,7 +9,7 @@ description = "Standalone narration and audio rendering package for AI Story Stu
 license = {text = "MIT"}
 authors = [{name = "AI Story Studio"}]
 requires-python = ">=3.10"
-dependencies = ["PyYAML==6.0.3", "edge-tts==7.2.7", "vieneu>=2.4.0", "neucodec>=0.0.5", "streamlit>=1.49,<2"]
+dependencies = ["PyYAML==6.0.3", "edge-tts==7.2.7", "vieneu>=3.2.4,<4", "neucodec>=0.0.5", "streamlit>=1.49,<2"]
 
 [project.scripts]
 render-audio = "audio.entrypoints:main"

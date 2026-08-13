@@ -3,7 +3,5 @@ include LICENSE
 include VERSION
 include package_api_policy.json
 recursive-include audio/assets *
-recursive-include story/assets *
-recursive-include image/assets *
 recursive-include video/assets *
 recursive-include .github/workflows *.yml

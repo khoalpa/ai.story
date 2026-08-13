@@ -63,8 +63,8 @@ def test_clean_project_finds_and_removes_expected_artifacts(tmp_path: Path) -> N
 def test_clean_project_skips_models_and_runtime_contents_without_flags(tmp_path: Path) -> None:
     module = load_clean_project_module()
 
-    (tmp_path / "image" / "local_models" / "_cache").mkdir(parents=True)
-    (tmp_path / "image" / "local_models" / "_cache" / "download.log").write_text("log", encoding="utf-8")
+    (tmp_path / "audio" / "models" / "_cache").mkdir(parents=True)
+    (tmp_path / "audio" / "models" / "_cache" / "download.log").write_text("log", encoding="utf-8")
     (tmp_path / "output").mkdir()
     (tmp_path / "output" / "render.log").write_text("log", encoding="utf-8")
     (tmp_path / ".venv").mkdir()
@@ -75,7 +75,7 @@ def test_clean_project_skips_models_and_runtime_contents_without_flags(tmp_path:
     planned = {path.relative_to(tmp_path) for path in [*plan.directories, *plan.files]}
 
     assert Path("root.log") in planned
-    assert Path("image/local_models/_cache/download.log") not in planned
+    assert Path("audio/models/_cache/download.log") not in planned
     assert Path("output/render.log") not in planned
     assert Path(".venv/tool.log") not in planned
 

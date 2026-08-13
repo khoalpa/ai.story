@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import streamlit as st
 
@@ -23,7 +23,7 @@ def render_runtime_diagnostics_block(
     label: str = "Runtime diagnostics",
     caption: str = "This information helps verify the current runtime environment before deeper debugging.",
     expanded: bool = False,
-    serializer: callable | None = None,
+    serializer: Callable[[Any], Any] | None = None,
 ) -> None:
     if serializer is not None:
         payload = serializer(payload)

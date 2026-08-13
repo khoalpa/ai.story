@@ -7,12 +7,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_wheel_contents_checker_covers_packages_assets_and_launchers() -> None:
     content = (ROOT / 'scripts' / 'check_wheel_contents.py').read_text(encoding='utf-8')
-    assert "'image/__init__.py'" in content
+    assert "'audio/__init__.py'" in content
     assert "'studio/__init__.py'" in content
     assert "'audio/assets/abbreviation_map.json'" in content
-    assert "'image/assets/workflows/comfyui_minimal_t2i_workflow.json'" in content
-    assert "'story/assets/llm/lmdeploy.yml'" in content
     assert "'video/assets/profiles/demo/manifest.json'" in content
-    assert "'image/assets/workflows/comfyui_story_cover_9x16_hires_v2_workflow.json'" in content
     assert "'studio/gui_entry.py'" in content
 

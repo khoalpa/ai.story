@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import statistics
+import struct
 import subprocess
 import sys
 import tempfile
@@ -37,6 +38,26 @@ SUPPORTED_LOUDNESS_PROFILES = {
 INTERMEDIATE_PCM_CODEC = "pcm_f32le"
 DEFAULT_OUTPUT_CHANNELS = 2
 DEFAULT_MP3_BITRATE_KBPS = 192
+SEGMENT_LOUDNESS_MAX_DROP_LU = 3.5
+
+PACING_PRESET_OFF = "off"
+PACING_PRESET_COMPACT = "compact"
+PACING_PRESET_NATURAL = "natural"
+PACING_PRESET_DRAMATIC = "dramatic"
+DEFAULT_PACING_PRESET = PACING_PRESET_NATURAL
+SUPPORTED_PACING_PRESETS = {
+    PACING_PRESET_OFF,
+    PACING_PRESET_COMPACT,
+    PACING_PRESET_NATURAL,
+    PACING_PRESET_DRAMATIC,
+}
+
+_PACING_TARGETS_MS = {
+    PACING_PRESET_OFF: {"sentence": 0, "voice": 0, "paragraph": 0, "zone": 0},
+    PACING_PRESET_COMPACT: {"sentence": 350, "voice": 450, "paragraph": 650, "zone": 900},
+    PACING_PRESET_NATURAL: {"sentence": 550, "voice": 650, "paragraph": 800, "zone": 1200},
+    PACING_PRESET_DRAMATIC: {"sentence": 750, "voice": 850, "paragraph": 1100, "zone": 1500},
+}
 
 logger = get_logger(__name__)
 
@@ -56,6 +77,114 @@ def _cleanup_render_temp_dir(temp_dir: Path) -> None:
 def normalize_audio_format(value: object) -> str:
     normalized = str(value or DEFAULT_AUDIO_FORMAT).strip().lower()
     return normalized if normalized in SUPPORTED_AUDIO_FORMATS else DEFAULT_AUDIO_FORMAT
+
+
+def normalize_pacing_preset(value: object) -> str:
+    normalized = str(value or DEFAULT_PACING_PRESET).strip().lower()
+    return normalized if normalized in SUPPORTED_PACING_PRESETS else DEFAULT_PACING_PRESET
+
+
+def boundary_pause_target_ms(previous: Segment, current: Segment, pacing_preset: str) -> int:
+    """Return the desired total acoustic gap between two spoken segments."""
+    targets = _PACING_TARGETS_MS[normalize_pacing_preset(pacing_preset)]
+    if (previous.zone or "").strip().lower() != (current.zone or "").strip().lower():
+        return targets["zone"]
+    if current.paragraph_break_before:
+        return targets["paragraph"]
+    if previous.voice != current.voice or previous.lang != current.lang:
+        return targets["voice"]
+    return targets["sentence"]
+
+
+def measure_wav_edge_silence(
+    audio_path: Path,
+    *,
+    threshold_dbfs: float = -45.0,
+    window_ms: int = 10,
+) -> tuple[float, float]:
+    """Measure leading/trailing silence in PCM or float WAV without optional dependencies.
+
+    The mixer calls this after normalizing every TTS result to WAV, so Edge's
+    compressed response and local providers use the same provider-neutral path.
+    Values are intentionally quantized to a short RMS window to avoid treating
+    isolated low-level samples as speech.
+    """
+    try:
+        raw = audio_path.read_bytes()
+    except OSError:
+        return 0.0, 0.0
+    if len(raw) < 44 or raw[:4] not in {b"RIFF", b"RF64"} or raw[8:12] != b"WAVE":
+        return 0.0, 0.0
+
+    fmt: bytes | None = None
+    data: bytes | None = None
+    offset = 12
+    while offset + 8 <= len(raw):
+        chunk_id = raw[offset:offset + 4]
+        chunk_size = struct.unpack_from("<I", raw, offset + 4)[0]
+        chunk_start = offset + 8
+        chunk_end = min(len(raw), chunk_start + chunk_size)
+        if chunk_id == b"fmt ":
+            fmt = raw[chunk_start:chunk_end]
+        elif chunk_id == b"data":
+            data = raw[chunk_start:chunk_end]
+            break
+        offset = chunk_start + chunk_size + (chunk_size & 1)
+
+    if fmt is None or data is None or len(fmt) < 16:
+        return 0.0, 0.0
+    format_tag, channels, sample_rate, _byte_rate, block_align, bits = struct.unpack_from("<HHIIHH", fmt, 0)
+    if format_tag == 0xFFFE and len(fmt) >= 26:
+        format_tag = struct.unpack_from("<H", fmt, 24)[0]
+    bytes_per_sample = bits // 8
+    if channels <= 0 or sample_rate <= 0 or block_align <= 0 or bytes_per_sample not in {1, 2, 3, 4}:
+        return 0.0, 0.0
+    frame_count = len(data) // block_align
+    if frame_count <= 0:
+        return 0.0, 0.0
+
+    def sample_value(sample: bytes) -> float:
+        if format_tag == 3 and bits == 32:
+            return float(struct.unpack("<f", sample)[0])
+        if format_tag != 1:
+            return 0.0
+        if bits == 8:
+            return (sample[0] - 128) / 128.0
+        value = int.from_bytes(sample, byteorder="little", signed=True)
+        return value / float(1 << (bits - 1))
+
+    window_frames = max(1, int(sample_rate * max(1, window_ms) / 1000))
+    threshold = 10.0 ** (float(threshold_dbfs) / 20.0)
+
+    def window_is_active(first_frame: int, last_frame: int) -> bool:
+        energy = 0.0
+        count = 0
+        for frame in range(first_frame, last_frame):
+            frame_offset = frame * block_align
+            for channel in range(channels):
+                sample_offset = frame_offset + channel * bytes_per_sample
+                value = sample_value(data[sample_offset:sample_offset + bytes_per_sample])
+                energy += value * value
+                count += 1
+        return count > 0 and math.sqrt(energy / count) > threshold
+
+    leading_frames = frame_count
+    for first in range(0, frame_count, window_frames):
+        last = min(frame_count, first + window_frames)
+        if window_is_active(first, last):
+            leading_frames = first
+            break
+
+    trailing_frames = frame_count
+    last = frame_count
+    while last > 0:
+        first = max(0, last - window_frames)
+        if window_is_active(first, last):
+            trailing_frames = frame_count - last
+            break
+        last = first
+
+    return leading_frames / float(sample_rate), trailing_frames / float(sample_rate)
 
 
 @dataclass(frozen=True)
@@ -320,6 +449,7 @@ class FfmpegMixConfig:
     mp3_bitrate_kbps: int = DEFAULT_MP3_BITRATE_KBPS
     enable_bgm_ducking: bool = True
     quality_gate: bool = True
+    pacing_preset: str = DEFAULT_PACING_PRESET
 
 
 def get_audio_duration_seconds(audio_path: Path, ffprobe_exe: str) -> Optional[float]:
@@ -380,6 +510,8 @@ def write_audio_quality_report(
     segment_files: Optional[list[Path]] = None,
     mix_segments: Optional[List[Segment]] = None,
     bgm_ducking_enabled: bool = True,
+    pacing_preset: str = DEFAULT_PACING_PRESET,
+    boundary_measurements: Optional[list[dict]] = None,
 ) -> tuple[Path, dict]:
     profile = normalize_loudness_profile(loudness_profile)
     target = get_loudness_target(profile)
@@ -408,7 +540,11 @@ def write_audio_quality_report(
 
     segment_loudness_values = [item["integrated_lufs"] for item in segment_measurements]
     segment_median = statistics.median(segment_loudness_values) if segment_loudness_values else None
-    quiet_segment_limit = (segment_median - 3.0) if segment_median is not None else None
+    quiet_segment_limit = (
+        segment_median - SEGMENT_LOUDNESS_MAX_DROP_LU
+        if segment_median is not None
+        else None
+    )
     quiet_segments = [
         item for item in segment_measurements
         if quiet_segment_limit is not None and item["integrated_lufs"] < quiet_segment_limit
@@ -460,7 +596,7 @@ def write_audio_quality_report(
         "segments": {
             "measured_count": len(segment_measurements),
             "median_lufs": segment_median,
-            "maximum_drop_from_median_lu": 3.0,
+            "maximum_drop_from_median_lu": SEGMENT_LOUDNESS_MAX_DROP_LU,
             "quiet_segments": quiet_segments,
             "measurements": segment_measurements,
         },
@@ -470,6 +606,11 @@ def write_audio_quality_report(
             "maximum_ambience_gain_db": max(ambience_gains) if ambience_gains else None,
             "maximum_allowed_bgm_gain_db": -12.0,
             "maximum_allowed_ambience_gain_db": -18.0,
+        },
+        "pacing": {
+            "preset": normalize_pacing_preset(pacing_preset),
+            "boundary_count": len(boundary_measurements or []),
+            "boundaries": boundary_measurements or [],
         },
         "checks": checks,
         "passed": all(checks.values()),
@@ -609,6 +750,7 @@ def ffmpeg_mix_audio(
         concat_list_path = temp_dir / "concat_list.txt"
         concat_entries: List[str] = []
         timeline: List[dict] = []
+        boundary_measurements: List[dict] = []
         current_time = 0.0
     
         def run_ff(cmd):
@@ -784,6 +926,9 @@ def ffmpeg_mix_audio(
         current_block_bgm_gain_db = -18.0
         current_block_ambience_path: Optional[Path] = None
         current_block_ambience_gain_db = -24.0
+        previous_spoken_segment: Optional[Segment] = None
+        previous_trailing_silence = 0.0
+        pacing_preset = normalize_pacing_preset(mix_config.pacing_preset)
     
         def flush_current_block() -> float:
             nonlocal current_block_piece_paths, current_block_elapsed, current_block_bgm_path, current_block_bgm_gain_db, current_block_ambience_path, current_block_ambience_gain_db, current_time
@@ -817,6 +962,10 @@ def ffmpeg_mix_audio(
                 piece_path, piece_dur, has_text = prepare_piece_for_block(seg, idx)
                 if piece_path is None:
                     continue
+                leading_silence = 0.0
+                trailing_silence = 0.0
+                if has_text and pacing_preset != PACING_PRESET_OFF:
+                    leading_silence, trailing_silence = measure_wav_edge_silence(piece_path)
                 seg_key = bgm_context_key(seg)
                 if current_block_key is None:
                     block_idx += 1
@@ -833,11 +982,37 @@ def ffmpeg_mix_audio(
                     current_block_bgm_gain_db = float(seg.bgm_gain_db) if seg.bgm_gain_db is not None else -18.0
                     current_block_ambience_path = resolve_ambience_path(seg)
                     current_block_ambience_gain_db = float(seg.ambience_gain_db) if seg.ambience_gain_db is not None else -24.0
+                added_pause_seconds = 0.0
+                target_pause_ms = 0
+                if has_text and previous_spoken_segment is not None:
+                    target_pause_ms = boundary_pause_target_ms(previous_spoken_segment, seg, pacing_preset)
+                    existing_gap_seconds = previous_trailing_silence + leading_silence
+                    added_pause_seconds = max(0.0, (target_pause_ms / 1000.0) - existing_gap_seconds)
+                    if added_pause_seconds >= 0.001:
+                        adaptive_pause = temp_dir / f"piece_{idx:03d}_adaptive_pause.wav"
+                        build_silence_wav(adaptive_pause, added_pause_seconds)
+                        current_block_piece_paths.append(adaptive_pause)
+                        current_block_elapsed += added_pause_seconds
+                    boundary_measurements.append({
+                        "before_segment": idx,
+                        "target_ms": target_pause_ms,
+                        "existing_ms": int(round(existing_gap_seconds * 1000.0)),
+                        "added_ms": int(round(added_pause_seconds * 1000.0)),
+                        "result_ms": int(round((existing_gap_seconds + added_pause_seconds) * 1000.0)),
+                    })
                 piece_offset = current_block_elapsed
                 if has_text:
                     timeline.append({"idx": idx, "text": seg.text, "start": current_time + piece_offset, "end": current_time + piece_offset + piece_dur})
                 current_block_piece_paths.append(piece_path)
                 current_block_elapsed += piece_dur
+                if has_text:
+                    previous_spoken_segment = seg
+                    previous_trailing_silence = trailing_silence
+                else:
+                    # An explicit PAUSE/SILENCE segment suppresses automatic pacing
+                    # across that boundary, preserving the author's instruction.
+                    previous_spoken_segment = None
+                    previous_trailing_silence = 0.0
     
             if current_block_piece_paths:
                 flush_current_block()
@@ -904,6 +1079,8 @@ def ffmpeg_mix_audio(
                 ],
                 mix_segments=segments,
                 bgm_ducking_enabled=mix_config.enable_bgm_ducking,
+                pacing_preset=pacing_preset,
+                boundary_measurements=boundary_measurements,
             )
             if not report["passed"]:
                 failed_checks = ", ".join(name for name, passed in report["checks"].items() if not passed)

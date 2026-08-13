@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = json.loads((ROOT / "package_api_policy.json").read_text(encoding="utf-8"))
-PACKAGES = {"audio", "story", "image", "video"}
+PACKAGES = {"audio", "video"}
 DIRECTION = POLICY["dependency_direction"]
 IGNORE_TESTS = POLICY.get("rules", {}).get("ignore_tests_for_dependency_direction", True)
 

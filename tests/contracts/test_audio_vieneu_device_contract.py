@@ -3,6 +3,30 @@ from __future__ import annotations
 import importlib
 
 
+def test_vieneu_defaults_to_standard_with_standard_local_target_and_doan_voice() -> None:
+    tts_core = importlib.import_module("audio.adapters.tts_core")
+    app_config = importlib.import_module("audio.app_config")
+    profile_config = importlib.import_module("audio.profile_config")
+    render_audio_app = importlib.import_module("audio.render_audio_app")
+    provider = importlib.import_module("audio.providers.vieneu")
+
+    assert tts_core.DEFAULT_VIENEU_MODE == "standard"
+    assert tts_core.get_default_vieneu_local_target() == "VieNeu-TTS"
+    assert app_config.APP_CONFIG_DEFAULTS["vieneu_mode"] == "standard"
+    assert app_config.APP_CONFIG_DEFAULTS["vieneu_model_name"] == "VieNeu-TTS"
+    assert profile_config.PROFILE_CONFIG_DEFAULTS["vieneu_mode"] == "standard"
+    assert profile_config.PROFILE_CONFIG_DEFAULTS["vieneu_model_name"] == "VieNeu-TTS"
+    assert profile_config.PROFILE_CONFIG_DEFAULTS["voice_narrator"] == "Doan"
+    assert profile_config.PROFILE_CONFIG_DEFAULTS["voice_female"] == "Doan"
+    assert profile_config.PROFILE_CONFIG_DEFAULTS["voice_male"] == "Doan"
+    assert render_audio_app.REQUEST_DEFAULTS["vieneu_mode"] == "standard"
+    assert render_audio_app.REQUEST_DEFAULTS["vieneu_model_name"] == "VieNeu-TTS"
+    assert render_audio_app.REQUEST_DEFAULTS["voice_narrator"] == "Doan"
+    assert render_audio_app.REQUEST_DEFAULTS["voice_female"] == "Doan"
+    assert render_audio_app.REQUEST_DEFAULTS["voice_male"] == "Doan"
+    assert provider.DEFAULT_MODE == "standard"
+
+
 def test_vieneu_turbo_gguf_runtime_keeps_cuda_device() -> None:
     tts_core = importlib.import_module("audio.adapters.tts_core")
 
@@ -42,8 +66,33 @@ def test_vieneu_turbo_gguf_runtime_keeps_cuda_device() -> None:
         tts_core._ENGINE_CACHE.clear()
 
     assert "mode" in captured
+    assert captured["mode"] == "turbo"
     assert captured["kwargs"]["device"] == "cuda"
     assert captured["kwargs"]["backbone_repo"] == "C:/models/vieneu/model.gguf"
+
+
+def test_vieneu_turbo_pytorch_model_selects_turbo_gpu_engine(monkeypatch) -> None:
+    tts_core = importlib.import_module("audio.adapters.tts_core")
+    model = "C:/models/vieneu/VieNeu-TTS-v2-Turbo"
+
+    monkeypatch.setattr(
+        tts_core,
+        "resolve_vieneu_model_for_runtime",
+        lambda value, mode, allow_network=False: model,
+    )
+
+    resolved_mode, _api_base, resolved_model, resolved_device, _backend = tts_core._normalize_engine_cache_inputs(
+        mode="turbo",
+        api_base="",
+        model_name=model,
+        device="auto",
+        backend="auto",
+        allow_network=False,
+    )
+
+    assert resolved_mode == "turbo_gpu"
+    assert resolved_model == model
+    assert resolved_device == "cuda"
 
 
 def test_vieneu_runtime_backend_prefers_lmdeploy_for_standard_cuda(monkeypatch) -> None:
@@ -54,6 +103,62 @@ def test_vieneu_runtime_backend_prefers_lmdeploy_for_standard_cuda(monkeypatch) 
     assert tts_core.resolve_vieneu_runtime_backend("standard", "pnnbao-ump/VieNeu-TTS", "cuda") == "lmdeploy"
     assert tts_core.resolve_vieneu_runtime_backend("standard", "pnnbao-ump/VieNeu-TTS-0.3B-q4-gguf", "cuda") == "native"
     assert tts_core.resolve_vieneu_runtime_backend("turbo", "pnnbao-ump/VieNeu-TTS", "cuda") == "native"
+
+
+def test_edge_default_voice_ids_migrate_to_vieneu_presets() -> None:
+    tts_core = importlib.import_module("audio.adapters.tts_core")
+    available = (("Doan", "Doan"), ("Ngoc", "Ngoc"), ("Vinh", "Vinh"), ("Binh", "Binh"))
+
+    assert tts_core.migrate_vieneu_legacy_voice_id("vi-VN-HoaiMyNeural", available) == "Doan"
+    assert tts_core.migrate_vieneu_legacy_voice_id("vi-VN-NamMinhNeural", available) == "Vinh"
+    assert tts_core.migrate_vieneu_legacy_voice_id("en-US-GuyNeural", available) == "Binh"
+
+
+def test_vieneu_v3_turbo_uses_current_builtin_voices() -> None:
+    tts_core = importlib.import_module("audio.adapters.tts_core")
+
+    voices = tts_core._static_vieneu_sample_voices(
+        mode="turbo",
+        model_name="audio/models/vieneu/VieNeu-TTS-v3-Turbo",
+    )
+
+    assert [voice_id for _label, voice_id in voices] == [
+        "Minh Đức",
+        "Phạm Tuyên",
+        "Thái Sơn",
+        "Xuân Vĩnh",
+        "Thanh Bình",
+        "Trúc Ly",
+        "Ngọc Linh",
+        "Đoan Trang",
+        "Mai Anh",
+        "Thục Đoan",
+        "Minh Triết",
+        "Thùy Dung",
+        "Quang Sơn",
+        "Ngọc Trân",
+    ]
+    assert tts_core.migrate_vieneu_legacy_voice_id("vi-VN-HoaiMyNeural", voices) == "Thục Đoan"
+
+
+def test_vieneu_v3_turbo_keeps_its_runtime_on_cuda(monkeypatch) -> None:
+    service = importlib.import_module("audio.gui.service")
+    tts_core = importlib.import_module("audio.adapters.tts_core")
+    model = "audio/models/vieneu/VieNeu-TTS-v3-Turbo"
+
+    monkeypatch.setattr(tts_core, "resolve_vieneu_model_for_runtime", lambda value, mode, allow_network=False: str(value))
+
+    assert service.resolve_vieneu_runtime_mode("local", "turbo", "cuda", model) == "turbo"
+    resolved_mode, _api_base, resolved_model, resolved_device, _backend = tts_core._normalize_engine_cache_inputs(
+        mode="turbo",
+        api_base="",
+        model_name=model,
+        device="cuda",
+        allow_network=False,
+    )
+    assert resolved_mode == "v3turbo"
+    assert resolved_model == model
+    assert resolved_device == "cuda"
 
 
 def test_vieneu_get_engine_passes_lmdeploy_backend_hint(monkeypatch) -> None:
@@ -90,6 +195,46 @@ def test_vieneu_get_engine_passes_lmdeploy_backend_hint(monkeypatch) -> None:
     assert captured["backend"] == "lmdeploy"
     assert captured["kwargs"]["backbone_device"] == "cuda"
     assert captured["kwargs"]["codec_device"] == "cuda"
+    assert captured["kwargs"]["gguf_filename"] is None
+    assert captured["kwargs"]["codec_repo"] == "neuphonic/distill-neucodec"
+
+
+def test_vieneu_standard_local_model_keeps_chat_prompt_format(monkeypatch, tmp_path) -> None:
+    tts_core = importlib.import_module("audio.adapters.tts_core")
+    local_model = tmp_path / "VieNeu-TTS"
+    local_model.mkdir()
+
+    class FakeEngine:
+        use_chat_format = False
+
+    engine = FakeEngine()
+
+    monkeypatch.setattr(tts_core, "_import_vieneu_factory", lambda: lambda **kwargs: engine)
+    monkeypatch.setattr(tts_core, "bootstrap_vieneu_runtime", lambda *args, **kwargs: None)
+    monkeypatch.setattr(tts_core, "_ensure_vieneu_standard_dependency_snapshots", lambda: ())
+    monkeypatch.setattr(tts_core, "_patch_vieneu_standard_offline_dependencies", lambda: None)
+    monkeypatch.setattr(tts_core, "_patch_transformers_meta_to_empty", lambda: None)
+    monkeypatch.setattr(
+        tts_core,
+        "resolve_vieneu_model_for_runtime",
+        lambda value, mode, allow_network=False: str(local_model),
+    )
+
+    tts_core._ENGINE_CACHE.clear()
+    try:
+        result = tts_core._get_engine(
+            mode="standard",
+            api_base="",
+            model_name=str(local_model),
+            device="cpu",
+            backend="native",
+            allow_network=False,
+        )
+    finally:
+        tts_core._ENGINE_CACHE.clear()
+
+    assert result is engine
+    assert engine.use_chat_format is True
 
 
 def test_vieneu_runtime_backend_respects_native_override(monkeypatch) -> None:
@@ -241,12 +386,34 @@ def test_preview_tts_sample_passes_resolved_vieneu_backend(monkeypatch, tmp_path
     assert captured["kwargs"]["vieneu_device"] == "cuda"
 
 
-def test_vieneu_cuda_promotes_turbo_to_standard() -> None:
+def test_vieneu_cuda_preserves_selected_turbo_family() -> None:
     service = importlib.import_module("audio.gui.service")
 
-    assert service.resolve_vieneu_ui_mode("local", "turbo", "cuda") == "standard"
-    assert service.resolve_vieneu_runtime_mode("local", "turbo", "cuda") == "standard"
+    assert service.resolve_vieneu_ui_mode("local", "turbo", "cuda") == "turbo"
+    assert service.resolve_vieneu_runtime_mode("local", "turbo", "cuda") == "turbo"
     assert service.resolve_vieneu_runtime_mode("remote_api", "turbo", "cuda") == "remote"
+
+
+def test_preview_result_context_changes_with_voice_and_runtime_model() -> None:
+    run_panel = importlib.import_module("audio.gui.run_panel")
+    base = {
+        "vieneu_mode": "turbo",
+        "vieneu_model_name": "VieNeu-TTS-v3-Turbo",
+        "vieneu_device": "auto",
+    }
+
+    original = run_panel._preview_tts_context_key(text="Xin chào", provider="vieneu", lang="vi", voice="Thục Đoan", settings=base)
+    changed_voice = run_panel._preview_tts_context_key(text="Xin chào", provider="vieneu", lang="vi", voice="Minh Đức", settings=base)
+    changed_model = run_panel._preview_tts_context_key(
+        text="Xin chào",
+        provider="vieneu",
+        lang="vi",
+        voice="Thục Đoan",
+        settings={**base, "vieneu_model_name": "VieNeu-TTS-v2-Turbo"},
+    )
+
+    assert original != changed_voice
+    assert original != changed_model
 
 
 def test_vieneu_auto_device_prefers_gpu_when_enabled(monkeypatch) -> None:
@@ -256,7 +423,7 @@ def test_vieneu_auto_device_prefers_gpu_when_enabled(monkeypatch) -> None:
 
     assert tts_core.normalize_vieneu_device("auto") == "auto"
     assert tts_core.resolve_vieneu_runtime_device("auto") == "cuda"
-    assert tts_core.resolve_vieneu_effective_mode("local", "turbo", "auto") == "standard"
+    assert tts_core.resolve_vieneu_effective_mode("local", "turbo", "auto") == "turbo"
 
 
 def test_vieneu_auto_device_falls_back_to_cpu_when_gpu_disabled(monkeypatch) -> None:
@@ -268,16 +435,15 @@ def test_vieneu_auto_device_falls_back_to_cpu_when_gpu_disabled(monkeypatch) -> 
     assert tts_core.resolve_vieneu_effective_mode("local", "turbo", "auto") == "turbo"
 
 
-def test_vieneu_cuda_turbo_warning_mentions_cpu_edge_path() -> None:
+def test_vieneu_cuda_turbo_does_not_report_false_standard_promotion() -> None:
     service = importlib.import_module("audio.gui.service")
 
     warning = service.describe_vieneu_cuda_turbo_path(core="local", mode="turbo", device="cuda")
 
-    assert "CPU/edge" in warning
-    assert "Standard" in warning
+    assert warning == ""
 
 
-def test_app_config_autopromotes_vieneu_cuda_to_standard() -> None:
+def test_app_config_preserves_vieneu_turbo_on_cuda() -> None:
     app_config = importlib.import_module("audio.app_config")
 
     config = app_config.AppConfig.from_mapping(
@@ -295,11 +461,11 @@ def test_app_config_autopromotes_vieneu_cuda_to_standard() -> None:
         }
     )
 
-    assert config.vieneu_mode == "standard"
+    assert config.vieneu_mode == "turbo"
     assert config.vieneu_backend == "native"
 
 
-def test_render_request_autopromotes_vieneu_cuda_to_standard() -> None:
+def test_render_request_preserves_vieneu_turbo_on_cuda() -> None:
     render_audio_app = importlib.import_module("audio.render_audio_app")
 
     request = render_audio_app.RenderAudioAppRequest.from_mapping(
@@ -338,11 +504,11 @@ def test_render_request_autopromotes_vieneu_cuda_to_standard() -> None:
         }
     )
 
-    assert request.vieneu_mode == "standard"
+    assert request.vieneu_mode == "turbo"
     assert request.vieneu_backend == "lmdeploy"
 
 
-def test_render_request_autopromotes_vieneu_auto_to_standard(monkeypatch) -> None:
+def test_render_request_preserves_vieneu_turbo_with_auto_device(monkeypatch) -> None:
     tts_core = importlib.import_module("audio.adapters.tts_core")
     render_audio_app = importlib.import_module("audio.render_audio_app")
 
@@ -385,7 +551,7 @@ def test_render_request_autopromotes_vieneu_auto_to_standard(monkeypatch) -> Non
     )
 
     assert request.vieneu_device == "auto"
-    assert request.vieneu_mode == "standard"
+    assert request.vieneu_mode == "turbo"
     assert request.vieneu_backend == "auto"
 
 
@@ -576,9 +742,9 @@ def test_vieneu_render_uses_infer_batch_when_enabled(monkeypatch, tmp_path) -> N
     monkeypatch.setattr(tts_render, "resolve_vieneu_model_name", lambda value, mode: str(value or mode))
 
     segments = [
-        segment_planner.Segment(text="one", voice="narrator", rate=1.0, lang="vi", lang_from_tag=True),
-        segment_planner.Segment(text="two", voice="narrator", rate=1.0, lang="vi", lang_from_tag=True),
-        segment_planner.Segment(text="three", voice="narrator", rate=1.0, lang="vi", lang_from_tag=True),
+        segment_planner.Segment(text="one", voice="narrator", rate="0%", lang="vi", lang_from_tag=True),
+        segment_planner.Segment(text="two", voice="narrator", rate="0%", lang="vi", lang_from_tag=True),
+        segment_planner.Segment(text="three", voice="narrator", rate="0%", lang="vi", lang_from_tag=True),
     ]
     config = tts_render.TtsRenderConfig(
         wav_dir=tmp_path,

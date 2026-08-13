@@ -12,21 +12,15 @@ from typing import Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 ENTRYPOINTS = [
-    ("generator-story", "help"),
-    ("generator-story-gui", "missing-streamlit"),
     ("render-audio", "help"),
     ("render-audio-gui", "missing-streamlit"),
-    ("render-image-gui", "missing-streamlit"),
     ("render-video", "help"),
     ("render-video-gui", "missing-streamlit"),
     ("ai-studio-gui", "missing-streamlit"),
 ]
 ENTRYPOINT_MODULES = {
-    "generator-story": "story",
-    "generator-story-gui": "story.gui_entry",
     "render-audio": "audio",
     "render-audio-gui": "audio.gui_entry",
-    "render-image-gui": "image.gui_entry",
     "render-video": "video",
     "render-video-gui": "video.gui_entry",
     "ai-studio-gui": "studio.gui_entry",
@@ -134,31 +128,6 @@ def assert_missing_streamlit(command: Sequence[str], name: str, *, cwd: Path | N
         )
 
 
-def assert_installed_story_assets(vpy: Path, *, cwd: Path | None = None) -> None:
-    probe = """
-from __future__ import annotations
-import json
-from story.paths import resolve_assets_root
-assets_root = resolve_assets_root()
-result = {
-    "assets_root": str(assets_root),
-    "exists": assets_root.exists(),
-    "is_dir": assets_root.is_dir(),
-    "provider_modules": (assets_root / "llm" / "lmdeploy.yml").exists(),
-    "modes": (assets_root / "modes" / "trong_sinh_brief.yml").exists()
-    and (assets_root / "modes" / "trong_sinh_prompt.txt").exists(),
-}
-print(json.dumps(result))
-""".strip()
-    result = run([str(vpy), "-c", probe], expect=0, cwd=cwd)
-    payload = json.loads(result.stdout.strip())
-    if not payload["exists"] or not payload["is_dir"]:
-        raise SmokeFailure(f"resolve_assets_root() did not return an existing directory: {payload}")
-    if not payload["provider_modules"] or not payload["modes"]:
-        raise SmokeFailure(f"Installed wheel assets are incomplete: {payload}")
-    print(f"[installed-wheel] story.paths.resolve_assets_root() OK -> {payload['assets_root']}")
-
-
 def main() -> int:
     print("== Release smoke check ==")
     print(f"Workspace: {ROOT}")
@@ -174,8 +143,6 @@ def main() -> int:
         if wheel.stem.split("-")[0] not in installed.stdout.lower() and "name: ai-studio" not in installed.stdout.lower():
             raise SmokeFailure(f"Installed wheel metadata not found after install.\nSTDOUT:\n{installed.stdout}\nSTDERR:\n{installed.stderr}")
         print("[installed-wheel] pip show ai-studio OK")
-        assert_installed_story_assets(vpy, cwd=tmpdir)
-
         for entrypoint, mode in ENTRYPOINTS:
             cmd_path = bindir / (entrypoint + (".exe" if sys.platform.startswith("win") else ""))
             if not cmd_path.exists():

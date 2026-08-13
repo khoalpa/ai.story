@@ -19,6 +19,7 @@ class ParsedScriptLine:
     silence_ms: Optional[int] = None
     zone_hint: Optional[str] = None
     env_hint: Optional[str] = None
+    paragraph_break_before: bool = False
 
 
 @dataclass(frozen=True)
@@ -33,3 +34,4 @@ class ResolvedScriptLine:
     bgm_db_tag: Optional[float] = None
     lang_tag: Optional[str] = None
     silence_ms: Optional[int] = None
+    paragraph_break_before: bool = False

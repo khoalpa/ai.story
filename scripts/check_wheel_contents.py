@@ -9,27 +9,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_MEMBERS = [
     'audio/__init__.py',
-    'story/__init__.py',
-    'image/__init__.py',
     'video/__init__.py',
     'studio/__init__.py',
     'audio/gui_entry.py',
-    'story/gui_entry.py',
-    'image/gui_entry.py',
     'video/gui_entry.py',
     'studio/gui_entry.py',
     'audio/assets/abbreviation_map.json',
     'audio/assets/bgm_config.json',
     'audio/assets/bgm/bgm_lofi.mp3',
     'audio/assets/bgm/zone_opening.mp3',
-    'image/assets/workflows/comfyui_minimal_t2i_workflow.json',
     'video/assets/profiles/demo/manifest.json',
-    'story/assets/llm/lmdeploy.yml',
-    'story/assets/llm/lm_studio.yml',
-    'story/assets/llm/openai_chatgpt.yml',
-    'story/assets/llm/custom_compatible.yml',
-    'image/assets/workflows/comfyui_story_9x16_cover_scene_workflow.json',
-    'image/assets/workflows/comfyui_story_cover_9x16_hires_v2_workflow.json',
 ]
 
 

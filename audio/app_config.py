@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any, Mapping
 
 from audio.render_audio_app import RenderAudioAppRequest
+from audio.adapters.ffmpeg_audio_mixer import DEFAULT_PACING_PRESET, normalize_pacing_preset
 from audio.adapters.tts_core import get_default_vieneu_local_target, normalize_vieneu_backend, resolve_vieneu_effective_mode, resolve_vieneu_model_name
 from audio.tts_provider import DEFAULT_TTS_PROVIDER, normalize_tts_provider
 from audio.profile_config import ProfileConfig
@@ -23,6 +24,7 @@ APP_CONFIG_DEFAULTS: dict[str, Any] = {
     "output_channels": 2,
     "mp3_bitrate_kbps": 192,
     "quality_gate": True,
+    "pacing_preset": DEFAULT_PACING_PRESET,
     "tts_provider": DEFAULT_TTS_PROVIDER,
     "validate_only": False,
     "debug": False,
@@ -74,6 +76,7 @@ class AppConfig:
     output_channels: int
     mp3_bitrate_kbps: int
     quality_gate: bool
+    pacing_preset: str
     tts_provider: str
     validate_only: bool
     debug: bool
@@ -108,6 +111,7 @@ class AppConfig:
         object.__setattr__(self, "output_channels", max(1, min(2, int(self.output_channels))))
         object.__setattr__(self, "mp3_bitrate_kbps", min(320, max(96, int(self.mp3_bitrate_kbps))))
         object.__setattr__(self, "quality_gate", bool(self.quality_gate))
+        object.__setattr__(self, "pacing_preset", normalize_pacing_preset(self.pacing_preset))
         object.__setattr__(self, "tts_provider", normalize_tts_provider(self.tts_provider))
         object.__setattr__(self, "validate_only", bool(self.validate_only))
         object.__setattr__(self, "debug", bool(self.debug))
@@ -117,7 +121,16 @@ class AppConfig:
         object.__setattr__(self, "max_concurrent_tts", max(1, int(self.max_concurrent_tts)))
         object.__setattr__(self, "store_path", Path(self.store_path))
         object.__setattr__(self, "vieneu_core", str(self.vieneu_core or "local").strip() or "local")
-        object.__setattr__(self, "vieneu_mode", resolve_vieneu_effective_mode(self.vieneu_core, self.vieneu_mode, self.vieneu_device))
+        object.__setattr__(
+            self,
+            "vieneu_mode",
+            resolve_vieneu_effective_mode(
+                self.vieneu_core,
+                self.vieneu_mode,
+                self.vieneu_device,
+                self.vieneu_model_name,
+            ),
+        )
         object.__setattr__(self, "vieneu_api_base", str(self.vieneu_api_base or "").strip())
         object.__setattr__(self, "vieneu_model_name", resolve_vieneu_model_name(self.vieneu_model_name, self.vieneu_mode))
         object.__setattr__(self, "vieneu_device", str(self.vieneu_device or "cuda").strip().lower() or "cuda")
@@ -177,6 +190,7 @@ class AppConfig:
             "output_channels": self.output_channels,
             "mp3_bitrate_kbps": self.mp3_bitrate_kbps,
             "quality_gate": self.quality_gate,
+            "pacing_preset": self.pacing_preset,
             "tts_provider": self.tts_provider,
             "validate_only": self.validate_only,
             "debug_mode": self.debug,
@@ -217,6 +231,7 @@ class AppConfig:
             "output_channels": self.output_channels,
             "mp3_bitrate_kbps": self.mp3_bitrate_kbps,
             "quality_gate": self.quality_gate,
+            "pacing_preset": self.pacing_preset,
             "tts_provider": self.tts_provider,
             "validate_only": self.validate_only,
             "debug": self.debug,

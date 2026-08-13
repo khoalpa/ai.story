@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
@@ -84,6 +85,15 @@ def _clone_actions(source: argparse.ArgumentParser, target: argparse.ArgumentPar
         if action_name == "_StoreFalseAction":
             target.add_argument(*action.option_strings, dest=action.dest, action="store_false", help=action.help, default=action.default)
             continue
+        if isinstance(action, argparse.BooleanOptionalAction):
+            target.add_argument(
+                *action.option_strings,
+                dest=action.dest,
+                action=argparse.BooleanOptionalAction,
+                help=action.help,
+                default=action.default,
+            )
+            continue
         if getattr(action, "const", None) is not None:
             kwargs["const"] = action.const
         target.add_argument(*action.option_strings, dest=action.dest, action="store", **kwargs)
@@ -99,10 +109,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    argv_list = list(argv) if argv is not None else None
+    argv_list = list(argv) if argv is not None else list(sys.argv[1:])
     args = build_parser().parse_args(argv_list)
     command = _COMMAND_MAP[args.command]
-    forwarded = argv_list[1:] if argv_list is not None else None
+    forwarded = argv_list[1:]
     command.handler(forwarded)
 
 
@@ -111,4 +121,3 @@ def gui_entrypoint(argv: Sequence[str] | None = None) -> None:
     from audio.gui.app import main as gui_main
 
     gui_main(None)
-

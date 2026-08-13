@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import streamlit as st
 
@@ -30,7 +30,7 @@ def render_download_button_from_path(
     *,
     mime: str,
     file_name: str | None = None,
-    width: str = "stretch",
+    width: Literal["stretch", "content"] | int = "stretch",
 ) -> None:
     resolved = normalize_optional_path(str(path or ""))
     if resolved is None or not resolved.is_file():

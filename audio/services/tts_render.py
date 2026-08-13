@@ -9,7 +9,7 @@ from typing import Callable, Dict, Optional
 from audio.adapters.edge_tts import render_tts_all as render_tts_all_edge
 from audio.adapters.vieneu_tts import synthesize_segment_with_vieneu_async
 from audio.adapters.tts_core import (
-    _apply_vieneu_rate_hint,
+    apply_vieneu_time_stretch,
     get_vieneu_engine,
     resolve_vieneu_effective_mode,
     resolve_vieneu_model_for_runtime,
@@ -20,8 +20,7 @@ from audio.adapters.tts_core import (
 )
 from audio.exceptions import TtsError, UnsupportedTtsProviderError
 from audio.tts_provider import DEFAULT_TTS_PROVIDER, TTS_PROVIDER_EDGE, TTS_PROVIDER_VIENEU, normalize_tts_provider
-from audio.pipeline.flow_state import normalize_rate_value
-from audio.pipeline.segment_planner import Segment, VoiceTag, rate_str_to_factor
+from audio.pipeline.segment_planner import Segment, VoiceTag
 
 
 @dataclass(frozen=True)
@@ -43,6 +42,7 @@ class TtsRenderConfig:
     vieneu_render_max_chars_chunk: int = 240
     vieneu_render_use_batch: bool = False
     vieneu_render_max_batch_size_run: int = 1
+    ffmpeg_exe: str = "ffmpeg"
 
 
 async def render_tts_segments_async(segments: list[Segment], config: TtsRenderConfig, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:
@@ -62,7 +62,12 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
         return
     if provider == TTS_PROVIDER_VIENEU:
         runtime_device = resolve_vieneu_runtime_device(config.vieneu_device)
-        effective_mode = resolve_vieneu_effective_mode(config.vieneu_core, config.vieneu_mode, runtime_device)
+        effective_mode = resolve_vieneu_effective_mode(
+            config.vieneu_core,
+            config.vieneu_mode,
+            runtime_device,
+            config.vieneu_model_name,
+        )
         runtime_model_name = resolve_vieneu_model_for_runtime(
             resolve_vieneu_model_name(config.vieneu_model_name, effective_mode),
             effective_mode,
@@ -91,7 +96,6 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
             batch_texts: list[str],
             batch_voices: list[object | None],
             batch_voice_ids: list[str],
-            batch_rates: list[str],
         ) -> list[object]:
             infer_batch = getattr(engine, "infer_batch", None)
             if not callable(infer_batch):
@@ -99,24 +103,17 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
 
             max_chars = max(1, int(config.vieneu_render_max_chars_chunk))
             temperature = float(config.vieneu_render_temperature)
-            normalized_rates = [normalize_rate_value(rate, fallback="0%") for rate in batch_rates]
-            rate_factors = [rate_str_to_factor(rate) for rate in normalized_rates]
             try:
                 signature = inspect.signature(infer_batch)
             except (TypeError, ValueError):
                 signature = None
 
             candidates: list[tuple[tuple[str, object], ...]] = []
-            hinted_voices = [
-                _apply_vieneu_rate_hint(voice, rate=rate) if voice is not None else None
-                for voice, rate in zip(batch_voices, normalized_rates, strict=True)
-            ]
-            voice_values = [voice for voice in hinted_voices if voice is not None]
+            voice_values = [voice for voice in batch_voices if voice is not None]
             any_voice = bool(voice_values)
             all_have_voice = len(voice_values) == len(batch_voices)
             voice_ids = [voice_id for voice_id in batch_voice_ids if voice_id]
             same_voice = len(set(voice_ids)) == 1 if voice_ids else False
-            same_rate = len(set(normalized_rates)) == 1 if normalized_rates else False
             if signature is not None:
                 params = signature.parameters
                 if "texts" in params:
@@ -130,25 +127,9 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
                         if all_have_voice and same_voice and "voice" in params:
                             payload.append(("voice", next(voice for voice in voice_values)))
                         elif all_have_voice and not same_voice and "voices" in params:
-                            payload.append(("voices", hinted_voices))
+                            payload.append(("voices", batch_voices))
                         else:
                             payload = []
-                    if same_rate and "rate" in params:
-                        payload.append(("rate", normalized_rates[0]))
-                    elif same_rate and "speed" in params:
-                        payload.append(("speed", rate_factors[0]))
-                    elif same_rate and "speaking_rate" in params:
-                        payload.append(("speaking_rate", rate_factors[0]))
-                    elif same_rate and "rate_factor" in params:
-                        payload.append(("rate_factor", rate_factors[0]))
-                    elif "rates" in params:
-                        payload.append(("rates", normalized_rates))
-                    elif "speeds" in params:
-                        payload.append(("speeds", rate_factors))
-                    elif "speaking_rates" in params:
-                        payload.append(("speaking_rates", rate_factors))
-                    elif "rate_factors" in params:
-                        payload.append(("rate_factors", rate_factors))
                     if "temperature" in params:
                         payload.append(("temperature", temperature))
                     if "max_chars" in params:
@@ -159,22 +140,14 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
                         candidates.append(tuple(payload))
 
             if not candidates:
-                if all_have_voice and same_voice and same_rate:
+                if all_have_voice and same_voice:
                     first_voice = next((voice for voice in voice_values if voice is not None), None)
                     candidates = [
-                        (("texts", batch_texts), ("voice", first_voice), ("rate", normalized_rates[0]), ("temperature", temperature), ("max_chars", max_chars)),
-                    ]
-                elif all_have_voice and not same_voice and same_rate:
-                    candidates = [
-                        (("texts", batch_texts), ("voices", hinted_voices), ("rate", normalized_rates[0]), ("temperature", temperature), ("max_chars", max_chars)),
-                    ]
-                elif all_have_voice and same_voice:
-                    candidates = [
-                        (("texts", batch_texts), ("voice", next((voice for voice in voice_values if voice is not None), None)), ("temperature", temperature), ("max_chars", max_chars)),
+                        (("texts", batch_texts), ("voice", first_voice), ("temperature", temperature), ("max_chars", max_chars)),
                     ]
                 elif all_have_voice and not same_voice:
                     candidates = [
-                        (("texts", batch_texts), ("voices", hinted_voices), ("temperature", temperature), ("max_chars", max_chars)),
+                        (("texts", batch_texts), ("voices", batch_voices), ("temperature", temperature), ("max_chars", max_chars)),
                     ]
                 elif any_voice:
                     raise TtsError("VieNeu infer_batch requires voice-aware support for mixed or preset voices")
@@ -205,8 +178,7 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
             batch_texts = [str(seg.text or "").strip() for _idx, seg, _voice_id, _voice in batch_items]
             batch_voice_ids = [voice_id for _idx, _seg, voice_id, _voice in batch_items]
             batch_voices = [voice for _idx, _seg, _voice_id, voice in batch_items]
-            batch_rates = [str(seg.rate or "") for _idx, seg, _voice_id, _voice in batch_items]
-            batch_outputs = _call_vieneu_infer_batch(batch_texts, batch_voices, batch_voice_ids, batch_rates)
+            batch_outputs = _call_vieneu_infer_batch(batch_texts, batch_voices, batch_voice_ids)
             if len(batch_outputs) != len(batch_items):
                 raise RuntimeError(
                     f"VieNeu infer_batch returned {len(batch_outputs)} outputs for {len(batch_items)} inputs"
@@ -214,6 +186,7 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
             for (idx, _seg, _voice_id, _voice), audio in zip(batch_items, batch_outputs, strict=True):
                 out_wav = config.wav_dir / f"seg_{idx:03d}.wav"
                 engine.save(audio, out_wav)
+                apply_vieneu_time_stretch(out_wav, rate=str(_seg.rate or "0%"), ffmpeg_exe=config.ffmpeg_exe)
 
         concurrency = max(1, min(int(config.max_concurrent_tts or 1), total))
         batch_size = max(1, min(int(config.vieneu_render_max_batch_size_run or 1), total))
@@ -250,22 +223,23 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
             nonlocal done
             out_wav = config.wav_dir / f"seg_{idx:03d}.wav"
             async with sem:
-                    await synthesize_segment_with_vieneu_async(
-                        seg,
-                        out_wav,
-                        config.voice_map_vi,
-                        config.voice_map_en,
-                        auto_en_lines=config.auto_en_lines,
-                        vieneu_mode=effective_mode,
-                        vieneu_api_base=str(config.vieneu_api_base or ""),
-                        vieneu_model_name=runtime_model_name,
-                        vieneu_device=runtime_device,
-                        backend=runtime_backend,
-                        vieneu_temperature=float(config.vieneu_render_temperature),
-                        vieneu_max_chars_chunk=int(config.vieneu_render_max_chars_chunk),
-                        vieneu_use_batch=bool(config.vieneu_render_use_batch),
-                        vieneu_max_batch_size_run=int(config.vieneu_render_max_batch_size_run),
-                    )
+                await synthesize_segment_with_vieneu_async(
+                    seg,
+                    out_wav,
+                    config.voice_map_vi,
+                    config.voice_map_en,
+                    auto_en_lines=config.auto_en_lines,
+                    vieneu_mode=effective_mode,
+                    vieneu_api_base=str(config.vieneu_api_base or ""),
+                    vieneu_model_name=runtime_model_name,
+                    vieneu_device=runtime_device,
+                    backend=runtime_backend,
+                    vieneu_temperature=float(config.vieneu_render_temperature),
+                    vieneu_max_chars_chunk=int(config.vieneu_render_max_chars_chunk),
+                    vieneu_use_batch=bool(config.vieneu_render_use_batch),
+                    vieneu_max_batch_size_run=int(config.vieneu_render_max_batch_size_run),
+                    ffmpeg_exe=config.ffmpeg_exe,
+                )
             async with progress_lock:
                 done += 1
                 if progress_callback:

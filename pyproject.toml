@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ai-studio"
 version = "0.1.0"
-description = "Unified Story, Audio, Image, and Video studio tooling with CLI and Streamlit launchers."
+description = "Unified Audio and Video studio tooling with CLI and Streamlit launchers."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
   { name = "AI Story Studio" }
 ]
-keywords = ["story", "audio", "image", "video", "streamlit", "tts", "ffmpeg"]
+keywords = ["audio", "video", "streamlit", "tts", "ffmpeg"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -25,9 +25,8 @@ classifiers = [
 ]
 dependencies = [
   "PyYAML==6.0.3",
-  "requests==2.32.3",
   "edge-tts==7.2.7",
-  "vieneu>=2.4.0",
+  "vieneu>=3.2.4,<4",
   "neucodec>=0.0.5",
   "streamlit>=1.49,<2",
   "Pillow>=10,<12",
@@ -46,36 +45,17 @@ dev = [
   "mypy>=1.10,<2",
   "wheel>=0.42,<1",
 ]
-all = [
-  "lmdeploy>=0.12.3",
-]
-image-local = [
-  "torch>=2.2",
-  "diffusers>=0.31",
-  "transformers>=4.44",
-  "accelerate>=0.33",
-  "safetensors>=0.4",
-  "opencv-python-headless>=4.10",
-  "streamlit-drawable-canvas>=0.9.3",
-  "mediapipe>=0.10.14",
-  "ultralytics>=8.3",
-]
-lmdeploy = [
-  "lmdeploy>=0.12.3",
-]
+all = []
 
 [project.urls]
 Homepage = "https://www.pythonanywhere.com/user/khoalpa/ai-studio"
 Documentation = "https://www.pythonanywhere.com/user/khoalpa/ai-studio/docs"
 
 [project.scripts]
-generator-story = "story.cli:main"
-generator-story-gui = "story.gui_entry:main"
 render-audio = "audio.entrypoints:main"
 render-audio-gui = "audio.gui_entry:main"
 render-video = "video.cli:main"
 render-video-gui = "video.gui_entry:main"
-render-image-gui = "image.gui_entry:main"
 ai-studio-gui = "studio.gui_entry:main"
 
 
@@ -90,16 +70,6 @@ audio = [
   "assets/*/*/*",
   "assets/*/*/*/*",
 ]
-story = [
-  "assets/*",
-  "assets/*/*",
-  "assets/*/*/*",
-  "assets/*/*/*/*",
-]
-"image" = [
-  "assets/workflows/*.json",
-  "assets/schemas/*.json",
-]
 "video" = [
   "assets/*",
   "assets/*/*",
@@ -108,15 +78,13 @@ story = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["audio*", "story*", "image*", "video*", "studio*"]
+include = ["audio*", "video*", "studio*"]
 exclude = [
   "tests*",
   "dist*",
   "build*",
   "audio.models",
   "audio.models.*",
-  "image._shared",
-  "image._shared.*",
   "*.local_models",
   "*.local_models.*",
 ]
@@ -147,8 +115,6 @@ python_version = "3.10"
 # should be removed from that list as they are cleaned up.
 files = [
   "audio",
-  "story",
-  "image",
   "video",
   "studio",
   "scripts",
@@ -167,23 +133,12 @@ exclude = [
 # Baseline of modules with known mypy debt. Keep this list explicit so CI still
 # covers the rest of the package tree and new modules do not silently opt out.
 module = [
-  "audio.gui.handoff_utils",
-  "audio.gui.history",
-  "audio.gui.project_tools",
-  "audio.gui.provider_actions",
-  "audio.gui.result_panels",
-  "audio.gui.runtime_usage",
-  "audio.gui.tabs",
-  "audio.gui.workspace",
   "audio.adapters.edge_tts",
   "audio.adapters.ffmpeg_audio_mixer",
   "audio.adapters.tts_core",
   "audio.gui.app",
   "audio.gui.batch",
-  "audio.gui.diagnostics_blocks",
   "audio.gui.helpers",
-  "audio.gui.history_utils",
-  "audio.gui.panel_utils",
   "audio.gui.run_panel",
   "audio.gui.service",
   "audio.gui.settings",
@@ -191,53 +146,12 @@ module = [
   "audio.gui.workspace_state",
   "audio.pipeline.segment_planner",
   "audio.profile_manifest_schema",
-  "audio.providers.vieneu",
   "audio.render_batch_manifest",
   "audio.render_batch_runner",
   "audio.render_job_store",
   "audio.services.tts_render",
   "audio.validate_plain_script",
-  "image.gui.detector_ui",
-  "image.gui.common_ui",
-  "image.gui.diagnostics_blocks",
-  "image.gui.handoff_utils",
-  "image.gui.history_utils",
-  "image.gui.panel_utils",
-  "image.gui.prompt_ui",
-  "image.gui.provider_actions",
-  "image.gui.runtime_usage",
-  "image.gui.shared_state",
-  "image.gui.upscale_tab",
-  "image.gui.inpaint_utils",
-  "image.gui.result_ui",
-  "image.gui.service",
-  "image.gui.settings",
-  "image.gui.tabs",
-  "image.provider_runtime",
-  "story.client",
-  "story.common",
-  "story.gui.diagnostics_blocks",
-  "story.gui.handoff_utils",
-  "story.gui.project_tools",
-  "story.gui.provider_actions",
-  "story.gui.result_panels",
-  "story.gui.runtime_usage",
-  "story.gui.sidebar",
-  "story.gui.history_utils",
-  "story.gui.image_prompts",
-  "story.gui.llm_test",
-  "story.gui.panel_utils",
-  "story.gui.service",
-  "story.gui.shell",
-  "story.gui.tabs",
-  "story.gui.workspace_state",
-  "story.llm_providers",
   "video.app_api",
-  "video.gui.diagnostics_blocks",
-  "video.gui.history_utils",
-  "video.gui.panel_utils",
-  "video.gui.provider_actions",
-  "video.gui.runtime_usage",
   "video.gui.shared_state",
   "video.render_slideshow",
   "video.cli_entry",

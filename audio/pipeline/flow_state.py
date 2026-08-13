@@ -6,17 +6,18 @@ from typing import Any, Literal, Mapping, Optional
 VoiceTag = Literal["narrator", "female", "male"]
 
 DEFAULT_VOICE_RATE_MAP: dict[str, str] = {
-    "vi_narrator": "+12%",
-    "vi_female": "+14%",
-    "vi_male": "+10%",
-    "en_narrator": "+12%",
-    "en_female": "+13%",
-    "en_male": "+11%",
+    "vi_narrator": "0%",
+    "vi_female": "0%",
+    "vi_male": "0%",
+    "en_narrator": "0%",
+    "en_female": "0%",
+    "en_male": "0%",
 }
+RELATIVE_RATE_TAG_PREFIX = "__VOICE_DEFAULT_DELTA__="
 
 
 def normalize_rate_value(value: object, fallback: str = "0%") -> str:
-    raw = str(value or "").strip()
+    raw = "" if value is None else str(value).strip()
     if not raw:
         return fallback
     if raw.endswith("%"):
@@ -30,6 +31,31 @@ def normalize_rate_value(value: object, fallback: str = "0%") -> str:
         except Exception:
             return fallback
     return f"{pct:+.0f}%" if pct else "0%"
+
+
+def add_rate_delta(base_rate: object, delta_percent: float) -> str:
+    normalized = normalize_rate_value(base_rate, fallback="0%")
+    try:
+        base_percent = float(normalized.rstrip("%"))
+    except (TypeError, ValueError):
+        base_percent = 0.0
+    combined = base_percent + float(delta_percent)
+    return f"{combined:+.0f}%" if combined else "0%"
+
+
+def make_relative_rate_tag(delta_percent: float) -> str:
+    return f"{RELATIVE_RATE_TAG_PREFIX}{float(delta_percent):g}"
+
+
+def resolve_relative_rate_tag(rate_tag: str, *, base_rate: object) -> str:
+    raw = str(rate_tag or "").strip()
+    if not raw.startswith(RELATIVE_RATE_TAG_PREFIX):
+        return raw
+    try:
+        delta_percent = float(raw[len(RELATIVE_RATE_TAG_PREFIX):])
+    except ValueError:
+        delta_percent = 0.0
+    return add_rate_delta(base_rate, delta_percent)
 
 
 def default_rate_for_voice(voice: VoiceTag, voice_rate_map: Mapping[str, Any] | None = None, *, lang: str = "vi") -> str:
@@ -67,7 +93,8 @@ class VoiceFlowState:
         if lang_tag is not None:
             self.current_lang = lang_tag
         if rate_tag is not None:
-            self.current_rate = rate_tag
+            base_rate = default_rate_for_voice(self.current_voice, self.voice_rate_map, lang=self.current_lang)
+            self.current_rate = resolve_relative_rate_tag(rate_tag, base_rate=base_rate)
         elif voice_changed or lang_tag is not None:
             self.current_rate = default_rate_for_voice(self.current_voice, self.voice_rate_map, lang=self.current_lang)
         return self.current_voice, self.current_rate, self.current_lang, (lang_tag is not None)

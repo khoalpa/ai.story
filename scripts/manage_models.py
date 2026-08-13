@@ -19,8 +19,6 @@ from audio.model_store import (
 
 MODULE_FILES = {
     "audio": ROOT / "audio" / "__init__.py",
-    "story": ROOT / "story" / "__init__.py",
-    "image": ROOT / "image" / "__init__.py",
     "video": ROOT / "video" / "__init__.py",
 }
 
@@ -114,7 +112,7 @@ def main() -> int:
 
     if args.command == "remove":
         if args.module == "all":
-            print("The remove command requires --module audio|story|image|video.", file=sys.stderr)
+            print("The remove command requires --module audio|video.", file=sys.stderr)
             return 2
         target = remove_model_store_path(args.relative_path, _module_file(modules[0]), apply=args.apply)
         action = "Removed" if args.apply else "Would remove"

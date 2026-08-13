@@ -28,15 +28,15 @@ def test_model_store_inventory_reports_sizes_and_kinds(tmp_path: Path) -> None:
     anchor.write_text("", encoding="utf-8")
     (tmp_path / "models" / "audio" / "vieneu").mkdir(parents=True)
     (tmp_path / "models" / "audio" / "vieneu" / "model.gguf").write_bytes(b"12345")
-    (tmp_path / "models" / "_cache" / "image").mkdir(parents=True)
-    (tmp_path / "models" / "_cache" / "image" / "blob.bin").write_bytes(b"12")
+    (tmp_path / "models" / "_cache" / "audio").mkdir(parents=True)
+    (tmp_path / "models" / "_cache" / "audio" / "blob.bin").write_bytes(b"12")
 
     report = module.scan_model_store(anchor, include_cache=True, max_depth=3)
     entries = {entry.relative_path: entry for entry in report.entries}
 
     assert entries["audio/"].kind == "provider"
     assert entries["audio/vieneu/"].kind == "model"
-    assert entries["_cache/image/"].kind == "cache"
+    assert entries["_cache/audio/"].kind == "cache"
     assert report.size_bytes >= 7
     assert report.file_count >= 2
 
@@ -47,16 +47,16 @@ def test_model_store_remove_is_dry_run_by_default(tmp_path: Path) -> None:
     anchor = tmp_path / "audio" / "fake.py"
     anchor.parent.mkdir()
     anchor.write_text("", encoding="utf-8")
-    target = tmp_path / "models" / "story" / "local-model"
+    target = tmp_path / "models" / "audio" / "local-model"
     target.mkdir(parents=True)
     (target / "config.json").write_text("{}", encoding="utf-8")
 
-    resolved = module.remove_model_store_path("story/local-model", anchor)
+    resolved = module.remove_model_store_path("audio/local-model", anchor)
 
     assert resolved == target.resolve()
     assert target.exists()
 
-    module.remove_model_store_path("story/local-model", anchor, apply=True)
+    module.remove_model_store_path("audio/local-model", anchor, apply=True)
 
     assert not target.exists()
 

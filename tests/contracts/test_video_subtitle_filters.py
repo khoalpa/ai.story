@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from video.subtitle_filters import build_vf_filter, subtitle_background_to_ass
+from video.subtitle_filters import (
+    build_vf_filter,
+    subtitle_background_to_ass,
+    subtitle_text_color_to_ass,
+)
 
 
 def test_slideshow_subtitle_filter_generates_frames_before_burning_subtitles() -> None:
@@ -19,6 +23,22 @@ def test_subtitle_background_color_converts_to_ass_abgr() -> None:
     assert subtitle_background_to_ass("#000000", 50) == "&H80000000"
     assert subtitle_background_to_ass("#336699", 100) == "&H00996633"
     assert subtitle_background_to_ass("#336699", 0) == "&HFF996633"
+
+
+def test_subtitle_text_color_converts_to_opaque_ass_abgr() -> None:
+    assert subtitle_text_color_to_ass("#FFFFFF") == "&H00FFFFFF"
+    assert subtitle_text_color_to_ass("#336699") == "&H00996633"
+
+
+def test_subtitle_filter_applies_selected_font_and_text_color(monkeypatch) -> None:
+    monkeypatch.setenv("SUB_FONT", "Times New Roman")
+    monkeypatch.setenv("SUB_TEXT_COLOR", "#336699")
+    monkeypatch.delenv("SUB_FORCE_STYLE", raising=False)
+
+    vf_filter = build_vf_filter("16x9", Path("story.srt"))
+
+    assert "FontName=Times New Roman" in vf_filter
+    assert "PrimaryColour=&H00996633" in vf_filter
 
 
 def test_subtitle_filter_supports_fully_transparent_background(monkeypatch) -> None:

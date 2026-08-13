@@ -102,24 +102,29 @@ def normalize_vieneu_core(value: object) -> str:
 
 
 def resolve_vieneu_ui_mode(core: object, mode: object, device: object | None = None) -> str:
-    return resolve_vieneu_effective_mode(core, mode, device)
-
-
-def resolve_vieneu_runtime_mode(core: object, mode: object, device: object | None = None) -> str:
-    return resolve_vieneu_effective_mode(core, mode, device)
-
-
-def describe_vieneu_cuda_turbo_path(*, core: object, mode: object, device: object | None = None) -> str:
-    selected_core = normalize_vieneu_core(core)
+    _ = core, device
     selected_mode = normalize_vieneu_mode(mode)
-    selected_device = _resolve_vieneu_device_for_runtime(device)
-    if selected_core != "local" or selected_device != "cuda":
-        return ""
-    return (
-        "VieNeu local + cuda is auto-promoted to Standard so the GPU path is used. "
-        "VieNeu Turbo is documented upstream as a CPU/edge-oriented path, so cuda + turbo can still "
-        "be misleading if you expect guaranteed GPU acceleration."
-    )
+    return "standard" if selected_mode == "standard" else "turbo"
+
+
+def resolve_vieneu_runtime_mode(
+    core: object,
+    mode: object,
+    device: object | None = None,
+    model_name: object | None = None,
+) -> str:
+    return resolve_vieneu_effective_mode(core, mode, device, model_name)
+
+
+def describe_vieneu_cuda_turbo_path(
+    *,
+    core: object,
+    mode: object,
+    device: object | None = None,
+    model_name: object | None = None,
+) -> str:
+    _ = core, mode, device, model_name
+    return ""
 
 
 def get_vieneu_runtime_model_details(settings: dict[str, Any], *, allow_network: bool = False) -> dict[str, str]:
@@ -127,12 +132,17 @@ def get_vieneu_runtime_model_details(settings: dict[str, Any], *, allow_network:
     mode = normalize_vieneu_mode(settings.get("vieneu_mode"))
     device = _resolve_vieneu_device_for_runtime(settings.get("vieneu_device"))
     backend = str(settings.get("vieneu_backend") or "auto").strip().lower()
-    runtime_mode = resolve_vieneu_runtime_mode(core, mode, device)
+    runtime_mode = resolve_vieneu_runtime_mode(core, mode, device, settings.get("vieneu_model_name"))
     effective_backend = resolve_vieneu_runtime_backend(runtime_mode, settings.get("vieneu_model_name"), device, backend)
     api_base = str(settings.get("vieneu_api_base") or DEFAULT_VIENEU_API_BASE).strip()
     configured_model = resolve_vieneu_model_name(settings.get("vieneu_model_name"), mode)
     runtime_model = configured_model
-    warning = describe_vieneu_cuda_turbo_path(core=core, mode=mode, device=device)
+    warning = describe_vieneu_cuda_turbo_path(
+        core=core,
+        mode=mode,
+        device=device,
+        model_name=settings.get("vieneu_model_name"),
+    )
     if backend and backend != "auto" and backend != effective_backend:
         backend_warning = f"Requested backend {backend!r} fell back to {effective_backend!r} for the selected model/device."
         warning = backend_warning if not warning else f"{warning} {backend_warning}"
@@ -199,7 +209,7 @@ def _preview_voice_speed_key(lang: str, role: str) -> str:
 
 def _preview_voice_rate(settings: dict[str, Any], lang: str, role: str) -> str:
     key = _preview_voice_speed_key(lang, role)
-    default_value = 12
+    default_value = 0
     raw_speed = settings.get(key, default_value)
     try:
         speed = int(raw_speed)
@@ -219,6 +229,7 @@ def _preview_tts_cache_key(
     preview_cfg = _get_vieneu_preview_config(settings)
     preview_role = _preview_voice_role(provider, safe_lang, selected_voice)
     raw_parts = [
+        "preview-v3-time-stretch",
         provider,
         safe_lang,
         preview_role,
@@ -229,7 +240,12 @@ def _preview_tts_cache_key(
     if provider == TTS_PROVIDER_VIENEU:
         vieneu_core = normalize_vieneu_core(settings.get("vieneu_core"))
         vieneu_device = _resolve_vieneu_device_for_runtime(settings.get("vieneu_device"))
-        vieneu_mode = resolve_vieneu_runtime_mode(settings.get("vieneu_core"), settings.get("vieneu_mode"), vieneu_device)
+        vieneu_mode = resolve_vieneu_runtime_mode(
+            settings.get("vieneu_core"),
+            settings.get("vieneu_mode"),
+            vieneu_device,
+            settings.get("vieneu_model_name"),
+        )
         vieneu_api_base = str(settings.get("vieneu_api_base") or "")
         vieneu_model_name = resolve_vieneu_model_for_runtime(
             resolve_vieneu_model_name(settings.get("vieneu_model_name"), settings.get("vieneu_mode")),
@@ -325,6 +341,7 @@ def preview_tts_sample(*, text: str, settings: dict[str, Any], lang: str = "vi",
             settings.get("vieneu_core"),
             settings.get("vieneu_mode"),
             settings.get("vieneu_device"),
+            settings.get("vieneu_model_name"),
         )
         runtime_model_name = resolve_vieneu_model_for_runtime(
             resolve_vieneu_model_name(settings.get("vieneu_model_name"), settings.get("vieneu_mode")),
@@ -353,6 +370,7 @@ def preview_tts_sample(*, text: str, settings: dict[str, Any], lang: str = "vi",
             vieneu_max_chars_chunk=int(preview_cfg["max_chars_chunk"]),
             vieneu_use_batch=bool(preview_cfg["use_batch"]),
             vieneu_max_batch_size_run=int(preview_cfg["max_batch_size_run"]),
+            ffmpeg_exe=str(settings.get("ffmpeg_exe") or "ffmpeg"),
         )
         return out_wav
     raise UnsupportedTtsProviderError(f"Unsupported TTS provider: {provider}")
@@ -366,7 +384,12 @@ def validate_provider_runtime_settings(settings: dict[str, Any]) -> None:
     selected_core = normalize_vieneu_core(settings.get("vieneu_core"))
     selected_mode = normalize_vieneu_mode(settings.get("vieneu_mode"))
     selected_device = _resolve_vieneu_device_for_runtime(settings.get("vieneu_device"))
-    runtime_mode = resolve_vieneu_runtime_mode(selected_core, selected_mode, selected_device)
+    runtime_mode = resolve_vieneu_runtime_mode(
+        selected_core,
+        selected_mode,
+        selected_device,
+        settings.get("vieneu_model_name"),
+    )
     if runtime_mode == "remote" and not str(settings.get("vieneu_api_base") or "").strip():
         raise ValueError("VieNeu remote API requires an API base")
 
@@ -392,7 +415,7 @@ def refresh_vieneu_voices_from_settings(settings: dict[str, Any], *, allow_netwo
     core = normalize_vieneu_core(settings.get("vieneu_core"))
     mode = normalize_vieneu_mode(settings.get("vieneu_mode"))
     device = _resolve_vieneu_device_for_runtime(settings.get("vieneu_device"))
-    runtime_mode = resolve_vieneu_runtime_mode(core, mode, device)
+    runtime_mode = resolve_vieneu_runtime_mode(core, mode, device, settings.get("vieneu_model_name"))
     api_base = str(settings.get("vieneu_api_base") or DEFAULT_VIENEU_API_BASE).strip()
     model_name = validate_vieneu_mode_model_compatibility(mode, settings.get("vieneu_model_name"))
     if runtime_mode == "remote" and not api_base:
@@ -427,7 +450,7 @@ def probe_vieneu_core_connection_from_settings(settings: dict[str, Any], *, allo
     core = normalize_vieneu_core(settings.get("vieneu_core"))
     mode = normalize_vieneu_mode(settings.get("vieneu_mode"))
     device = _resolve_vieneu_device_for_runtime(settings.get("vieneu_device"))
-    runtime_mode = resolve_vieneu_runtime_mode(core, mode, device)
+    runtime_mode = resolve_vieneu_runtime_mode(core, mode, device, settings.get("vieneu_model_name"))
     api_base = str(settings.get("vieneu_api_base") or DEFAULT_VIENEU_API_BASE).strip()
     model_name = validate_vieneu_mode_model_compatibility(mode, settings.get("vieneu_model_name"))
     if runtime_mode == "remote" and not api_base:

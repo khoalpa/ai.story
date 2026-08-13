@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Callable, MutableMapping
+from typing import Any, Callable, MutableMapping, cast
 
 import streamlit as st
 
@@ -11,7 +11,7 @@ SessionState = MutableMapping[str, Any]
 def get_session_state(state: SessionState | None = None) -> SessionState:
     if state is not None:
         return state
-    return st.session_state
+    return cast(SessionState, st.session_state)
 
 
 def append_capped_history_entry(

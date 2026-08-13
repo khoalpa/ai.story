@@ -33,6 +33,7 @@ def save_segments_debug_json(segments: list[Segment], path: Path) -> None:
             "ambience": seg.ambience,
             "ambience_gain_db": seg.ambience_gain_db,
             "pause_ms_before": seg.pause_ms_before,
+            "paragraph_break_before": seg.paragraph_break_before,
             "zone": seg.zone,
             "lang": seg.lang,
             "lang_from_tag": seg.lang_from_tag,

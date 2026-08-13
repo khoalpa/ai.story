@@ -33,6 +33,23 @@ except Exception:  # pragma: no cover
                 ("Ly (Nu - Mien Bac)", "Ly"),
                 ("Ngoc (Nu - Mien Bac)", "Ngoc"),
             )
+        if "v3" in str(model_name or "").strip().lower():
+            return (
+                ("Minh Đức (Nam · Bắc · Tin tức)", "Minh Đức"),
+                ("Phạm Tuyên (Nam · Bắc · Tự nhiên)", "Phạm Tuyên"),
+                ("Thái Sơn (Nam · Nam · Kể chuyện)", "Thái Sơn"),
+                ("Xuân Vĩnh (Nam · Nam · Tự nhiên)", "Xuân Vĩnh"),
+                ("Thanh Bình (Nam · Bắc · Kể chuyện)", "Thanh Bình"),
+                ("Trúc Ly (Nữ · Bắc · Tự nhiên)", "Trúc Ly"),
+                ("Ngọc Linh (Nữ · Bắc · Kể chuyện)", "Ngọc Linh"),
+                ("Đoan Trang (Nữ · Bắc · Tự nhiên)", "Đoan Trang"),
+                ("Mai Anh (Nữ · Bắc · Tin tức)", "Mai Anh"),
+                ("Thục Đoan (Nữ · Nam · Kể chuyện)", "Thục Đoan"),
+                ("Minh Triết (Nam · Nam · Tin tức)", "Minh Triết"),
+                ("Thùy Dung (Nữ · Nam · Tin tức)", "Thùy Dung"),
+                ("Quang Sơn (Nam · Trung · Tự nhiên)", "Quang Sơn"),
+                ("Ngọc Trân (Nữ · Trung · Tự nhiên)", "Ngọc Trân"),
+            )
         return (
             ("Bich Ngoc (Nu - Mien Bac)", "Bich Ngoc"),
             ("Pham Tuyen (Nam - Mien Bac)", "Pham Tuyen"),
@@ -40,8 +57,8 @@ except Exception:  # pragma: no cover
             ("Xuan Vinh (Nam - Mien Nam)", "Xuan Vinh"),
         )
 
-    def resolve_vieneu_model_name(model_name: object = "", mode: object = "standard") -> str:
-        return str(model_name or "").strip()
+    def resolve_vieneu_model_name(value: object, mode: object = "standard") -> str:
+        return str(value or "").strip()
 
 
 def _infer_lang(desc: object, voice_id: object) -> str:
@@ -49,15 +66,6 @@ def _infer_lang(desc: object, voice_id: object) -> str:
     if any(token in lower for token in ("english", " en ", "en-", "en_", "eng ", "eng-", "eng_")):
         return "en"
     return "vi"
-
-
-def _infer_gender(desc: object, voice_id: object) -> str | None:
-    lower = f"{desc or ''} {voice_id or ''}".strip().lower()
-    if any(token in lower for token in ("nu", "nữ", "female", "girl", "woman", "fem")):
-        return "female"
-    if any(token in lower for token in ("nam", "male", "boy", "man", "masc")):
-        return "male"
-    return None
 
 
 def _runtime_voice_choices() -> tuple[tuple[str, str], ...]:
@@ -91,19 +99,16 @@ def get_voice_choices(*, lang: str, role: str) -> tuple[VoiceChoice, ...]:
         available = tuple(_static_vieneu_sample_voices(mode=fallback_mode, model_name=vieneu_model_name))
 
     target_lang = str(lang or "vi").strip().lower() or "vi"
-    target_role = str(role or "narrator").strip().lower() or "narrator"
     choices: list[VoiceChoice] = []
     for desc, voice_id in available:
         clean_voice_id = migrate_vieneu_legacy_voice_id(voice_id, available)
         inferred_lang = _infer_lang(desc, clean_voice_id)
         if inferred_lang != target_lang:
             continue
-        inferred_gender = _infer_gender(desc, clean_voice_id)
-        effective_role = inferred_gender if inferred_gender in {"female", "male"} else "narrator"
-        if target_role not in {"narrator", effective_role}:
-            continue
         label = str(desc or clean_voice_id).strip() or clean_voice_id
-        choices.append(VoiceChoice(clean_voice_id, f"{label} (VieNeu)", target_lang, effective_role))
+        # VieNeu voices are model capabilities, not script roles. Expose the
+        # complete catalog so each script role can use any installed voice.
+        choices.append(VoiceChoice(clean_voice_id, f"{label} (VieNeu)", target_lang, "narrator"))
 
     if choices:
         return tuple(choices)

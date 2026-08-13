@@ -4,16 +4,12 @@ import re
 from typing import Any, List, Mapping, Optional, Tuple, Literal
 
 from audio.audio_story_spec import TAG_PATTERN, extract_base_token, is_legacy_unsupported_tag
-from audio.pipeline.flow_state import default_rate_for_voice as _default_rate_for_voice
+from audio.pipeline.flow_state import default_rate_for_voice as _default_rate_for_voice, make_relative_rate_tag
 
 VoiceTag = Literal["narrator", "female", "male"]
 
 MIN_SILENCE_MS = 200
 MAX_SILENCE_MS = 20000
-RATE_TAG_SLOW = "-2%"
-RATE_TAG_FAST = "+2%"
-
-
 def clamp_silence_ms(ms: int) -> int:
     return max(MIN_SILENCE_MS, min(MAX_SILENCE_MS, ms))
 
@@ -99,6 +95,7 @@ def parse_tags_and_text(
     bgm_gain_db_from_tag: Optional[float] = None
     silence_ms: Optional[int] = None
     lang_tag: Optional[str] = None
+    rate_directive: tuple[str, object] | None = None
 
     for t in tags:
         upper = t.strip().upper()
@@ -115,19 +112,19 @@ def parse_tags_and_text(
             continue
 
         if upper == "SLOW":
-            rate_from_tag = RATE_TAG_SLOW
+            rate_directive = ("relative", -2.0)
             continue
         if upper == "FAST":
-            rate_from_tag = RATE_TAG_FAST
+            rate_directive = ("relative", 2.0)
             continue
         if upper == "NORMAL":
-            rate_from_tag = _default_rate_for_voice(voice_from_tag or "narrator", voice_rate_map, lang=lang_tag or "vi")
+            rate_directive = ("relative", 0.0)
             continue
 
         if base == "RATE" or upper.startswith("RATE="):
             if "=" in t:
                 _, v = t.split("=", 1)
-                rate_from_tag = v.strip()
+                rate_directive = ("absolute", v.strip())
             continue
 
         if base == "MUSIC" or upper.startswith("MUSIC="):
@@ -208,6 +205,13 @@ def parse_tags_and_text(
         if base == "EN":
             lang_tag = "en"
             continue
+
+    if rate_directive is not None:
+        directive_kind, directive_value = rate_directive
+        if directive_kind == "absolute":
+            rate_from_tag = str(directive_value)
+        else:
+            rate_from_tag = make_relative_rate_tag(float(directive_value))
 
     return (
         voice_from_tag,

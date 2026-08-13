@@ -30,6 +30,7 @@ class Segment:
     lang_from_tag: bool = False
     emotion: str = "neutral"
     env: str = "none"
+    paragraph_break_before: bool = False
 
 
 def clamp_silence_ms(ms: int) -> int:
@@ -105,6 +106,7 @@ def assign_segments(expanded_lines: List[dict], *, voice_rate_map: Mapping[str, 
                 lang=voice_flow.current_lang,
                 lang_from_tag=False,
                 env=current_env,
+                paragraph_break_before=bool(item.get("paragraph_break_before", False)),
             )
             segments.append(seg)
             continue
@@ -140,6 +142,7 @@ def assign_segments(expanded_lines: List[dict], *, voice_rate_map: Mapping[str, 
                 lang=lang,
                 lang_from_tag=lang_from_tag,
                 env=current_env,
+                paragraph_break_before=bool(item.get("paragraph_break_before", False)),
             )
         )
 

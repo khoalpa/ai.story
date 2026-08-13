@@ -272,6 +272,15 @@ REQUIRED_META_KEYS: Tuple[str, ...] = (
     "tags",
 )
 
+OPTIONAL_META_KEYS: Tuple[str, ...] = (
+    "profile",
+    "framework_version",
+    "story_signature",
+    "art_direction_id",
+)
+
+ALLOWED_META_KEYS: Tuple[str, ...] = REQUIRED_META_KEYS + OPTIONAL_META_KEYS
+
 
 OPTIONAL_ROOT_KEYS: Tuple[str, ...] = (
     "_auto_repair_log",
@@ -280,6 +289,7 @@ OPTIONAL_ROOT_KEYS: Tuple[str, ...] = (
 SQUARE_BRACKET_TEXT_RE = re.compile(r"[\[\]]")
 SENTENCE_END_RE = re.compile(r"(?<!\.)[.!?…](?![\dA-Za-z])")
 ABBREVIATION_TAIL_RE = re.compile(r"(?:^|\s)(?:[A-Za-z]\.){2,}$")
+SENTENCE_TRAILING_CLOSERS = frozenset("\"'”’)]}")
 
 
 def _looks_like_single_sentence(text: str) -> bool:
@@ -309,7 +319,8 @@ def _looks_like_single_sentence(text: str) -> bool:
     if ABBREVIATION_TAIL_RE.search(tail):
         return True
 
-    return last.end() == len(s)
+    trailing = s[last.end():]
+    return not trailing or all(char in SENTENCE_TRAILING_CLOSERS for char in trailing)
 
 
 def _normalize_zone_label(zone: object) -> str:
@@ -329,13 +340,97 @@ def normalize_outline_key(key: object) -> str:
     return OUTLINE_KEY_ALIASES.get(s.upper(), s)
 
 
+def _canonical_meta_language(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower().replace("_", "-")
+    aliases = {
+        "vi": "vi",
+        "vi-vn": "vi",
+        "vietnamese": "vi",
+        "tieng viet": "vi",
+        "tiếng việt": "vi",
+        "en": "en",
+        "en-us": "en",
+        "en-gb": "en",
+        "english": "en",
+    }
+    return aliases.get(normalized)
+
+
+def _looks_like_abbreviation_boundary(text: str) -> bool:
+    token = text.rstrip().split()[-1].lower() if text.rstrip() else ""
+    common = {
+        "mr.", "mrs.", "ms.", "dr.", "prof.", "sr.", "jr.",
+        "tp.", "q.", "p.", "ts.", "ths.", "pgs.", "gs.",
+        "vd.", "v.v.", "etc.", "eg.", "i.e.", "no.", "st.",
+    }
+    return token in common or bool(re.fullmatch(r"(?:[A-Za-zÀ-ỹ]\.){2,}", token, re.IGNORECASE))
+
+
+def _split_framework_script_text(text: object) -> List[str]:
+    source = "" if text is None else str(text).strip()
+    if not source:
+        return []
+
+    sentences: List[str] = []
+    start = 0
+    index = 0
+    while index < len(source):
+        if source[index] not in ".!?\u2026":
+            index += 1
+            continue
+
+        punctuation_end = index + 1
+        while punctuation_end < len(source) and source[punctuation_end] in ".!?\u2026":
+            punctuation_end += 1
+        end = punctuation_end
+        while end < len(source) and source[end] in "\"'”’)]}":
+            end += 1
+
+        if end < len(source) and not source[end].isspace():
+            index = punctuation_end
+            continue
+        candidate = source[start:end].strip()
+        if source[index] == "." and punctuation_end == index + 1 and _looks_like_abbreviation_boundary(candidate):
+            index = punctuation_end
+            continue
+        if candidate:
+            sentences.append(candidate)
+        start = end
+        while start < len(source) and source[start].isspace():
+            start += 1
+        index = start
+
+    remainder = source[start:].strip()
+    if remainder:
+        if sentences:
+            sentences[-1] = f"{sentences[-1]} {remainder}"
+        else:
+            sentences.append(remainder)
+    return sentences
+
+
 def normalize_canonical_authoring_zones(data: Any) -> Any:
-    """Return a shallow-normalized copy with outline/script zones canonicalized when possible."""
+    """Normalize framework authoring before Audio's strict validation.
+
+    This keeps the legacy public name while also normalizing framework language
+    labels and expanding multi-sentence items without changing their other fields.
+    """
     if not isinstance(data, dict):
         return data
 
     normalized = dict(data)
     changed = False
+
+    meta = data.get("meta")
+    if isinstance(meta, dict):
+        canonical_language = _canonical_meta_language(meta.get("language"))
+        if canonical_language is not None and canonical_language != meta.get("language"):
+            normalized_meta = dict(meta)
+            normalized_meta["language"] = canonical_language
+            normalized["meta"] = normalized_meta
+            changed = True
 
     outline = data.get("outline")
     if isinstance(outline, dict):
@@ -360,11 +455,14 @@ def normalize_canonical_authoring_zones(data: Any) -> Any:
                 continue
             zone = item.get("zone")
             canonical_zone = canonical_script_zone_label(zone)
-            if canonical_zone != zone:
+            sentences = _split_framework_script_text(item.get("text"))
+            if canonical_zone != zone or len(sentences) > 1:
                 script_changed = True
-                new_item = dict(item)
-                new_item["zone"] = canonical_zone
-                new_script.append(new_item)
+                for sentence in sentences or [item.get("text")]:
+                    new_item = dict(item)
+                    new_item["zone"] = canonical_zone
+                    new_item["text"] = sentence
+                    new_script.append(new_item)
             else:
                 new_script.append(item)
         if script_changed:
@@ -466,7 +564,7 @@ def validate_canonical_authoring(data: Any) -> List[str]:
     if not isinstance(meta, dict):
         errors.append("meta phải là object.")
     else:
-        extra_meta = sorted(set(meta.keys()) - set(REQUIRED_META_KEYS))
+        extra_meta = sorted(set(meta.keys()) - set(ALLOWED_META_KEYS))
         if extra_meta:
             errors.append(f"meta có field không hợp lệ: {extra_meta}.")
         missing_meta = [k for k in REQUIRED_META_KEYS if k not in meta]
@@ -487,6 +585,14 @@ def validate_canonical_authoring(data: Any) -> List[str]:
                     errors.append(f"meta.{k} phải là string.")
                 elif k not in {"series", "episode"} and not v.strip():
                     errors.append(f"meta.{k} phải là string không rỗng.")
+        for k in OPTIONAL_META_KEYS:
+            if k not in meta:
+                continue
+            value = meta.get(k)
+            if not isinstance(value, str):
+                errors.append(f"meta.{k} must be a string.")
+            elif not value.strip():
+                errors.append(f"meta.{k} must be a non-empty string.")
         lang = str(meta.get("language", "")).strip().lower()
         if lang and lang not in {"vi", "en"}:
             errors.append("meta.language chỉ được là 'vi' hoặc 'en'.")

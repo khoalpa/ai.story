@@ -22,10 +22,16 @@ def _extract_inline_env(raw_line: str) -> Optional[str]:
 
 def parse_plain_script(full_text: str, *, voice_rate_map: Mapping[str, Any] | None = None) -> List[ParsedScriptLine]:
     parsed: List[ParsedScriptLine] = []
+    saw_content = False
+    paragraph_break_pending = False
 
     for raw in full_text.splitlines():
         line = raw.strip()
-        if not line or line.upper() == "SCRIPT:":
+        if not line:
+            if saw_content:
+                paragraph_break_pending = True
+            continue
+        if line.upper() == "SCRIPT:":
             continue
 
         if line.startswith("#") or line.startswith("//"):
@@ -72,8 +78,11 @@ def parse_plain_script(full_text: str, *, voice_rate_map: Mapping[str, Any] | No
                 lang_tag=lang_tag,
                 silence_ms=silence_ms,
                 env_hint=_extract_inline_env(raw),
+                paragraph_break_before=paragraph_break_pending,
             )
         )
+        saw_content = True
+        paragraph_break_pending = False
 
     return parsed
 
@@ -108,6 +117,7 @@ def resolve_script_flows(parsed_lines: List[ParsedScriptLine], *, voice_rate_map
                 bgm_db_tag=item.bgm_db_tag,
                 lang_tag=item.lang_tag,
                 silence_ms=item.silence_ms,
+                paragraph_break_before=item.paragraph_break_before,
             )
         )
 

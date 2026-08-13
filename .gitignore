@@ -37,3 +37,5 @@ neucodec/
 build/
 dist/
 *.egg-info/
+archived_models/
+archived_story_assets/

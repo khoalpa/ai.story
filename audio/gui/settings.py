@@ -174,9 +174,11 @@ def _resolve_vieneu_mode_default_model(*, core: str, mode: str, current_model: s
     first_local = get_first_vieneu_local_model(mode=mode)
     local_placeholders = {
         get_default_vieneu_local_target("standard"),
+        get_default_vieneu_local_target("turbo"),
     }
     repo_placeholders = {
         get_default_vieneu_model_name("standard"),
+        get_default_vieneu_model_name("turbo"),
     }
     if core == "local":
         preferred_local = local_default if local_default_path.exists() else str(first_local or "").strip()
@@ -324,7 +326,7 @@ def _render_voice_selector_block(*, provider: str, profile_defaults: dict, advan
     )
     _render_voice_speed_slider(
         key=VOICE_NARRATOR_SPEED_KEY,
-        default_value=int(defaults.get(VOICE_NARRATOR_SPEED_KEY) or VOICE_SPEED_DEFAULTS[VOICE_NARRATOR_SPEED_KEY]),
+        default_value=int(defaults.get(VOICE_NARRATOR_SPEED_KEY, VOICE_SPEED_DEFAULTS[VOICE_NARRATOR_SPEED_KEY])),
     )
     voice_female = _voice_selectbox(
         "VI female",
@@ -338,7 +340,7 @@ def _render_voice_selector_block(*, provider: str, profile_defaults: dict, advan
     )
     _render_voice_speed_slider(
         key=VOICE_FEMALE_SPEED_KEY,
-        default_value=int(defaults.get(VOICE_FEMALE_SPEED_KEY) or VOICE_SPEED_DEFAULTS[VOICE_FEMALE_SPEED_KEY]),
+        default_value=int(defaults.get(VOICE_FEMALE_SPEED_KEY, VOICE_SPEED_DEFAULTS[VOICE_FEMALE_SPEED_KEY])),
     )
     voice_male = _voice_selectbox(
         "VI male",
@@ -352,7 +354,7 @@ def _render_voice_selector_block(*, provider: str, profile_defaults: dict, advan
     )
     _render_voice_speed_slider(
         key=VOICE_MALE_SPEED_KEY,
-        default_value=int(defaults.get(VOICE_MALE_SPEED_KEY) or VOICE_SPEED_DEFAULTS[VOICE_MALE_SPEED_KEY]),
+        default_value=int(defaults.get(VOICE_MALE_SPEED_KEY, VOICE_SPEED_DEFAULTS[VOICE_MALE_SPEED_KEY])),
     )
     voice_en_narrator = _voice_selectbox(
         "EN narrator",
@@ -366,7 +368,7 @@ def _render_voice_selector_block(*, provider: str, profile_defaults: dict, advan
     )
     _render_voice_speed_slider(
         key=VOICE_EN_NARRATOR_SPEED_KEY,
-        default_value=int(defaults.get(VOICE_EN_NARRATOR_SPEED_KEY) or VOICE_SPEED_DEFAULTS[VOICE_EN_NARRATOR_SPEED_KEY]),
+        default_value=int(defaults.get(VOICE_EN_NARRATOR_SPEED_KEY, VOICE_SPEED_DEFAULTS[VOICE_EN_NARRATOR_SPEED_KEY])),
     )
     voice_en_female = _voice_selectbox(
         "EN female",
@@ -380,7 +382,7 @@ def _render_voice_selector_block(*, provider: str, profile_defaults: dict, advan
     )
     _render_voice_speed_slider(
         key=VOICE_EN_FEMALE_SPEED_KEY,
-        default_value=int(defaults.get(VOICE_EN_FEMALE_SPEED_KEY) or VOICE_SPEED_DEFAULTS[VOICE_EN_FEMALE_SPEED_KEY]),
+        default_value=int(defaults.get(VOICE_EN_FEMALE_SPEED_KEY, VOICE_SPEED_DEFAULTS[VOICE_EN_FEMALE_SPEED_KEY])),
     )
     voice_en_male = _voice_selectbox(
         "EN male",
@@ -394,7 +396,7 @@ def _render_voice_selector_block(*, provider: str, profile_defaults: dict, advan
     )
     _render_voice_speed_slider(
         key=VOICE_EN_MALE_SPEED_KEY,
-        default_value=int(defaults.get(VOICE_EN_MALE_SPEED_KEY) or VOICE_SPEED_DEFAULTS[VOICE_EN_MALE_SPEED_KEY]),
+        default_value=int(defaults.get(VOICE_EN_MALE_SPEED_KEY, VOICE_SPEED_DEFAULTS[VOICE_EN_MALE_SPEED_KEY])),
     )
     return (
         voice_narrator,
@@ -435,7 +437,12 @@ def _build_vieneu_persisted_settings(
 ) -> dict[str, object]:
     return {
         "vieneu_core": core,
-        "vieneu_mode": resolve_vieneu_runtime_mode(core, mode, st.session_state.get("vieneu_device")),
+        "vieneu_mode": resolve_vieneu_runtime_mode(
+            core,
+            mode,
+            st.session_state.get("vieneu_device"),
+            model_name,
+        ),
         "vieneu_api_base": api_base,
         "vieneu_model_name": model_name,
         "vieneu_device": st.session_state.get("vieneu_device"),
@@ -538,7 +545,14 @@ def render_settings_sidebar() -> GuiConfigBundle:
             help="Choose the device used by VieNeu rendering and preview. auto prefers GPU when available, otherwise CPU.",
         )
         st.session_state.setdefault("vieneu_core", "local")
-        st.session_state.setdefault("vieneu_mode", "standard" if str(profile_defaults.get("vieneu_mode") or app_defaults.get("vieneu_mode") or "standard") == "standard" else "standard")
+        st.session_state.setdefault(
+            "vieneu_mode",
+            resolve_vieneu_ui_mode(
+                st.session_state.get("vieneu_core") or "local",
+                profile_defaults.get("vieneu_mode") or app_defaults.get("vieneu_mode") or "standard",
+                st.session_state.get("vieneu_device"),
+            ),
+        )
         st.session_state.setdefault("vieneu_api_base", str(profile_defaults.get("vieneu_api_base") or app_defaults.get("vieneu_api_base") or ""))
         st.session_state.setdefault(
             "vieneu_model_name",
@@ -548,12 +562,12 @@ def render_settings_sidebar() -> GuiConfigBundle:
                 current_model=str(profile_defaults.get("vieneu_model_name") or app_defaults.get("vieneu_model_name") or resolve_vieneu_model_name("", st.session_state.get("vieneu_mode") or "standard")),
             ),
         )
-        st.session_state.setdefault(VOICE_NARRATOR_SPEED_KEY, int(profile_defaults.get(VOICE_NARRATOR_SPEED_KEY) or app_defaults.get(VOICE_NARRATOR_SPEED_KEY) or 25))
-        st.session_state.setdefault(VOICE_FEMALE_SPEED_KEY, int(profile_defaults.get(VOICE_FEMALE_SPEED_KEY) or app_defaults.get(VOICE_FEMALE_SPEED_KEY) or 25))
-        st.session_state.setdefault(VOICE_MALE_SPEED_KEY, int(profile_defaults.get(VOICE_MALE_SPEED_KEY) or app_defaults.get(VOICE_MALE_SPEED_KEY) or 25))
-        st.session_state.setdefault(VOICE_EN_NARRATOR_SPEED_KEY, int(profile_defaults.get(VOICE_EN_NARRATOR_SPEED_KEY) or app_defaults.get(VOICE_EN_NARRATOR_SPEED_KEY) or 25))
-        st.session_state.setdefault(VOICE_EN_FEMALE_SPEED_KEY, int(profile_defaults.get(VOICE_EN_FEMALE_SPEED_KEY) or app_defaults.get(VOICE_EN_FEMALE_SPEED_KEY) or 25))
-        st.session_state.setdefault(VOICE_EN_MALE_SPEED_KEY, int(profile_defaults.get(VOICE_EN_MALE_SPEED_KEY) or app_defaults.get(VOICE_EN_MALE_SPEED_KEY) or 25))
+        st.session_state.setdefault(VOICE_NARRATOR_SPEED_KEY, int(profile_defaults.get(VOICE_NARRATOR_SPEED_KEY, app_defaults.get(VOICE_NARRATOR_SPEED_KEY, 0))))
+        st.session_state.setdefault(VOICE_FEMALE_SPEED_KEY, int(profile_defaults.get(VOICE_FEMALE_SPEED_KEY, app_defaults.get(VOICE_FEMALE_SPEED_KEY, 0))))
+        st.session_state.setdefault(VOICE_MALE_SPEED_KEY, int(profile_defaults.get(VOICE_MALE_SPEED_KEY, app_defaults.get(VOICE_MALE_SPEED_KEY, 0))))
+        st.session_state.setdefault(VOICE_EN_NARRATOR_SPEED_KEY, int(profile_defaults.get(VOICE_EN_NARRATOR_SPEED_KEY, app_defaults.get(VOICE_EN_NARRATOR_SPEED_KEY, 0))))
+        st.session_state.setdefault(VOICE_EN_FEMALE_SPEED_KEY, int(profile_defaults.get(VOICE_EN_FEMALE_SPEED_KEY, app_defaults.get(VOICE_EN_FEMALE_SPEED_KEY, 0))))
+        st.session_state.setdefault(VOICE_EN_MALE_SPEED_KEY, int(profile_defaults.get(VOICE_EN_MALE_SPEED_KEY, app_defaults.get(VOICE_EN_MALE_SPEED_KEY, 0))))
         st.session_state.setdefault("vieneu_preview_temperature", float(profile_defaults.get("vieneu_preview_temperature") or app_defaults.get("vieneu_preview_temperature") or 0.6))
         st.session_state.setdefault("vieneu_preview_max_chars_chunk", int(profile_defaults.get("vieneu_preview_max_chars_chunk") or app_defaults.get("vieneu_preview_max_chars_chunk") or 160))
         st.session_state.setdefault("vieneu_preview_use_batch", bool(profile_defaults.get("vieneu_preview_use_batch") or app_defaults.get("vieneu_preview_use_batch") or False))
@@ -564,7 +578,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
         st.session_state.setdefault("vieneu_render_use_batch", bool(profile_defaults.get("vieneu_render_use_batch") or app_defaults.get("vieneu_render_use_batch") or False))
         st.session_state.setdefault("vieneu_render_max_batch_size_run", int(profile_defaults.get("vieneu_render_max_batch_size_run") or app_defaults.get("vieneu_render_max_batch_size_run") or 1))
         vieneu_core = normalize_vieneu_core(st.session_state.get("vieneu_core") or "local")
-        vieneu_mode_requested = str(st.session_state.get("vieneu_mode") or "turbo")
+        vieneu_mode_requested = str(st.session_state.get("vieneu_mode") or "standard")
         vieneu_mode = resolve_vieneu_ui_mode(vieneu_core, vieneu_mode_requested, st.session_state.get("vieneu_device"))
         vieneu_api_base = str(st.session_state.get("vieneu_api_base") or "")
         if vieneu_mode != vieneu_mode_requested:
@@ -573,12 +587,12 @@ def render_settings_sidebar() -> GuiConfigBundle:
                 st.session_state["vieneu_model_name"] = get_default_vieneu_model_name(vieneu_mode)
         vieneu_model_name = resolve_vieneu_model_name(st.session_state.get("vieneu_model_name"), vieneu_mode)
         audio_update_target = str(provider_target_dir("audio", "vieneu", __file__))
-        voice_narrator_speed = int(st.session_state.get(VOICE_NARRATOR_SPEED_KEY) or 25)
-        voice_female_speed = int(st.session_state.get(VOICE_FEMALE_SPEED_KEY) or 25)
-        voice_male_speed = int(st.session_state.get(VOICE_MALE_SPEED_KEY) or 25)
-        voice_en_narrator_speed = int(st.session_state.get(VOICE_EN_NARRATOR_SPEED_KEY) or 25)
-        voice_en_female_speed = int(st.session_state.get(VOICE_EN_FEMALE_SPEED_KEY) or 25)
-        voice_en_male_speed = int(st.session_state.get(VOICE_EN_MALE_SPEED_KEY) or 25)
+        voice_narrator_speed = int(st.session_state.get(VOICE_NARRATOR_SPEED_KEY, 0))
+        voice_female_speed = int(st.session_state.get(VOICE_FEMALE_SPEED_KEY, 0))
+        voice_male_speed = int(st.session_state.get(VOICE_MALE_SPEED_KEY, 0))
+        voice_en_narrator_speed = int(st.session_state.get(VOICE_EN_NARRATOR_SPEED_KEY, 0))
+        voice_en_female_speed = int(st.session_state.get(VOICE_EN_FEMALE_SPEED_KEY, 0))
+        voice_en_male_speed = int(st.session_state.get(VOICE_EN_MALE_SPEED_KEY, 0))
         vieneu_preview_temperature = float(st.session_state.get("vieneu_preview_temperature") or 0.6)
         vieneu_preview_max_chars_chunk = int(st.session_state.get("vieneu_preview_max_chars_chunk") or 160)
         vieneu_preview_use_batch = bool(st.session_state.get("vieneu_preview_use_batch") or False)
@@ -590,7 +604,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
         vieneu_render_max_batch_size_run = int(st.session_state.get("vieneu_render_max_batch_size_run") or 1)
         if tts_provider == "vieneu":
             st.subheader("VieNeu TTS core")
-            previous_vieneu_mode = str(st.session_state.get("_vieneu_mode_last") or vieneu_mode or "turbo")
+            previous_vieneu_mode = str(st.session_state.get("_vieneu_mode_last") or vieneu_mode or "standard")
             previous_vieneu_model_name = str(st.session_state.get("vieneu_model_name") or "").strip()
             if str(st.session_state.get("vieneu_core") or "") not in set(VIENEU_CORE_OPTIONS):
                 st.session_state["vieneu_core"] = vieneu_core if vieneu_core in set(VIENEU_CORE_OPTIONS) else "local"
@@ -602,7 +616,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
                 help="Choose how the engine is called: local/headless in this machine or through a remote API.",
             )
             if str(st.session_state.get("vieneu_mode") or "") not in set(VIENEU_MODE_OPTIONS):
-                st.session_state["vieneu_mode"] = vieneu_mode if vieneu_mode in set(VIENEU_MODE_OPTIONS) else "turbo"
+                st.session_state["vieneu_mode"] = vieneu_mode if vieneu_mode in set(VIENEU_MODE_OPTIONS) else "standard"
             vieneu_mode = st.selectbox(
                 "VieNeu mode",
                 list(VIENEU_MODE_OPTIONS),
@@ -865,6 +879,14 @@ def render_settings_sidebar() -> GuiConfigBundle:
             value=bool(app_defaults.get("quality_gate", True)),
             help="Measure loudness, true peak, duration, sample rate, and channel count after export.",
         )
+        pacing_presets = ["off", "compact", "natural", "dramatic"]
+        current_pacing_preset = str(app_defaults.get("pacing_preset") or "natural")
+        pacing_preset = st.selectbox(
+            "Narration pacing",
+            pacing_presets,
+            index=pacing_presets.index(current_pacing_preset) if current_pacing_preset in pacing_presets else 2,
+            help="Adaptive total gap between sentences: compact=350 ms, natural=550 ms, dramatic=750 ms.",
+        )
         st.header(SidebarSection.RENDER)
         validate_only = st.checkbox("Validate only", value=bool(app_defaults["validate_only"]))
         debug_mode = st.checkbox("Debug only (save segments JSON)", value=bool(app_defaults["debug"]))
@@ -909,7 +931,12 @@ def render_settings_sidebar() -> GuiConfigBundle:
                 ffmpeg_exe,
                 ffprobe_exe,
                 tts_provider=tts_provider,
-                vieneu_mode=resolve_vieneu_runtime_mode(vieneu_core, vieneu_mode, st.session_state.get("vieneu_device")),
+                vieneu_mode=resolve_vieneu_runtime_mode(
+                    vieneu_core,
+                    vieneu_mode,
+                    st.session_state.get("vieneu_device"),
+                    vieneu_model_name,
+                ),
             )
             st.caption("Runtime checks")
             for line in runtime_diagnostics_to_lines(diagnostics):
@@ -931,6 +958,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
         "output_channels": output_channels,
         "mp3_bitrate_kbps": mp3_bitrate_kbps,
         "quality_gate": quality_gate,
+        "pacing_preset": pacing_preset,
         "tts_provider": tts_provider,
         "validate_only": validate_only,
         "debug_mode": debug_mode,

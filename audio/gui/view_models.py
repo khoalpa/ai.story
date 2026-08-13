@@ -12,6 +12,7 @@ _AUDIO_SETTINGS_FIELDS = (
     'output_channels',
     'mp3_bitrate_kbps',
     'quality_gate',
+    'pacing_preset',
     'tts_provider',
     'bgm',
     'output_dir',

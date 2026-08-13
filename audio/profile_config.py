@@ -15,8 +15,8 @@ from audio.adapters.tts_core import get_default_vieneu_local_target, normalize_v
 DEFAULT_PROFILE_ROOT = str(PACKAGE_PROFILE_ROOT)
 DEFAULT_BGM_DIR_STR = str(DEFAULT_BGM_DIR)
 DEFAULT_VOICE_NARRATOR = "Doan"
-DEFAULT_VOICE_FEMALE = "Thục Đoan"
-DEFAULT_VOICE_MALE = "Vinh"
+DEFAULT_VOICE_FEMALE = "Doan"
+DEFAULT_VOICE_MALE = "Doan"
 DEFAULT_EN_VOICE_NARRATOR = "Doan"
 DEFAULT_EN_VOICE_FEMALE = "Doan"
 DEFAULT_EN_VOICE_MALE = "en-US-GuyNeural"
@@ -35,12 +35,12 @@ PROFILE_CONFIG_DEFAULTS: dict[str, Any] = {
     "voice_en_narrator": DEFAULT_EN_VOICE_NARRATOR,
     "voice_en_female": DEFAULT_EN_VOICE_FEMALE,
     "voice_en_male": DEFAULT_EN_VOICE_MALE,
-    "voice_narrator_speed": 25,
-    "voice_female_speed": 25,
-    "voice_male_speed": 25,
-    "voice_en_narrator_speed": 25,
-    "voice_en_female_speed": 25,
-    "voice_en_male_speed": 25,
+    "voice_narrator_speed": 0,
+    "voice_female_speed": 0,
+    "voice_male_speed": 0,
+    "voice_en_narrator_speed": 0,
+    "voice_en_female_speed": 0,
+    "voice_en_male_speed": 0,
     "vieneu_core": "local",
     "vieneu_mode": "standard",
     "vieneu_api_base": "",
@@ -106,12 +106,12 @@ class ProfileConfig:
     voice_en_narrator: str
     voice_en_female: str
     voice_en_male: str
-    voice_narrator_speed: int = 12
-    voice_female_speed: int = 14
-    voice_male_speed: int = 10
-    voice_en_narrator_speed: int = 12
-    voice_en_female_speed: int = 13
-    voice_en_male_speed: int = 11
+    voice_narrator_speed: int = 0
+    voice_female_speed: int = 0
+    voice_male_speed: int = 0
+    voice_en_narrator_speed: int = 0
+    voice_en_female_speed: int = 0
+    voice_en_male_speed: int = 0
     vieneu_core: str = "local"
     vieneu_mode: str = "standard"
     vieneu_api_base: str = ""
@@ -149,7 +149,7 @@ class ProfileConfig:
         object.__setattr__(self, "voice_en_female_speed", int(self.voice_en_female_speed))
         object.__setattr__(self, "voice_en_male_speed", int(self.voice_en_male_speed))
         object.__setattr__(self, "vieneu_core", str(self.vieneu_core or "local").strip() or "local")
-        object.__setattr__(self, "vieneu_mode", str(self.vieneu_mode or "turbo").strip() or "turbo")
+        object.__setattr__(self, "vieneu_mode", str(self.vieneu_mode or "standard").strip() or "standard")
         object.__setattr__(self, "vieneu_api_base", str(self.vieneu_api_base or "").strip())
         object.__setattr__(self, "vieneu_model_name", resolve_vieneu_model_name(self.vieneu_model_name, self.vieneu_mode))
         object.__setattr__(self, "vieneu_device", normalize_vieneu_device(self.vieneu_device))

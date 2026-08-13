@@ -102,9 +102,9 @@ def _coerce_vieneu_voice_runtime_value(args, selected: object) -> str:
     try:
         available = tuple(
             list_vieneu_preset_voices(
-                mode=normalize_vieneu_mode(getattr(args, "vieneu_mode", "turbo")),
+                mode=normalize_vieneu_mode(getattr(args, "vieneu_mode", "standard")),
                 api_base=str(getattr(args, "vieneu_api_base", "") or ""),
-                model_name=resolve_vieneu_model_name(getattr(args, "vieneu_model_name", ""), getattr(args, "vieneu_mode", "turbo")),
+                model_name=resolve_vieneu_model_name(getattr(args, "vieneu_model_name", ""), getattr(args, "vieneu_mode", "standard")),
                 allow_network=False,
             )
         )
@@ -122,12 +122,12 @@ def _resolve_voice_rate_value(raw_value: object, *, lang: str, voice: str) -> st
 
 def build_voice_rate_map(args) -> Dict[str, str]:
     return {
-        "vi_narrator": _resolve_voice_rate_value(getattr(args, "voice_narrator_speed", 25), lang="vi", voice="narrator"),
-        "vi_female": _resolve_voice_rate_value(getattr(args, "voice_female_speed", 25), lang="vi", voice="female"),
-        "vi_male": _resolve_voice_rate_value(getattr(args, "voice_male_speed", 25), lang="vi", voice="male"),
-        "en_narrator": _resolve_voice_rate_value(getattr(args, "voice_en_narrator_speed", 25), lang="en", voice="narrator"),
-        "en_female": _resolve_voice_rate_value(getattr(args, "voice_en_female_speed", 25), lang="en", voice="female"),
-        "en_male": _resolve_voice_rate_value(getattr(args, "voice_en_male_speed", 25), lang="en", voice="male"),
+        "vi_narrator": _resolve_voice_rate_value(getattr(args, "voice_narrator_speed", 0), lang="vi", voice="narrator"),
+        "vi_female": _resolve_voice_rate_value(getattr(args, "voice_female_speed", 0), lang="vi", voice="female"),
+        "vi_male": _resolve_voice_rate_value(getattr(args, "voice_male_speed", 0), lang="vi", voice="male"),
+        "en_narrator": _resolve_voice_rate_value(getattr(args, "voice_en_narrator_speed", 0), lang="en", voice="narrator"),
+        "en_female": _resolve_voice_rate_value(getattr(args, "voice_en_female_speed", 0), lang="en", voice="female"),
+        "en_male": _resolve_voice_rate_value(getattr(args, "voice_en_male_speed", 0), lang="en", voice="male"),
     }
 
 

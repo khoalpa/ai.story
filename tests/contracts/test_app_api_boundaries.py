@@ -6,9 +6,9 @@ import importlib
 def test_feature_app_apis_import_without_loading_streamlit() -> None:
     modules = [
         importlib.import_module(f"{package}.app_api")
-        for package in ("story", "audio", "image", "video")
+        for package in ("audio", "video")
     ]
-    for package, module in zip(("story", "audio", "image", "video"), modules):
+    for package, module in zip(("audio", "video"), modules):
         assert callable(getattr(module, f"render_{package}_workspace"))
         assert callable(getattr(module, f"render_{package}_studio"))
         assert callable(getattr(module, "validate_request"))
@@ -21,7 +21,7 @@ def test_studio_uses_only_public_feature_app_apis() -> None:
     from pathlib import Path
 
     source = (Path(__file__).resolve().parents[2] / "studio" / "gui_entry.py").read_text(encoding="utf-8")
-    for package in ("story", "audio", "image", "video"):
+    for package in ("audio", "video"):
         assert f"from {package}.app_api import" in source
         assert f"from {package}.gui" not in source
     assert "studio._shared" not in source

@@ -283,6 +283,36 @@ def _preview_voice_options(provider: str, lang: str) -> tuple[list[str], dict[st
     return ordered_values, labels
 
 
+def _preview_tts_context_key(*, text: str, provider: str, lang: str, voice: str, settings: dict) -> str:
+    setting_keys = (
+        "vieneu_core",
+        "vieneu_mode",
+        "vieneu_api_base",
+        "vieneu_model_name",
+        "vieneu_device",
+        "vieneu_backend",
+        "vieneu_preview_temperature",
+        "vieneu_preview_max_chars_chunk",
+        "vieneu_preview_use_batch",
+        "vieneu_preview_max_batch_size_run",
+        "vieneu_preview_text_max_len",
+        "voice_narrator_speed",
+        "voice_female_speed",
+        "voice_male_speed",
+        "voice_en_narrator_speed",
+        "voice_en_female_speed",
+        "voice_en_male_speed",
+    )
+    payload = {
+        "text": str(text or "").strip(),
+        "provider": str(provider or "").strip(),
+        "lang": str(lang or "").strip(),
+        "voice": str(voice or "").strip(),
+        "settings": {key: settings.get(key) for key in setting_keys},
+    }
+    return json.dumps(payload, ensure_ascii=True, sort_keys=True, default=str)
+
+
 def _render_tts_preview_card(settings: dict) -> None:
     st.subheader("Voice preview")
     st.caption("Preview a sentence with the selected TTS provider and voice before rendering the full run.")
@@ -330,6 +360,13 @@ def _render_tts_preview_card(settings: dict) -> None:
     inferred_role = _preview_voice_role(preview_provider, preview_lang, preview_voice)
     speed_key = _preview_voice_speed_key(preview_lang, inferred_role)
     speed_value = _preview_voice_rate(settings, preview_lang, inferred_role)
+    preview_context_key = _preview_tts_context_key(
+        text=preview_text,
+        provider=preview_provider,
+        lang=preview_lang,
+        voice=preview_voice,
+        settings=settings,
+    )
     st.caption(f"Preview role: `{inferred_role}` | speed source: `{speed_key}` = `{speed_value}`")
     with col4:
         if st.button("Preview one sentence", width="stretch"):
@@ -344,9 +381,11 @@ def _render_tts_preview_card(settings: dict) -> None:
             except (AudioStoryError, OSError, ValueError) as exc:
                 st.session_state["last_preview_audio_error"] = format_runtime_error(exc)
                 st.session_state["last_preview_audio_path"] = ""
+                st.session_state["last_preview_audio_context"] = preview_context_key
             else:
                 st.session_state["last_preview_audio_error"] = ""
                 st.session_state["last_preview_audio_path"] = str(audio_path)
+                st.session_state["last_preview_audio_context"] = preview_context_key
 
 
     provider_desc = get_tts_provider_descriptor(preview_provider)
@@ -360,7 +399,8 @@ def _render_tts_preview_card(settings: dict) -> None:
             )
         )
 
-    preview_error = st.session_state.get("last_preview_audio_error", "")
+    result_matches_context = st.session_state.get("last_preview_audio_context", "") == preview_context_key
+    preview_error = st.session_state.get("last_preview_audio_error", "") if result_matches_context else ""
     if preview_error:
         render_user_message(
             UserMessage(
@@ -371,7 +411,7 @@ def _render_tts_preview_card(settings: dict) -> None:
             ),
             show_details=True,
         )
-    preview_audio_path = st.session_state.get("last_preview_audio_path", "")
+    preview_audio_path = st.session_state.get("last_preview_audio_path", "") if result_matches_context else ""
     if preview_audio_path and Path(preview_audio_path).is_file():
         audio_file = Path(preview_audio_path)
         st.audio(str(audio_file))

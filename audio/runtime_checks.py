@@ -139,7 +139,7 @@ def validate_request_paths(request) -> ResolvedRuntimePaths:
     )
 
 
-def collect_runtime_diagnostics_for_settings(ffmpeg_exe: str, ffprobe_exe: str, *, tts_provider: str = "edge", vieneu_mode: str = "turbo") -> RuntimeDiagnostics:
+def collect_runtime_diagnostics_for_settings(ffmpeg_exe: str, ffprobe_exe: str, *, tts_provider: str = "edge", vieneu_mode: str = "standard") -> RuntimeDiagnostics:
     from audio.tts_provider import get_tts_provider_descriptor, normalize_tts_provider
 
     provider = normalize_tts_provider(tts_provider)

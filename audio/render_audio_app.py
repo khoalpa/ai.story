@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any, Mapping, Optional, cast
 
 from audio.adapters.edge_tts import load_abbreviation_map
+from audio.adapters.ffmpeg_audio_mixer import DEFAULT_PACING_PRESET, normalize_pacing_preset
 from audio.adapters.tts_core import (
     get_default_vieneu_local_target,
     resolve_vieneu_effective_mode,
@@ -68,18 +69,18 @@ REQUEST_DEFAULTS: dict[str, Any] = {
     "profile_root": str(PACKAGE_PROFILE_ROOT),
     "bgm": None,
     "bgmdir": str(DEFAULT_BGM_DIR),
-    "voice_narrator": "vi-VN-NamMinhNeural",
-    "voice_female": "vi-VN-HoaiMyNeural",
-    "voice_male": "vi-VN-NamMinhNeural",
+    "voice_narrator": "Doan",
+    "voice_female": "Doan",
+    "voice_male": "Doan",
     "voice_en_narrator": "Doan",
     "voice_en_female": "Doan",
     "voice_en_male": "en-US-AndrewNeural",
-    "voice_narrator_speed": 25,
-    "voice_female_speed": 25,
-    "voice_male_speed": 25,
-    "voice_en_narrator_speed": 25,
-    "voice_en_female_speed": 25,
-    "voice_en_male_speed": 25,
+    "voice_narrator_speed": 0,
+    "voice_female_speed": 0,
+    "voice_male_speed": 0,
+    "voice_en_narrator_speed": 0,
+    "voice_en_female_speed": 0,
+    "voice_en_male_speed": 0,
     "abbr_map": str(ASSETS_ROOT / "abbreviation_map.json"),
     "bgm_config": None,
     "sentiment_tone": False,
@@ -94,6 +95,7 @@ REQUEST_DEFAULTS: dict[str, Any] = {
     "output_channels": 2,
     "mp3_bitrate_kbps": 192,
     "quality_gate": True,
+    "pacing_preset": DEFAULT_PACING_PRESET,
     "vieneu_core": "local",
     "vieneu_mode": "standard",
     "vieneu_api_base": "",
@@ -145,18 +147,19 @@ class RenderAudioAppRequest:
     auto_en_lines: bool
     post_fx_preset: str
     max_concurrent_tts: int
-    voice_narrator_speed: int = 25
-    voice_female_speed: int = 25
-    voice_male_speed: int = 25
-    voice_en_narrator_speed: int = 25
-    voice_en_female_speed: int = 25
-    voice_en_male_speed: int = 25
+    voice_narrator_speed: int = 0
+    voice_female_speed: int = 0
+    voice_male_speed: int = 0
+    voice_en_narrator_speed: int = 0
+    voice_en_female_speed: int = 0
+    voice_en_male_speed: int = 0
     tts_provider: str = DEFAULT_TTS_PROVIDER
     audio_format: str = "mp3"
     loudness_profile: str = "narration"
     output_channels: int = 2
     mp3_bitrate_kbps: int = 192
     quality_gate: bool = True
+    pacing_preset: str = DEFAULT_PACING_PRESET
     vieneu_core: str = "local"
     vieneu_mode: str = "standard"
     vieneu_api_base: str = ""
@@ -201,8 +204,14 @@ class RenderAudioAppRequest:
         object.__setattr__(self, "output_channels", max(1, min(2, int(self.output_channels))))
         object.__setattr__(self, "mp3_bitrate_kbps", min(320, max(96, int(self.mp3_bitrate_kbps))))
         object.__setattr__(self, "quality_gate", bool(self.quality_gate))
+        object.__setattr__(self, "pacing_preset", normalize_pacing_preset(self.pacing_preset))
         normalized_vieneu_core = _normalize_vieneu_core(self.vieneu_core)
-        normalized_vieneu_mode = resolve_vieneu_effective_mode(normalized_vieneu_core, self.vieneu_mode, self.vieneu_device)
+        normalized_vieneu_mode = resolve_vieneu_effective_mode(
+            normalized_vieneu_core,
+            self.vieneu_mode,
+            self.vieneu_device,
+            self.vieneu_model_name,
+        )
         normalized_vieneu_device = str(self.vieneu_device or "cuda").strip().lower() or "cuda"
         object.__setattr__(self, "vieneu_core", normalized_vieneu_core)
         object.__setattr__(self, "vieneu_mode", normalized_vieneu_mode)
@@ -286,6 +295,7 @@ class RenderAudioAppRequest:
             "output_channels": self.output_channels,
             "mp3_bitrate_kbps": self.mp3_bitrate_kbps,
             "quality_gate": self.quality_gate,
+            "pacing_preset": self.pacing_preset,
             "vieneu_core": self.vieneu_core,
             "vieneu_mode": self.vieneu_mode,
             "vieneu_api_base": self.vieneu_api_base,
@@ -574,6 +584,7 @@ def run_render_audio_app(
         output_channels=request.output_channels,
         mp3_bitrate_kbps=request.mp3_bitrate_kbps,
         quality_gate=request.quality_gate,
+        pacing_preset=request.pacing_preset,
         vieneu_core=request.vieneu_core,
         vieneu_mode=request.vieneu_mode,
         vieneu_api_base=request.vieneu_api_base,

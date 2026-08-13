@@ -5,8 +5,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'dist'
-TMP = OUT / 'audio_story_project_clean'
-ZIP_BASE = OUT / 'audio_story_project_clean_release'
+TMP = OUT / 'audio_video_project_clean'
+ZIP_BASE = OUT / 'audio_video_project_clean_release'
 
 EXCLUDE_DIR_NAMES = {
     '.git', '.idea', '.vscode', '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache',
@@ -17,7 +17,7 @@ EXCLUDE_FILE_NAMES = {'.DS_Store', 'Thumbs.db'}
 EXCLUDE_RELATIVE_PARTS = {
     ('tests',),
     ('packages', 'audio', 'tests'),
-    ('packages', 'story', 'tests'),
+    ('packages', 'tests'),
     ('packages', 'video', 'tests'),
     ('packages', 'audio', 'out'),
     ('packages', 'video', 'out'),

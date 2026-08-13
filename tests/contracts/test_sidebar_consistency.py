@@ -17,9 +17,7 @@ SIDEBAR_SECTION_ORDER = [
 
 def test_sidebar_section_labels_are_shared_across_apps() -> None:
     expected_files = [
-        Path("story/gui/sidebar.py"),
         Path("audio/gui/settings.py"),
-        Path("image/gui/settings.py"),
         Path("video/gui/settings.py"),
     ]
 
@@ -32,9 +30,7 @@ def test_sidebar_uses_consistent_section_vocabulary() -> None:
     combined = "\n".join(
         path.read_text(encoding="utf-8")
         for path in [
-            Path("story/gui/sidebar.py"),
             Path("audio/gui/settings.py"),
-            Path("image/gui/settings.py"),
             Path("video/gui/settings.py"),
         ]
     )
@@ -49,9 +45,7 @@ def test_sidebar_uses_consistent_section_vocabulary() -> None:
 
 def test_sidebar_sections_follow_shared_order() -> None:
     expected_files = [
-        Path("story/gui/sidebar.py"),
         Path("audio/gui/settings.py"),
-        Path("image/gui/settings.py"),
         Path("video/gui/settings.py"),
     ]
 

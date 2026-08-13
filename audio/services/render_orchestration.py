@@ -30,6 +30,7 @@ def build_mix_config(
     output_channels: int = 2,
     mp3_bitrate_kbps: int = 192,
     quality_gate: bool = True,
+    pacing_preset: str = "natural",
 ) -> FfmpegMixConfig:
     return FfmpegMixConfig(
         ffmpeg_exe=ffmpeg_exe,
@@ -45,6 +46,7 @@ def build_mix_config(
         output_channels=output_channels,
         mp3_bitrate_kbps=mp3_bitrate_kbps,
         quality_gate=quality_gate,
+        pacing_preset=pacing_preset,
     )
 
 
@@ -68,6 +70,7 @@ def run_render_job(
     output_channels: int = 2,
     mp3_bitrate_kbps: int = 192,
     quality_gate: bool = True,
+    pacing_preset: str = "natural",
     vieneu_core: str = "local",
     vieneu_mode: str = "standard",
     vieneu_api_base: str = "",
@@ -106,6 +109,7 @@ def run_render_job(
             vieneu_render_max_chars_chunk=vieneu_render_max_chars_chunk,
             vieneu_render_use_batch=vieneu_render_use_batch,
             vieneu_render_max_batch_size_run=vieneu_render_max_batch_size_run,
+            ffmpeg_exe=ffmpeg_exe,
         ),
         progress_callback=lambda completed, total: emit_event(
             event_sink,
@@ -141,6 +145,7 @@ def run_render_job(
                 output_channels=output_channels,
                 mp3_bitrate_kbps=mp3_bitrate_kbps,
                 quality_gate=quality_gate,
+                pacing_preset=pacing_preset,
             ),
             audio_format=audio_format,
         ),

@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install Pillow PyYAML requests
-      - run: python scripts/run_story_to_video_e2e.py --fixture --report e2e-report.json
+      - run: python scripts/run_audio_to_video_e2e.py --fixture --report e2e-report.json
       - run: python scripts/check_public_api.py
 
   test-and-package:
@@ -54,11 +54,14 @@ jobs:
       - name: Run mypy
         run: mypy
 
+      - name: Check secrets, provider URLs, and subprocess usage
+        run: python scripts/check_security_policy.py
+
       - name: Run unit and integration tests
         run: pytest -q
 
-      - name: Run offline Story-to-Video E2E
-        run: python scripts/run_story_to_video_e2e.py --fixture --report e2e-report.json
+      - name: Run offline Audio-to-Video E2E
+        run: python scripts/run_audio_to_video_e2e.py --fixture --report e2e-report.json
 
       - name: Check stable public API
         run: python scripts/check_public_api.py
@@ -78,7 +81,7 @@ jobs:
       - name: Build standalone release wheels
         run: |
           mkdir -p dist/standalone
-          for package in story audio image video studio; do
+          for package in audio video studio; do
             python -m pip wheel "packages/$package" --no-deps --no-build-isolation -w dist/standalone
           done
 

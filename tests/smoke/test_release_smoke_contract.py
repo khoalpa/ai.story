@@ -8,11 +8,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def test_release_smoke_covers_installed_wheel_and_gui_entrypoints() -> None:
     content = (ROOT / "scripts" / "release_smoke.py").read_text(encoding="utf-8")
-    assert '"render-image-gui", "missing-streamlit"' in content
+    assert '"render-audio-gui", "missing-streamlit"' in content
+    assert '"render-video-gui", "missing-streamlit"' in content
     assert '"ai-studio-gui", "missing-streamlit"' in content
     assert 'pip", "show", "ai-studio"' in content
-    assert 'assert_installed_story_assets' in content
-    assert 'resolve_assets_root' in content
 
 
 def test_requirements_are_consolidated() -> None:
@@ -37,19 +36,6 @@ def test_release_smoke_uses_timeouts_and_offline_friendly_env() -> None:
     assert 'PIP_DISABLE_PIP_VERSION_CHECK' in content
     assert 'PIP_NO_INPUT' in content
     assert 'timeout=timeout' in content
-
-
-
-def test_story_paths_resolution_strategy_is_explicit() -> None:
-    content = (ROOT / "story" / "paths.py").read_text(encoding="utf-8")
-    assert 'resolve_assets_root_for_module' in content
-    assert 'resolve_package_assets_root' in content
-
-    runtime = (ROOT / "video" / "runtime.py").read_text(encoding="utf-8")
-    assert '_looks_like_source_checkout' in runtime
-    assert 'resolve_package_assets_root' in runtime
-    assert 'resolve_assets_root_for_module' in runtime
-
 
 def test_release_smoke_runs_installed_wheel_probes_from_neutral_cwd() -> None:
     content = (ROOT / "scripts" / "release_smoke.py").read_text(encoding="utf-8")

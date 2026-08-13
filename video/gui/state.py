@@ -34,10 +34,7 @@ WORKSPACE_VIDEO_LAST_AUTO_SCENES_INPUT_KEY = "workspace_video_last_auto_scenes_i
 STUDIO_VIDEO_LAST_AUTO_SCENES_INPUT_KEY = "studio_video_last_auto_scenes_input"
 LEGACY_STUDIO_VIDEO_LAST_AUTO_SCENES_INPUT_KEY = STUDIO_VIDEO_LAST_AUTO_SCENES_INPUT_KEY
 VIDEO_LOCK_TO_AUDIO_HANDOFF_KEY = "video_lock_to_audio_handoff"
-VIDEO_LOCK_TO_IMAGE_HANDOFF_KEY = "video_lock_to_image_handoff"
 VIDEO_LAST_RESULT_HISTORY_FILE_KEY = "video_last_result_history_file"
-VIDEO_COVER_SOURCE_KEY = "video_cover_source"
-VIDEO_SCENES_SOURCE_KEY = "video_scenes_source"
 VIDEO_INPUT_COVER_PATH_KEY = "video_input_cover_path"
 VIDEO_INPUT_SCENES_DIR_KEY = "video_input_scenes_dir"
 
@@ -47,10 +44,8 @@ VIDEO_INPUT_DEFAULTS: dict[str, object] = {
     VIDEO_OUTPUT_INPUT_KEY: "output/story.mp4",
     VIDEO_COVER_INPUT_KEY: "",
     VIDEO_SCENES_INPUT_KEY: "",
-    VIDEO_COVER_SOURCE_KEY: "handoff",
-    VIDEO_SCENES_SOURCE_KEY: "handoff",
-    VIDEO_INPUT_COVER_PATH_KEY: "output/default_cover.png",
-    VIDEO_INPUT_SCENES_DIR_KEY: "output/scene_images",
+    VIDEO_INPUT_COVER_PATH_KEY: "input/cover.png",
+    VIDEO_INPUT_SCENES_DIR_KEY: "input/scene_images",
 }
 
 VIDEO_RESULT_DEFAULTS: dict[str, object] = {
@@ -73,7 +68,6 @@ VIDEO_AUTO_INPUT_DEFAULTS: dict[str, object] = {
 
 VIDEO_HANDOFF_DEFAULTS: dict[str, object] = {
     VIDEO_LOCK_TO_AUDIO_HANDOFF_KEY: False,
-    VIDEO_LOCK_TO_IMAGE_HANDOFF_KEY: True,
 }
 
 VIDEO_DEFAULTS: dict[str, object] = {
@@ -220,13 +214,6 @@ class VideoHandoffState:
     def lock_to_audio_handoff(self, value: bool) -> None:
         self.state[VIDEO_LOCK_TO_AUDIO_HANDOFF_KEY] = bool(value)
 
-    @property
-    def lock_to_image_handoff(self) -> bool:
-        return bool(self.state.get(VIDEO_LOCK_TO_IMAGE_HANDOFF_KEY, True))
-
-    @lock_to_image_handoff.setter
-    def lock_to_image_handoff(self, value: bool) -> None:
-        self.state[VIDEO_LOCK_TO_IMAGE_HANDOFF_KEY] = bool(value)
 
 
 @dataclass
@@ -349,14 +336,6 @@ class VideoSession:
     @lock_to_audio_handoff.setter
     def lock_to_audio_handoff(self, value: bool) -> None:
         self.handoff.lock_to_audio_handoff = value
-
-    @property
-    def lock_to_image_handoff(self) -> bool:
-        return self.handoff.lock_to_image_handoff
-
-    @lock_to_image_handoff.setter
-    def lock_to_image_handoff(self, value: bool) -> None:
-        self.handoff.lock_to_image_handoff = value
 
     @property
     def last_output(self) -> str:

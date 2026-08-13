@@ -13,6 +13,8 @@ from audio.adapters.ffmpeg_audio_mixer import (
     LOUDNESS_PROFILE_SOCIAL_VIDEO,
     POST_FX_PRESET_NONE,
     POST_FX_PRESET_STORYTELLING_VI,
+    SUPPORTED_PACING_PRESETS,
+    DEFAULT_PACING_PRESET,
 )
 from audio.services.render_runtime import (
     DEFAULT_EN_VOICE_FEMALE,
@@ -177,6 +179,12 @@ def build_render_audio_arg_parser() -> argparse.ArgumentParser:
         default=True,
         help="Measure LUFS/true peak/duration after export and fail when checks do not pass.",
     )
+    parser.add_argument(
+        "--pacing-preset",
+        choices=sorted(SUPPORTED_PACING_PRESETS),
+        default=DEFAULT_PACING_PRESET,
+        help="Adaptive pause profile between spoken segments (default: natural).",
+    )
     return parser
 
 
@@ -227,6 +235,7 @@ def _build_template_request_from_args(args):
             "output_channels": int(getattr(args, "output_channels", template.output_channels)),
             "mp3_bitrate_kbps": int(getattr(args, "mp3_bitrate_kbps", template.mp3_bitrate_kbps)),
             "quality_gate": bool(getattr(args, "quality_gate", template.quality_gate)),
+            "pacing_preset": str(getattr(args, "pacing_preset", template.pacing_preset)).lower(),
         }
     )
     return template.__class__.from_mapping(payload)

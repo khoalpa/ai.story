@@ -5,7 +5,7 @@ import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FEATURES = ("story", "audio", "image", "video")
+FEATURES = ("audio", "video")
 
 
 def main() -> int:

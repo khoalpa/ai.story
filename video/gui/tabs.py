@@ -22,7 +22,7 @@ from video.gui.runtime_usage import render_runtime_usage_compact
 from video.gui.workspace_handoff import workspace_handoff_state
 from video.gui.workspace_source_outputs import workspace_source_outputs
 from video.gui.user_messages import show_missing_input, show_provider_error
-from video.handoff import read_audio_handoff, read_image_handoff
+from video.handoff import read_audio_handoff
 from video.app_api import RenderVideoRequest, VideoQualityGateError
 from video.error_handling import (
     USER_FACING_EXCEPTIONS,
@@ -254,77 +254,12 @@ def _apply_audio_handoff_prefill(settings: dict[str, Any]) -> None:
         session.auto_subtitle_input = incoming_srt
 
 
-def _apply_image_handoff_prefill(settings: dict[str, Any]) -> None:
-    del settings
-    handoff = workspace_handoff_state(st.session_state)
-    incoming_cover = handoff.image_cover_path
-    incoming_scenes = handoff.image_scenes_dir
-    session = video_session()
-    prev_cover = session.auto_cover_input
-    prev_scenes = session.auto_scenes_input
-    lock_to_handoff = session.lock_to_image_handoff
-
-    if incoming_cover and incoming_cover != prev_cover:
-        current_cover = st.session_state.get("video_cover_input", "") or ""
-        if lock_to_handoff or not current_cover or current_cover == prev_cover:
-            session.cover_input = incoming_cover
-        session.auto_cover_input = incoming_cover
-
-    if incoming_scenes and incoming_scenes != prev_scenes:
-        current_scenes = st.session_state.get("video_scenes_input", "") or ""
-        if lock_to_handoff or not current_scenes or current_scenes == prev_scenes:
-            session.scenes_input = incoming_scenes
-        session.auto_scenes_input = incoming_scenes
-
-
-def _load_story_bundle_manifest(bundle_dir: Path) -> dict[str, Any]:
-    manifest_path = bundle_dir / "manifest.json"
-    if not manifest_path.is_file():
-        raise FileNotFoundError(f"manifest.json not found in bundle: {bundle_dir}")
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
-
-
-def _import_story_bundle_into_video(bundle_dir: Path, settings: dict[str, Any]) -> dict[str, str]:
-    manifest = _load_story_bundle_manifest(bundle_dir)
-    scene_dir = bundle_dir / str(manifest.get("scene_images_dir") or "scene_images")
-    cover_path = bundle_dir / str((manifest.get("cover_prompt") or {}).get("expected_image_file") or "cover.png")
-    story_json = bundle_dir / "story.json"
-
-    changes: dict[str, str] = {
-        "story_bundle": str(bundle_dir),
-        "manifest": str(bundle_dir / "manifest.json"),
-        "story_json": str(story_json),
-        "scenes_dir": str(scene_dir),
-        "cover": str(cover_path),
-    }
-
-    st.session_state["video_cover_source"] = "handoff"
-    st.session_state["video_scenes_source"] = "handoff"
-    st.session_state["video_cover_input"] = str(cover_path)
-    st.session_state["video_scenes_input"] = str(scene_dir)
-    if story_json.is_file():
-        st.session_state["video_story_json_input"] = str(story_json)
-    if not str(st.session_state.get("video_output_input") or "").strip():
-        st.session_state["video_output_input"] = str(Path(settings.get("output_dir") or "output") / "story.mp4")
-    workspace_handoff_state(st.session_state).story_video_handoff_dir = str(bundle_dir)
-    workspace_handoff_state(st.session_state).image_manifest_path = str(bundle_dir / "manifest.json")
-    if cover_path.exists():
-        workspace_handoff_state(st.session_state).image_cover_path = str(cover_path)
-    if scene_dir.exists():
-        workspace_handoff_state(st.session_state).image_scenes_dir = str(scene_dir)
-    return changes
-
-
 def _ensure_video_input_defaults(settings: dict[str, Any]) -> None:
-    defaults = settings["defaults"]
     ensure_session_defaults()
     st.session_state.setdefault("video_cover_input", "")
     st.session_state.setdefault("video_scenes_input", "")
-    st.session_state.setdefault("video_cover_source", "handoff")
-    st.session_state.setdefault("video_scenes_source", "handoff")
     st.session_state.setdefault("video_story_json_input", "")
     st.session_state.setdefault("video_audio_handoff_manifest", "")
-    st.session_state.setdefault("video_image_handoff_manifest", "")
     st.session_state.setdefault("video_input_cover_path", str(Path(settings.get("input_root") or "input") / "cover.png"))
     st.session_state.setdefault("video_input_scenes_dir", str(Path(settings.get("input_root") or "input") / "scene_images"))
 
@@ -332,40 +267,18 @@ def _ensure_video_input_defaults(settings: dict[str, Any]) -> None:
     if not current_output:
         st.session_state["video_output_input"] = str(Path(settings["output_dir"]) / "story.mp4")
 
-    current_cover = str(st.session_state.get("video_cover_input") or "").strip()
-    if not current_cover and defaults.get("cover") is not None:
-        st.session_state["video_cover_input"] = str(defaults["cover"])
-
-    current_scenes = str(st.session_state.get("video_scenes_input") or "").strip()
-    if not current_scenes and defaults.get("scenes_dir") is not None:
-        st.session_state["video_scenes_input"] = str(defaults["scenes_dir"])
-
-
 def _resolve_cover_path(settings: dict[str, Any]) -> Optional[Path]:
-    source = str(st.session_state.get("video_cover_source") or "handoff").strip().lower()
-    defaults = settings["defaults"]
-    if source == "handoff":
-        return normalize_optional_path(workspace_handoff_state(st.session_state).image_cover_path or str(st.session_state.get("video_cover_input") or ""))
-    if source == "profile":
-        default_cover = defaults.get("cover")
-        return Path(default_cover) if default_cover is not None else None
+    del settings
     return normalize_optional_path(str(st.session_state.get("video_input_cover_path") or ""))
 
 
 def _resolve_scenes_dir(settings: dict[str, Any]) -> Optional[Path]:
-    source = str(st.session_state.get("video_scenes_source") or "handoff").strip().lower()
-    defaults = settings["defaults"]
-    if source == "handoff":
-        return normalize_optional_path(workspace_handoff_state(st.session_state).image_scenes_dir or str(st.session_state.get("video_scenes_input") or ""))
-    if source == "profile":
-        default_scenes = defaults.get("scenes_dir")
-        return Path(default_scenes) if default_scenes is not None else None
+    del settings
     return normalize_optional_path(str(st.session_state.get("video_input_scenes_dir") or ""))
 
 
 def _prepare_video_inputs(settings: dict[str, Any]) -> None:
     _apply_audio_handoff_prefill(settings)
-    _apply_image_handoff_prefill(settings)
     _ensure_video_input_defaults(settings)
 
 
@@ -450,8 +363,8 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
         scenes_dir=scenes_dir,
         settings=settings,
     )
-    summary["cover_source"] = str(st.session_state.get("video_cover_source") or "handoff")
-    summary["scenes_source"] = str(st.session_state.get("video_scenes_source") or "handoff")
+    summary["cover_source"] = "input"
+    summary["scenes_source"] = "input"
     summary["image_readiness"] = _image_readiness_summary(image_readiness)
     return {
         "audio": audio_path,
@@ -500,7 +413,7 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Mode", str(settings.get("mode") or "-"))
-    c2.metric("Asset profile", str(settings.get("asset_profile") or "-"))
+    c2.metric("Asset source", "Direct input")
     c3.metric("Runtime tools", len(getattr(diagnostics, "tools", []) or []))
 
     rows = [
@@ -509,7 +422,6 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
         {"check": "Story JSON", "status": "OK" if story_json_path and story_json_path.is_file() else ("not set" if story_json_path is None else "missing"), "detail": str(story_json_path or "Leave empty for autodetect or zone-aware slideshow")},
         {"check": "Cover", "status": "OK" if cover_path and cover_path.is_file() else "missing", "detail": str(cover_path or "Cover not set")},
         {"check": "Scenes dir", "status": "OK" if scenes_dir and scenes_dir.is_dir() else "missing", "detail": str(scenes_dir or "Scenes directory not set")},
-        {"check": "Story bundle", "status": "OK" if str(workspace_handoff_state(st.session_state).story_video_handoff_dir or "").strip() else "missing", "detail": str(workspace_handoff_state(st.session_state).story_video_handoff_dir or "Story bundle not set")},
     ]
     st.dataframe(rows, width="stretch", height=240)
     st.subheader("Image readiness")
@@ -568,7 +480,6 @@ def _render_video_focus_hint(view_name: str) -> None:
 
 def render_inputs_tab(settings: dict[str, Any]) -> None:
     _prepare_video_inputs(settings)
-    defaults = settings["defaults"]
 
     st.subheader("Inputs")
     _render_video_focus_hint("Inputs")
@@ -577,30 +488,17 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
         key="video_lock_to_audio_handoff",
         help="When enabled, Video keeps following the newest audio/subtitle/output hints sent from Audio handoff.",
     )
-    st.checkbox(
-        "Lock input to Image handoff",
-        key="video_lock_to_image_handoff",
-        help="When enabled, Video keeps following the newest cover/scenes hints sent from Image or Story handoff.",
-    )
     col_left, col_right = st.columns([1.15, 1.0])
     with col_left:
         st.text_input("Audio handoff manifest", key="video_audio_handoff_manifest")
-        st.text_input("Image handoff manifest", key="video_image_handoff_manifest")
-        if st.button("Load handoff manifests", key="video_load_handoff_manifests", width="stretch"):
+        if st.button("Load audio handoff", key="video_load_audio_handoff", width="stretch"):
             try:
                 audio_manifest = str(st.session_state.get("video_audio_handoff_manifest") or "").strip()
-                image_manifest = str(st.session_state.get("video_image_handoff_manifest") or "").strip()
                 if audio_manifest:
                     incoming_audio = read_audio_handoff(Path(audio_manifest))
                     st.session_state["video_audio_input"] = str(incoming_audio.audio)
                     st.session_state["video_subtitle_input"] = str(incoming_audio.subtitle or "")
-                if image_manifest:
-                    incoming_image = read_image_handoff(Path(image_manifest))
-                    st.session_state["video_cover_input"] = str(incoming_image.cover or "")
-                    st.session_state["video_scenes_input"] = str(incoming_image.scenes)
-                    st.session_state["video_cover_source"] = "handoff"
-                    st.session_state["video_scenes_source"] = "handoff"
-                st.success("Loaded handoff manifests. Direct input fields remain authoritative.")
+                st.success("Loaded audio handoff. Direct asset inputs remain authoritative.")
             except (OSError, ValueError, json.JSONDecodeError) as exc:
                 st.error(f"Could not load handoff manifest: {exc}")
         st.text_input("Audio file", key="video_audio_input")
@@ -615,85 +513,29 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
         st.text_input("Output MP4", key="video_output_input")
     with col_right:
         st.caption("Asset-driven inputs")
-        st.radio(
-            "Cover image source",
-            options=["handoff", "profile", "input"],
-            key="video_cover_source",
-            horizontal=True,
+        cover_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
+        cover_cols[0].text_input("Input cover image", key="video_input_cover_path")
+        cover_cols[1].button(
+            "Select file",
+            key="video_select_cover_file",
+            width="stretch",
+            on_click=_choose_local_path,
+            kwargs={"state_key": "video_input_cover_path", "directory": False},
         )
-        if st.session_state.get("video_cover_source") == "input":
-            cover_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
-            cover_cols[0].text_input("Input cover image", key="video_input_cover_path")
-            cover_cols[1].button(
-                "Select file",
-                key="video_select_cover_file",
-                width="stretch",
-                on_click=_choose_local_path,
-                kwargs={"state_key": "video_input_cover_path", "directory": False},
-            )
-        elif st.session_state.get("video_cover_source") == "profile":
-            st.caption(f"Profile cover: {defaults.get('cover') or '-'}")
-        else:
-            st.caption(f"Handoff cover: {workspace_handoff_state(st.session_state).image_cover_path or st.session_state.get('video_cover_input') or '-'}")
 
-        st.radio(
-            "Scenes directory source",
-            options=["handoff", "profile", "input"],
-            key="video_scenes_source",
-            horizontal=True,
+        scenes_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
+        scenes_cols[0].text_input("Input scenes directory", key="video_input_scenes_dir")
+        scenes_cols[1].button(
+            "Select folder",
+            key="video_select_scenes_directory",
+            width="stretch",
+            on_click=_choose_local_path,
+            kwargs={"state_key": "video_input_scenes_dir", "directory": True},
         )
-        if st.session_state.get("video_scenes_source") == "input":
-            scenes_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
-            scenes_cols[0].text_input("Input scenes directory", key="video_input_scenes_dir")
-            scenes_cols[1].button(
-                "Select folder",
-                key="video_select_scenes_directory",
-                width="stretch",
-                on_click=_choose_local_path,
-                kwargs={"state_key": "video_input_scenes_dir", "directory": True},
-            )
-        elif st.session_state.get("video_scenes_source") == "profile":
-            st.caption(f"Profile scenes dir: {defaults.get('scenes_dir') or '-'}")
-        else:
-            st.caption(f"Handoff scenes dir: {workspace_handoff_state(st.session_state).image_scenes_dir or st.session_state.get('video_scenes_input') or '-'}")
 
         if picker_error := st.session_state.get("video_path_picker_error"):
             st.error(str(picker_error))
 
-        image_manifest = workspace_handoff_state(st.session_state).image_manifest_path
-        if image_manifest:
-            st.caption(f"Image manifest: {image_manifest}")
-        story_bundle = workspace_handoff_state(st.session_state).story_video_handoff_dir
-        if story_bundle:
-            st.caption(f"Story bundle: {story_bundle}")
-            bundle_cols = st.columns([1.0, 1.0])
-            if bundle_cols[0].button("Use Story bundle", key="video_use_story_bundle", width="stretch"):
-                try:
-                    changes = _import_story_bundle_into_video(Path(str(story_bundle)), settings)
-                    st.success(f"Loaded Story bundle into Video. cover={changes['cover']} - scenes={changes['scenes_dir']}")
-                except Exception as exc:
-                    show_provider_error(
-                        "Story bundle",
-                        problem="Could not import the current Story bundle into Video inputs.",
-                        technical_details=str(exc),
-                        show_details=True,
-                        actions=[
-                            "Check whether bundle_dir contains manifest.json, cover.png, and scene_images/.",
-                            "Render Image first if scene_images still does not exist.",
-                        ],
-                    )
-            manifest_path = Path(str(story_bundle)) / "manifest.json"
-            missing_items: list[str] = []
-            if not manifest_path.is_file():
-                missing_items.append("manifest.json")
-            if not (Path(str(story_bundle)) / "cover.png").is_file():
-                missing_items.append("cover.png")
-            if not (Path(str(story_bundle)) / "scene_images").is_dir():
-                missing_items.append("scene_images/")
-            if missing_items:
-                bundle_cols[1].warning("Bundle does not yet contain enough assets to render immediately: " + ", ".join(missing_items))
-            else:
-                bundle_cols[1].success("Bundle already has cover + scene_images for slideshow/static render.")
 
     render_json_summary_expander("Run configuration summary", _collect_inputs(settings)["summary"], expanded=False)
 
@@ -775,7 +617,9 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     zone_aware_slideshow=settings.get("zone_aware_slideshow"),
                     audio_match_epsilon=settings.get("audio_match_epsilon"),
                     keep_concat_list=settings.get("keep_concat_list"),
+                    subtitle_font=settings.get("subtitle_font"),
                     subtitle_font_size=settings.get("subtitle_font_size"),
+                    subtitle_text_color=settings.get("subtitle_text_color"),
                     subtitle_outline=settings.get("subtitle_outline"),
                     subtitle_shadow=settings.get("subtitle_shadow"),
                     subtitle_background_color=settings.get("subtitle_background_color"),

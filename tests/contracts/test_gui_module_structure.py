@@ -4,7 +4,7 @@ import importlib
 from pathlib import Path
 
 
-GUI_PACKAGES = ("story", "audio", "image", "video")
+GUI_PACKAGES = ("audio", "video")
 GUI_CORE_FILES = (
     "__init__.py",
     "app.py",

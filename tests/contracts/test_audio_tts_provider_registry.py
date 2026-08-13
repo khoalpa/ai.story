@@ -56,3 +56,15 @@ def test_vieneu_en_defaults_prefer_doan_when_edge_defaults_are_not_available() -
     assert selected_narrator == "Doan"
     assert selected_female == "Doan"
 
+
+def test_vieneu_voice_dropdowns_do_not_filter_catalog_by_script_role() -> None:
+    voice_catalog = importlib.import_module("audio.voice_catalog")
+
+    narrator = voice_catalog.get_voice_choices(tts_provider="vieneu", lang="vi", role="narrator")
+    female = voice_catalog.get_voice_choices(tts_provider="vieneu", lang="vi", role="female")
+    male = voice_catalog.get_voice_choices(tts_provider="vieneu", lang="vi", role="male")
+
+    assert narrator
+    assert [voice.value for voice in female] == [voice.value for voice in narrator]
+    assert [voice.value for voice in male] == [voice.value for voice in narrator]
+

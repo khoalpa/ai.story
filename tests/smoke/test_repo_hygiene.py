@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SCANNED_DIRS = [ROOT / name for name in ("audio", "story", "image", "video", "common", "tests", "scripts")]
+SCANNED_DIRS = [ROOT / name for name in ("audio", "video", "common", "tests", "scripts")]
 SCANNED_FILES = [ROOT / name for name in ("conftest.py", "pyproject.toml", "package_api_policy.json", "pytest.ini")]
 
 
@@ -22,10 +22,8 @@ def test_no_legacy_gui_wrappers_left_in_repo() -> None:
     for rel_path in [
         "video/gui_app.py",
         "audio/_streamlit_app.py",
-        "story/_streamlit_app.py",
         "video/_streamlit_app.py",
         "audio/gui_launcher.py",
-        "story/gui_launcher.py",
         "video/gui_launcher.py",
     ]:
         assert not (ROOT / rel_path).exists(), rel_path
@@ -38,7 +36,7 @@ def test_pyproject_collects_root_tests() -> None:
 
 
 def test_no_dead_streamlit_helper() -> None:
-    for package in ("image", "video"):
+    for package in ("video",):
         runtime_text = (ROOT / package / "runtime.py").read_text(encoding="utf-8")
         assert "def launch_streamlit_app" not in runtime_text
         assert "_streamlit_app.py" not in runtime_text

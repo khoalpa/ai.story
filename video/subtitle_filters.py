@@ -22,6 +22,11 @@ def subtitle_background_to_ass(color: str, opacity: int | float) -> str:
     return f"&H{alpha:02X}{blue}{green}{red}".upper()
 
 
+def subtitle_text_color_to_ass(color: str) -> str:
+    """Convert #RRGGBB to the opaque ASS &HAABBGGRR color format."""
+    return subtitle_background_to_ass(color, 100)
+
+
 def escape_subtitle_path(path: Path | str) -> str:
     s = str(path)
     s = s.replace("\\", "\\\\")
@@ -55,7 +60,9 @@ def build_vf_filter(
     subtitle_for_filter = str(subtitle).replace("\\", "/")
     sub_esc = escape_subtitle_path(subtitle_for_filter)
 
+    sub_font = os.getenv("SUB_FONT", "Arial").strip() or "Arial"
     sub_fontsize = int(os.getenv("SUB_FONT_SIZE", "8"))
+    sub_text_color = os.getenv("SUB_TEXT_COLOR", "#FFFFFF")
     sub_outline = int(os.getenv("SUB_OUTLINE", "2"))
     sub_shadow = int(os.getenv("SUB_SHADOW", "0"))
     sub_background_color = os.getenv("SUB_BACKGROUND_COLOR", "#000000")
@@ -107,8 +114,11 @@ def build_vf_filter(
         sub_background_color,
         sub_background_opacity,
     )
+    primary_color = subtitle_text_color_to_ass(sub_text_color)
     force_style_default = (
+        f"FontName={sub_font},"
         f"Fontsize={sub_fontsize},"
+        f"PrimaryColour={primary_color},"
         f"Outline={sub_outline},"
         f"Shadow={sub_shadow},"
         "BorderStyle=1,"

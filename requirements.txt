@@ -1,8 +1,6 @@
-lmdeploy>=0.12.3
 PyYAML==6.0.3
-requests==2.32.3
 edge-tts==7.2.7
-vieneu>=2.4.0
+vieneu>=3.2.4,<4
 neucodec>=0.0.5
 streamlit>=1.49,<2
 Pillow>=10,<12

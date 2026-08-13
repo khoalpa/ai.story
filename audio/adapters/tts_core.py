@@ -4,6 +4,7 @@ import inspect
 import logging
 import os
 import shutil
+import subprocess
 import threading
 import unicodedata
 from functools import lru_cache
@@ -19,6 +20,7 @@ from audio.model_store import list_local_targets, provider_cache_dir, provider_t
 
 DEFAULT_VIENEU_MODE = "standard"
 SUPPORTED_VIENEU_MODES = (
+    "v3turbo",
     "turbo",
     "standard",
     "remote",
@@ -29,10 +31,19 @@ SUPPORTED_VIENEU_MODES = (
     "xpu",
 )
 DEFAULT_VIENEU_TURBO_MODEL_NAME = "pnnbao-ump/VieNeu-TTS-v2-Turbo-GGUF"
+DEFAULT_VIENEU_V3_TURBO_MODEL_NAME = "pnnbao-ump/VieNeu-TTS-v3-Turbo"
 DEFAULT_VIENEU_STANDARD_MODEL_NAME = "pnnbao-ump/VieNeu-TTS"
 DEFAULT_VIENEU_MODEL_NAME = DEFAULT_VIENEU_STANDARD_MODEL_NAME
 DEFAULT_VIENEU_STANDARD_CODEC_REPO = "neuphonic/distill-neucodec"
 DEFAULT_VIENEU_STANDARD_DISTILHUBERT_REPO = "ntu-spml/distilhubert"
+VIENEU_V3_CODEC_FILES = (
+    "codec_browser_onnx_meta.json",
+    "moss_audio_tokenizer_decode_full.onnx",
+    "moss_audio_tokenizer_decode_shared.data",
+    "moss_audio_tokenizer_decode_step.onnx",
+    "moss_audio_tokenizer_encode.data",
+    "moss_audio_tokenizer_encode.onnx",
+)
 DEFAULT_VIENEU_API_BASE = "http://127.0.0.1:23333/v1"
 DEFAULT_VIENEU_DEVICE = "cuda"
 
@@ -41,6 +52,7 @@ _ENGINE_CACHE: dict[tuple[str, str, str, bool], Any] = {}
 _LOG = logging.getLogger(__name__)
 _VIENEU_STANDARD_OFFLINE_PATCHED = False
 _TRANSFORMERS_META_TO_EMPTY_PATCHED = False
+_VIENEU_V3_CODEC_PATCHED = False
 
 
 def _vieneu_models_root() -> Path:
@@ -49,6 +61,8 @@ def _vieneu_models_root() -> Path:
 
 def get_default_vieneu_local_target(mode: object = DEFAULT_VIENEU_MODE) -> str:
     resolved_mode = normalize_vieneu_mode(mode)
+    if resolved_mode in {"turbo", "v3turbo"}:
+        return "VieNeu-TTS-v3-Turbo"
     if resolved_mode == "standard":
         return "VieNeu-TTS"
     return "VieNeu-TTS-v2-Turbo-GGUF"
@@ -60,6 +74,53 @@ def _vieneu_codec_root() -> Path:
 
 def _vieneu_distilhubert_root() -> Path:
     return provider_target_dir("audio", "vieneu_distilhubert", __file__)
+
+
+def _vieneu_v3_codec_root() -> Path:
+    return provider_target_dir("audio", "vieneu_v3_codec", __file__)
+
+
+def _patch_vieneu_v3_local_codec() -> None:
+    global _VIENEU_V3_CODEC_PATCHED
+    if _VIENEU_V3_CODEC_PATCHED:
+        return
+    codec_dir = _vieneu_v3_codec_root()
+    if not all((codec_dir / filename).is_file() for filename in VIENEU_V3_CODEC_FILES):
+        return
+    try:
+        runtime_module = importlib.import_module("vieneu._v3_turbo_engine.onnx_runtime_lite")
+        original_engine = runtime_module.OnnxV3LiteEngine
+
+        class LocalCodecOnnxV3LiteEngine(original_engine):  # type: ignore[misc, valid-type]
+            def __init__(self, *args: Any, codec_dir: str | None = None, **kwargs: Any) -> None:
+                super().__init__(*args, codec_dir=codec_dir or str(_vieneu_v3_codec_root()), **kwargs)
+
+        runtime_module.OnnxV3LiteEngine = LocalCodecOnnxV3LiteEngine
+        _VIENEU_V3_CODEC_PATCHED = True
+    except Exception:
+        return
+
+
+def _ensure_vieneu_v3_local_codec(*, allow_network: bool) -> Path:
+    codec_dir = _vieneu_v3_codec_root()
+    if all((codec_dir / filename).is_file() for filename in VIENEU_V3_CODEC_FILES):
+        return codec_dir
+    if not allow_network:
+        raise FileNotFoundError(
+            "VieNeu v3 Turbo local còn thiếu MOSS ONNX codec. "
+            "Bấm Update trong phần Provider khi có mạng để tải dependency vào "
+            f"{codec_dir}."
+        )
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(
+        repo_id="OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX",
+        local_dir=str(codec_dir),
+        allow_patterns=list(VIENEU_V3_CODEC_FILES),
+    )
+    if not all((codec_dir / filename).is_file() for filename in VIENEU_V3_CODEC_FILES):
+        raise FileNotFoundError(f"VieNeu v3 codec download did not populate all required files under {codec_dir}.")
+    return codec_dir
 
 
 def _hf_repo_cache_snapshot(repo_id: object) -> Path | None:
@@ -606,6 +667,8 @@ def resolve_vieneu_model_for_runtime(
 
 def get_default_vieneu_model_name(mode: object = DEFAULT_VIENEU_MODE) -> str:
     resolved_mode = normalize_vieneu_mode(mode)
+    if resolved_mode in {"turbo", "v3turbo"}:
+        return DEFAULT_VIENEU_V3_TURBO_MODEL_NAME
     if resolved_mode == "standard":
         return DEFAULT_VIENEU_STANDARD_MODEL_NAME
     return DEFAULT_VIENEU_TURBO_MODEL_NAME
@@ -623,6 +686,8 @@ def is_vieneu_mode_model_compatible(mode: object, model_name: object) -> bool:
     clean_model = str(model_name or "").strip().lower()
     if not clean_model or resolved_mode == "remote":
         return True
+    if resolved_mode == "v3turbo":
+        return "v3" in clean_model and "turbo" in clean_model
     if resolved_mode == "standard":
         return "turbo" not in clean_model and "gguf" not in clean_model
     if resolved_mode == "turbo":
@@ -642,12 +707,17 @@ def validate_vieneu_mode_model_compatibility(mode: object, model_name: object) -
             raise TtsError(
                 "VieNeu turbo mode nên dùng model Turbo/GGUF để khớp runtime local hiện tại."
             )
+        if resolved_mode == "v3turbo":
+            raise TtsError("VieNeu v3 Turbo mode yêu cầu model VieNeu-TTS-v3-Turbo.")
     return resolved_model
 
 
 def normalize_vieneu_mode(value: object) -> str:
     normalized = str(value or DEFAULT_VIENEU_MODE).strip().lower().replace("-", "_")
     aliases = {
+        "v3": "v3turbo",
+        "v3_turbo": "v3turbo",
+        "v3turbo": "v3turbo",
         "local": "turbo",
         "default": "turbo",
         "turbo": "turbo",
@@ -668,15 +738,23 @@ def normalize_vieneu_mode(value: object) -> str:
     )
 
 
-def resolve_vieneu_effective_mode(core: object, mode: object, device: object | None = None) -> str:
+def is_vieneu_v3_turbo_model(model_name: object) -> bool:
+    clean_model = str(model_name or "").strip().lower().replace("-", "_")
+    return "v3" in clean_model and "turbo" in clean_model
+
+
+def resolve_vieneu_effective_mode(
+    core: object,
+    mode: object,
+    device: object | None = None,
+    model_name: object | None = None,
+) -> str:
     selected_core = str(core or "local").strip().lower().replace("-", "_").replace(" ", "_")
     selected_mode = normalize_vieneu_mode(mode)
-    selected_device = resolve_vieneu_runtime_device(device)
+    _ = device, model_name
     if selected_core in {"remote", "remote_api", "api", "remoteapi"}:
         return "remote"
-    if selected_core == "local" and selected_device == "cuda":
-        return "standard"
-    return "standard" if selected_mode == "standard" else "turbo"
+    return selected_mode
 
 
 def _resolve_engine_mode(mode: object) -> str:
@@ -768,6 +846,21 @@ def _import_vieneu_factory() -> Any:
     return Vieneu
 
 
+def _configure_vieneu_standard_local_prompt(engine: Any, model_name: object) -> None:
+    """Preserve the upstream chat prompt format when its model is mirrored locally.
+
+    VieNeu detects the full ``pnnbao-ump/VieNeu-TTS`` model by comparing the
+    repository id.  Once that same model is resolved to a local directory, the
+    upstream check no longer matches and the engine generates invalid speech
+    tokens (typically a short noise-only WAV).
+    """
+    model_path = Path(str(model_name or "").strip().rstrip("/\\"))
+    if model_path.name.casefold() != "vieneu-tts":
+        return
+    if hasattr(engine, "use_chat_format"):
+        engine.use_chat_format = True
+
+
 def _normalize_engine_cache_inputs(
     *,
     mode: object,
@@ -777,19 +870,29 @@ def _normalize_engine_cache_inputs(
     backend: object | None = None,
     allow_network: bool = False,
 ) -> tuple[str, str, str, str, str]:
-    resolved_mode = _resolve_engine_mode(mode)
-    clean_model = resolve_vieneu_model_for_runtime(model_name, resolved_mode, allow_network=allow_network)
+    requested_mode = normalize_vieneu_mode(mode)
+    clean_model = resolve_vieneu_model_for_runtime(model_name, requested_mode, allow_network=allow_network)
     clean_device = resolve_vieneu_runtime_device(device)
     clean_backend = normalize_vieneu_backend(backend)
     clean_model_path = Path(str(clean_model or "").strip())
-    if (
-        resolved_mode == "turbo_gpu"
-        and str(clean_model_path)
-        and clean_model_path.exists()
-        and clean_model_path.is_file()
-        and clean_model_path.suffix.lower() == ".gguf"
-    ):
-        resolved_mode = "turbo"
+    clean_model_token = str(clean_model or "").strip().lower()
+    is_gguf = "gguf" in clean_model_token
+    if clean_model_path.is_file():
+        is_gguf = is_gguf or clean_model_path.suffix.lower() == ".gguf"
+    elif clean_model_path.is_dir():
+        is_gguf = is_gguf or any(
+            candidate.is_file() and candidate.suffix.lower() == ".gguf"
+            for candidate in clean_model_path.iterdir()
+        )
+
+    if requested_mode in {"turbo", "turbo_gpu", "v3turbo"} and is_vieneu_v3_turbo_model(clean_model):
+        resolved_mode = "v3turbo"
+    elif requested_mode in {"turbo", "turbo_gpu"}:
+        # GGUF uses the llama.cpp Turbo engine. A PyTorch v2 Turbo model uses
+        # TurboGPU's Transformers path; it can honor CUDA selected by `auto`.
+        resolved_mode = "turbo" if is_gguf else "turbo_gpu"
+    else:
+        resolved_mode = _resolve_engine_mode(requested_mode)
     clean_api_base = str(api_base or "").strip()
 
     if resolved_mode != "remote":
@@ -877,12 +980,30 @@ def _get_engine(
                         backbone_repo = str(resolved_model_path)
             if clean_model:
                 kwargs["backbone_repo"] = backbone_repo
-            if resolved_mode == "standard":
+            if resolved_mode == "v3turbo" and clean_model_path.is_dir():
+                onnx_dir = clean_model_path / "onnx_int8"
+                if onnx_dir.is_dir():
+                    _ensure_vieneu_v3_local_codec(allow_network=allow_network)
+                    _patch_vieneu_v3_local_codec()
+                    kwargs["backend"] = "onnx"
+                    kwargs["onnx_dir"] = str(onnx_dir.resolve())
+                    kwargs["device"] = "cpu"
+                else:
+                    kwargs["device"] = runtime_device
+            elif resolved_mode == "standard":
+                # VieNeu >= 3 defaults Standard to a legacy GGUF filename even
+                # when backbone_repo is a local PyTorch directory. Explicitly
+                # disable that default so Hugging Face does not validate a
+                # Windows path as a repo id, and keep using our offline codec.
+                kwargs["gguf_filename"] = None
+                kwargs["codec_repo"] = DEFAULT_VIENEU_STANDARD_CODEC_REPO
                 kwargs["backbone_device"] = runtime_device
                 kwargs["codec_device"] = runtime_device
             else:
                 kwargs["device"] = runtime_device
             engine = Vieneu(mode=resolved_mode, **kwargs)
+            if resolved_mode == "standard":
+                _configure_vieneu_standard_local_prompt(engine, backbone_repo)
     _ENGINE_CACHE[cache_key] = engine
     return engine
 
@@ -984,6 +1105,23 @@ def _static_vieneu_sample_voices(
             ("Ly (Nữ - Miền Bắc)", "Ly"),
             ("Ngọc (Nữ - Miền Bắc)", "Ngoc"),
         )
+    if resolved_mode == "v3turbo" or "v3" in clean_model:
+        return (
+            ("Minh Đức (Nam · Bắc · Tin tức)", "Minh Đức"),
+            ("Phạm Tuyên (Nam · Bắc · Tự nhiên)", "Phạm Tuyên"),
+            ("Thái Sơn (Nam · Nam · Kể chuyện)", "Thái Sơn"),
+            ("Xuân Vĩnh (Nam · Nam · Tự nhiên)", "Xuân Vĩnh"),
+            ("Thanh Bình (Nam · Bắc · Kể chuyện)", "Thanh Bình"),
+            ("Trúc Ly (Nữ · Bắc · Tự nhiên)", "Trúc Ly"),
+            ("Ngọc Linh (Nữ · Bắc · Kể chuyện)", "Ngọc Linh"),
+            ("Đoan Trang (Nữ · Bắc · Tự nhiên)", "Đoan Trang"),
+            ("Mai Anh (Nữ · Bắc · Tin tức)", "Mai Anh"),
+            ("Thục Đoan (Nữ · Nam · Kể chuyện)", "Thục Đoan"),
+            ("Minh Triết (Nam · Nam · Tin tức)", "Minh Triết"),
+            ("Thùy Dung (Nữ · Nam · Tin tức)", "Thùy Dung"),
+            ("Quang Sơn (Nam · Trung · Tự nhiên)", "Quang Sơn"),
+            ("Ngọc Trân (Nữ · Trung · Tự nhiên)", "Ngọc Trân"),
+        )
     return (
         ("Bích Ngọc (Nữ - Miền Bắc)", "Bích Ngọc"),
         ("Phạm Tuyên (Nam - Miền Bắc)", "Phạm Tuyên"),
@@ -1033,6 +1171,9 @@ def _normalize_voice_token(value: object) -> str:
 
 
 _LEGACY_VIENEU_VOICE_HINTS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "vi-vn-hoaimyneural": (("doan",), ("truc", "ly"), ("female", "south")),
+    "vi-vn-namminhneural": (("vinh",), ("male", "south")),
+    "en-us-guyneural": (("binh",), ("male", "north")),
     "doan": (("doan",), ("nu", "mien", "nam"), ("female", "south")),
     "thuc doan": (("doan",), ("nu", "mien", "nam"), ("female", "south")),
     "ly": (("ly",), ("nu", "mien", "bac"), ("female", "north")),
@@ -1167,6 +1308,55 @@ def _normalize_vieneu_segment_rate(seg: Segment) -> str:
     return raw_rate
 
 
+def _build_atempo_filter(rate: str) -> str:
+    # atempo accepts factors from 0.5 through 2.0 on all supported FFmpeg
+    # versions. Chain filters for rates outside that interval.
+    factor = max(0.01, rate_str_to_factor(rate))
+    factors: list[float] = []
+    while factor > 2.0:
+        factors.append(2.0)
+        factor /= 2.0
+    while factor < 0.5:
+        factors.append(0.5)
+        factor /= 0.5
+    if not factors or abs(factor - 1.0) > 1e-9:
+        factors.append(factor)
+    return ",".join(f"atempo={item:.8g}" for item in factors)
+
+
+def apply_vieneu_time_stretch(out_wav: Path, *, rate: str, ffmpeg_exe: str = "ffmpeg") -> None:
+    normalized_rate = normalize_rate_value(rate, fallback="0%")
+    if abs(rate_str_to_factor(normalized_rate) - 1.0) < 1e-9:
+        return
+
+    stretched_wav = out_wav.with_name(f".{out_wav.stem}.time_stretch{out_wav.suffix}")
+    command = [
+        str(ffmpeg_exe or "ffmpeg"),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(out_wav),
+        "-filter:a",
+        _build_atempo_filter(normalized_rate),
+        "-c:a",
+        "pcm_s16le",
+        str(stretched_wav),
+    ]
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        os.replace(stretched_wav, out_wav)
+    except Exception as exc:
+        try:
+            stretched_wav.unlink(missing_ok=True)
+        except OSError:
+            pass
+        stderr = str(getattr(exc, "stderr", "") or "").strip()
+        detail = f" Details: {stderr}" if stderr else ""
+        raise TtsError(f"VieNeu time-stretch failed for rate {normalized_rate}.{detail}") from exc
+
+
 def _apply_vieneu_rate_hint(voice: Any, *, rate: str) -> Any:
     if voice is None:
         return None
@@ -1199,32 +1389,13 @@ def _apply_vieneu_rate_hint(voice: Any, *, rate: str) -> Any:
 
 
 def _build_vieneu_infer_kwargs(*, engine: Any, seg: Segment, voice: Any, temperature: float, max_chars: int) -> dict[str, Any]:
-    rate = _normalize_vieneu_segment_rate(seg)
-    rate_factor = rate_str_to_factor(rate)
+    del engine
     kwargs: dict[str, Any] = {
         "text": str(getattr(seg, "text", "") or "").strip(),
-        "voice": _apply_vieneu_rate_hint(voice, rate=rate),
+        "voice": voice,
         "temperature": temperature,
         "max_chars": max_chars,
     }
-
-    infer = getattr(engine, "infer", None)
-    try:
-        signature = inspect.signature(infer) if callable(infer) else None
-    except (TypeError, ValueError):
-        signature = None
-    if signature is None:
-        return kwargs
-
-    params = signature.parameters
-    if "rate" in params:
-        kwargs["rate"] = rate
-    elif "speed" in params:
-        kwargs["speed"] = rate_factor
-    elif "speaking_rate" in params:
-        kwargs["speaking_rate"] = rate_factor
-    elif "rate_factor" in params:
-        kwargs["rate_factor"] = rate_factor
 
     return {key: value for key, value in kwargs.items() if value is not None}
 
@@ -1245,6 +1416,7 @@ def synthesize_segment_with_vieneu(
     vieneu_max_chars_chunk: int | None = None,
     vieneu_use_batch: bool | None = None,
     vieneu_max_batch_size_run: int | None = None,
+    ffmpeg_exe: str = "ffmpeg",
 ) -> None:
     del auto_en_lines, vieneu_use_batch, vieneu_max_batch_size_run
     engine = get_vieneu_engine(
@@ -1264,6 +1436,7 @@ def synthesize_segment_with_vieneu(
         vieneu_model_name=vieneu_model_name,
         vieneu_temperature=vieneu_temperature,
         vieneu_max_chars_chunk=vieneu_max_chars_chunk,
+        ffmpeg_exe=ffmpeg_exe,
     )
 
 
@@ -1279,6 +1452,7 @@ def synthesize_segment_with_vieneu_using_engine(
     backend: str = "auto",
     vieneu_temperature: float | None = None,
     vieneu_max_chars_chunk: int | None = None,
+    ffmpeg_exe: str = "ffmpeg",
 ) -> None:
     out_wav.parent.mkdir(parents=True, exist_ok=True)
     text = str(getattr(seg, "text", "") or "").strip()
@@ -1299,6 +1473,7 @@ def synthesize_segment_with_vieneu_using_engine(
         )
         audio = engine.infer(**infer_kwargs)
         engine.save(audio, out_wav)
+        apply_vieneu_time_stretch(out_wav, rate=_normalize_vieneu_segment_rate(seg), ffmpeg_exe=ffmpeg_exe)
     except Exception as exc:
         raise TtsError(
             f"VieNeu TTS core render failed. mode={normalize_vieneu_mode(vieneu_mode)!r}, "
@@ -1322,6 +1497,7 @@ async def synthesize_segment_with_vieneu_async(
     vieneu_max_chars_chunk: int | None = None,
     vieneu_use_batch: bool | None = None,
     vieneu_max_batch_size_run: int | None = None,
+    ffmpeg_exe: str = "ffmpeg",
 ) -> None:
     await asyncio.to_thread(
         synthesize_segment_with_vieneu,
@@ -1339,4 +1515,5 @@ async def synthesize_segment_with_vieneu_async(
         vieneu_max_chars_chunk=vieneu_max_chars_chunk,
         vieneu_use_batch=vieneu_use_batch,
         vieneu_max_batch_size_run=vieneu_max_batch_size_run,
+        ffmpeg_exe=ffmpeg_exe,
     )

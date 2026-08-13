@@ -10,11 +10,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = ("story", "audio", "image", "video")
+PACKAGES = ("audio", "video")
 REQUIRED_SCHEMA = {
-    "story": "story/assets/schemas/story-audio-handoff-v1.schema.json",
     "audio": "audio/assets/schemas/audio-video-handoff-v1.schema.json",
-    "image": "image/assets/schemas/image-video-handoff-v1.schema.json",
     "video": None,
 }
 
@@ -74,7 +72,7 @@ def main() -> int:
         clean_env = os.environ.copy()
         clean_env.pop("PYTHONPATH", None)
         run(
-            [str(integration_python), "-c", "import studio.gui_entry; import story.app_api, audio.app_api, image.app_api, video.app_api"],
+            [str(integration_python), "-c", "import studio.gui_entry; import audio.app_api, video.app_api"],
             cwd=temp,
             env=clean_env,
         )
