@@ -26,7 +26,7 @@
         "video.gui_entry", "video.gui", "video.make_video_from_audio"
       ],
       "allowed_root_modules": [
-        "app_api", "asset_profile_utils", "cli", "cli_entry", "cli_utils", "command_builders",
+        "app_api", "cli", "cli_entry", "cli_utils", "command_builders",
         "config", "error_handling", "exceptions", "ffmpeg_runner", "gui_entry", "logging_utils",
         "make_video_from_audio", "paths", "render_slideshow", "render_static", "runtime_tools",
         "run_history", "slideshow_concat", "subtitle_filters", "validation", "__init__", "__main__"

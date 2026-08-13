@@ -22,7 +22,7 @@ from video.slideshow_concat import (
 )
 from video.slideshow_concat import write_concat_list as write_concat_list_core
 from video.slideshow_concat import write_timeline_concat_list
-from video.story_zone_timeline import build_story_zone_segments, estimate_story_zone_duration
+from video.zone_timeline import build_zone_segments, estimate_zone_duration
 from video.subtitle_filters import build_vf_filter
 from video.validation import (
     collect_scene_images,
@@ -123,14 +123,14 @@ def make_slideshow_video(
         if subtitle is None:
             raise ValueError("Zone-aware slideshow requires a subtitle .srt file with real timestamps.")
         assert scenes_dir is not None
-        segments = build_story_zone_segments(
-            story_json=story_json,
+        segments = build_zone_segments(
+            timeline_json=story_json,
             subtitle=subtitle,
             scenes_dir=scenes_dir,
         )
         segments = prepend_cover_segment(segments, slideshow_cover, cover_duration)
         segments = append_outro_segment(segments, slideshow_outro, outro_duration)
-        expected_out = estimate_story_zone_duration(segments)
+        expected_out = estimate_zone_duration(segments)
         tmp_list_path: Optional[Path] = None
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".ffconcat") as tmp:
@@ -189,7 +189,7 @@ def make_slideshow_video(
     )
     segments = prepend_cover_segment(segments, slideshow_cover, cover_duration)
     segments = append_outro_segment(segments, slideshow_outro, outro_duration)
-    expected_out = estimate_story_zone_duration(segments)
+    expected_out = estimate_zone_duration(segments)
     tmp_list_path: Optional[Path] = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".ffconcat") as tmp:

@@ -4,7 +4,6 @@ import os
 import sys
 from typing import Literal
 
-from video.paths import default_profile_root
 from video.encoding_profiles import PROFILE_AUTO, resolve_encoding_profile
 from video.runtime_tools import (
     DEFAULT_WINDOWS_FFMPEG,
@@ -146,7 +145,6 @@ SLIDESHOW_OUTRO_LAST = os.getenv("SLIDESHOW_OUTRO_LAST", "1").strip().lower() no
 OUTRO_DURATION_SECONDS = float(os.getenv("OUTRO_DURATION_SECONDS", "5.0"))
 AUDIO_MATCH_EPSILON = float(os.getenv("AUDIO_MATCH_EPSILON", "0.2"))
 PRINT_FFMPEG_VERSION = os.getenv("PRINT_FFMPEG_VERSION", "0").strip() == "1"
-DEFAULT_PROFILE_ROOT = str(default_profile_root())
 
 
 def get_output_resolution(aspect: AspectRatio) -> tuple[int, int]:

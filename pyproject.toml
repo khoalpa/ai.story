@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
-  { name = "AI Story Studio" }
+  { name = "AI Audio & Video Studio" }
 ]
 keywords = ["audio", "video", "streamlit", "tts", "ffmpeg"]
 classifiers = [

@@ -45,10 +45,10 @@ def test_video_cli_direct_asset_inputs_are_supported(tmp_path: Path) -> None:
     direct_scenes.mkdir()
     audio_handoff = write_video_handoff(tmp_path / "audio.json", audio=manifest_audio)
     args = SimpleNamespace(
-        audio=str(direct_audio), audio_handoff=str(audio_handoff), image_handoff=None,
+        audio=str(direct_audio), audio_handoff=str(audio_handoff),
         subtitle=None, cover=None, scenes_dir=str(direct_scenes), story_json=None,
         output=str(tmp_path / "out.mp4"), mode="slideshow", aspect="9x16",
-        duration_per_image=10.0, profile_root=None, asset_profile=None,
+        duration_per_image=10.0,
         zone_aware_slideshow=False,
     )
     request, _, _ = request_from_args(args)

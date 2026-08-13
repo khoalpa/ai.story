@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from video.story_zone_timeline import StoryZoneSegment
+from video.zone_timeline import ZoneSegment
 
 
 def escape_ffconcat_path(path: Path) -> str:
@@ -45,7 +45,7 @@ def build_slideshow_segments(
     audio_duration: Optional[float] = None,
     match_audio: bool = True,
     audio_match_epsilon: float = 0.2,
-) -> list[StoryZoneSegment]:
+) -> list[ZoneSegment]:
     """Build the existing fixed-duration slideshow as an explicit timeline."""
     if duration_per_image <= 0:
         raise ValueError("--duration-per-image must be > 0")
@@ -59,7 +59,7 @@ def build_slideshow_segments(
         match_audio=match_audio,
         audio_match_epsilon=audio_match_epsilon,
     )
-    segments: list[StoryZoneSegment] = []
+    segments: list[ZoneSegment] = []
     for index, image in enumerate(images):
         start = index * duration_per_image
         end = total_duration if index == len(images) - 1 else min(
@@ -67,7 +67,7 @@ def build_slideshow_segments(
         )
         if end > start:
             segments.append(
-                StoryZoneSegment(
+                ZoneSegment(
                     zone=f"scene_{index + 1}",
                     image=image,
                     start=start,
@@ -78,10 +78,10 @@ def build_slideshow_segments(
 
 
 def prepend_cover_segment(
-    segments: list[StoryZoneSegment],
+    segments: list[ZoneSegment],
     cover: Optional[Path],
     cover_duration: float,
-) -> list[StoryZoneSegment]:
+) -> list[ZoneSegment]:
     """Show cover from t=0 while preserving the original timeline end."""
     if cover is None:
         return list(segments)
@@ -95,12 +95,12 @@ def prepend_cover_segment(
     if cover_end <= 0:
         return list(segments)
 
-    result = [StoryZoneSegment(zone="cover", image=cover, start=0.0, end=cover_end)]
+    result = [ZoneSegment(zone="cover", image=cover, start=0.0, end=cover_end)]
     for segment in segments:
         if segment.end <= cover_end:
             continue
         result.append(
-            StoryZoneSegment(
+            ZoneSegment(
                 zone=segment.zone,
                 image=segment.image,
                 start=max(segment.start, cover_end),
@@ -111,10 +111,10 @@ def prepend_cover_segment(
 
 
 def append_outro_segment(
-    segments: list[StoryZoneSegment],
+    segments: list[ZoneSegment],
     outro: Optional[Path],
     outro_duration: float,
-) -> list[StoryZoneSegment]:
+) -> list[ZoneSegment]:
     """Show an end screen at the tail while preserving the timeline duration."""
     if outro is None:
         return list(segments)
@@ -128,12 +128,12 @@ def append_outro_segment(
     if timeline_end <= outro_start:
         return list(segments)
 
-    result: list[StoryZoneSegment] = []
+    result: list[ZoneSegment] = []
     for segment in segments:
         if segment.start >= outro_start:
             continue
         result.append(
-            StoryZoneSegment(
+            ZoneSegment(
                 zone=segment.zone,
                 image=segment.image,
                 start=segment.start,
@@ -141,7 +141,7 @@ def append_outro_segment(
             )
         )
     result.append(
-        StoryZoneSegment(
+        ZoneSegment(
             zone="end_screen",
             image=outro,
             start=outro_start,
@@ -188,7 +188,7 @@ def write_concat_list(
 
 
 def write_timeline_concat_list(
-    segments: list[StoryZoneSegment],
+    segments: list[ZoneSegment],
     out_list_file: Path,
 ) -> None:
     if not segments:

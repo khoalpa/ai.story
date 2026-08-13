@@ -5,11 +5,9 @@ import streamlit as st
 from audio.gui.user_messages import UserMessage, render_user_message
 from .helpers import convert_canonical_to_plain_text, convert_raw_to_plain_text, save_uploaded_text
 from .state import (
-    AUDIO_LOCK_TO_STORY_HANDOFF_KEY,
     PENDING_PLAIN_SCRIPT_KEY,
     PLAIN_SCRIPT_TEXT_KEY,
     RUN_PLAIN_TEXT_KEY,
-    AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY,
     audio_session,
 )
 
@@ -36,50 +34,8 @@ def _apply_pending_plain_script() -> None:
         session.last_plain_script = pending
 
 
-def _apply_story_handoff_prefill() -> None:
-    session = audio_session()
-    incoming = st.session_state.get("workspace_story_plain_script_text", "") or ""
-    previous_auto = session.auto_plain_script
-    lock_to_handoff = session.lock_to_story_handoff
-    if not incoming:
-        return
-
-    current_plain = session.plain_script_text
-    current_editor = st.session_state.get("plain_script_editor", "") or ""
-    current_run = session.run_plain_text
-    current_last = session.last_plain_script
-
-    already_synced = (
-        incoming == previous_auto
-        and current_plain == incoming
-        and current_editor == incoming
-        and current_run == incoming
-        and current_last == incoming
-    )
-    if already_synced:
-        return
-
-    if lock_to_handoff or not current_plain or current_plain == previous_auto:
-        session.plain_script_text = incoming
-    if lock_to_handoff or not current_editor or current_editor == previous_auto:
-        st.session_state["plain_script_editor"] = incoming
-    if lock_to_handoff or not current_run or current_run == previous_auto:
-        session.run_plain_text = incoming
-    if lock_to_handoff or not current_last or current_last == previous_auto:
-        session.last_plain_script = incoming
-
-    session.auto_plain_script = incoming
-
-
 def render_workspace_tab() -> None:
     _apply_pending_plain_script()
-    _apply_story_handoff_prefill()
-
-    st.checkbox(
-        "Lock input to Story handoff",
-        key=AUDIO_LOCK_TO_STORY_HANDOFF_KEY,
-        help="When enabled, the plain script received from Story can keep updating and overwrite the Audio input/run area.",
-    )
 
     tab_canonical, tab_plain, tab_raw = st.tabs(["Canonical JSON", "Plain Script", "Raw Text"])
 
@@ -110,7 +66,7 @@ def render_workspace_tab() -> None:
             st.download_button(
                 "Download plain script",
                 data=audio_session().plain_script_text.encode("utf-8"),
-                file_name="story.txt",
+                file_name="script.txt",
                 mime="text/plain",
                 width="stretch",
             )

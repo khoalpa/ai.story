@@ -36,19 +36,6 @@ def _apply_pending_run_plain_text() -> None:
         st.session_state["run_plain_text"] = pending
 
 
-def _apply_story_handoff_prefill_to_run() -> None:
-    incoming = st.session_state.get("workspace_story_plain_script_text", "") or ""
-    previous_auto = st.session_state.get("audio_last_auto_plain_script", "") or ""
-    current_run = st.session_state.get("run_plain_text", "") or ""
-    lock_to_handoff = bool(st.session_state.get("audio_lock_to_story_handoff", False))
-    if not incoming or incoming == previous_auto:
-        return
-    if lock_to_handoff or not current_run or current_run == previous_auto:
-        st.session_state["run_plain_text"] = incoming
-        st.session_state["last_plain_script"] = incoming
-    st.session_state["audio_last_auto_plain_script"] = incoming
-
-
 def render_preview_table() -> None:
     segments = st.session_state.get("last_preview_segments", [])
     if not segments:
@@ -640,7 +627,6 @@ def _render_audio_focus_hint() -> None:
 
 def render_run_tab(settings: dict, repository: JobRepository) -> None:
     _apply_pending_run_plain_text()
-    _apply_story_handoff_prefill_to_run()
 
     _render_audio_focus_hint()
 

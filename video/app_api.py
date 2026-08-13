@@ -23,7 +23,6 @@ def render_video_studio(*args: Any, **kwargs: Any) -> None:
     render_video_workspace(*args, **kwargs)
 
 from video import config
-from video.asset_profile_utils import apply_profile_runtime_defaults, resolve_profile_defaults
 from video.config import get_ffmpeg_exe, get_ffprobe_exe
 from video.encoding_profiles import PROFILE_AUTO, resolve_encoding_profile
 from video.error_handling import USER_FACING_EXCEPTIONS
@@ -40,10 +39,10 @@ from video.validation import (
     resolve_slideshow_outro,
     validate_slideshow_inputs,
 )
-from video.handoff import read_audio_handoff, read_image_handoff
+from video.handoff import read_audio_handoff
 from video.result_manifest import write_result_manifest
 from video.media_quality import prepare_audio_for_video, prepare_subtitle_for_video, write_video_quality_report
-from video.story_zone_timeline import build_story_zone_segments
+from video.zone_timeline import build_zone_segments
 from video.slideshow_concat import (
     append_outro_segment,
     build_slideshow_segments,
@@ -91,8 +90,6 @@ class RenderVideoRequest:
     outro_duration: float = 5.0
     ffmpeg_exe: Optional[str] = None
     ffprobe_exe: Optional[str] = None
-    asset_profile: Optional[str] = None
-    profile_root: Optional[str] = None
     video_codec: Optional[str] = None
     audio_codec: Optional[str] = None
     audio_bitrate: Optional[str] = None
@@ -132,7 +129,6 @@ class RenderVideoRequest:
     render_video_history_file: Optional[str] = None
     audio_handoff: Optional[Path] = None
     audio_quality_report: Optional[Path] = None
-    image_handoff: Optional[Path] = None
 
 
 @contextlib.contextmanager
@@ -227,24 +223,6 @@ def _render_runtime_overrides(request: RenderVideoRequest):
             setattr(config, key, value)
 
 
-def resolve_asset_profile_runtime(
-    *,
-    profile_root: Optional[str],
-    asset_profile: Optional[str],
-    cover: Optional[Path],
-    scenes_dir: Optional[Path],
-) -> tuple[Optional[Path], dict[str, Optional[Path]], Optional[Path], Optional[Path]]:
-    defaults = resolve_profile_defaults(profile_root, asset_profile)
-    _, resolved_cover, resolved_scenes_dir = apply_profile_runtime_defaults(
-        profile_root=profile_root,
-        asset_profile=asset_profile,
-        cover=cover,
-        scenes_dir=scenes_dir,
-    )
-    profile_dir = defaults.get("profile_dir")
-    return profile_dir, defaults, resolved_cover, resolved_scenes_dir
-
-
 def validate_render_request(request: RenderVideoRequest) -> None:
     if request.mode not in {"static", "slideshow"}:
         raise ValueError("mode must be 'static' or 'slideshow'.")
@@ -266,9 +244,9 @@ def validate_render_request(request: RenderVideoRequest) -> None:
     if request.output is None or not str(request.output).strip():
         raise ValueError("output path cannot be empty.")
     if request.mode == "static" and request.cover is None:
-        raise ValueError("Static mode needs a cover image or an asset profile with default_cover.")
+        raise ValueError("Static mode needs a cover image.")
     if request.mode == "slideshow" and request.scenes_dir is None:
-        raise ValueError("Slideshow mode needs a scenes directory or an asset profile with default_scenes_dir.")
+        raise ValueError("Slideshow mode needs a scenes directory.")
     if request.mode == "slideshow" and request.zone_aware_slideshow:
         if request.story_json is None:
             raise ValueError("Zone-aware slideshow needs a story.json file.")
@@ -278,21 +256,14 @@ def validate_render_request(request: RenderVideoRequest) -> None:
 
 def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], dict[str, Optional[Path]]]:
     audio_bundle = read_audio_handoff(Path(args.audio_handoff)) if getattr(args, "audio_handoff", None) else None
-    image_bundle = read_image_handoff(Path(args.image_handoff)) if getattr(args, "image_handoff", None) else None
     direct_audio = Path(args.audio) if getattr(args, "audio", None) else None
     direct_subtitle = Path(args.subtitle) if getattr(args, "subtitle", None) else None
     direct_cover = Path(args.cover) if getattr(args, "cover", None) else None
     direct_scenes = Path(args.scenes_dir) if getattr(args, "scenes_dir", None) else None
     audio_path = direct_audio or (audio_bundle.audio if audio_bundle else None)
     subtitle_path = direct_subtitle or (audio_bundle.subtitle if audio_bundle else None)
-    manifest_cover = image_bundle.cover if image_bundle else None
-    manifest_scenes = image_bundle.scenes if image_bundle else None
-    profile_dir, defaults, resolved_cover, resolved_scenes_dir = resolve_asset_profile_runtime(
-        profile_root=getattr(args, "profile_root", None),
-        asset_profile=getattr(args, "asset_profile", None),
-        cover=direct_cover or manifest_cover,
-        scenes_dir=direct_scenes or manifest_scenes,
-    )
+    resolved_cover = direct_cover
+    resolved_scenes_dir = direct_scenes
     story_json_path = Path(args.story_json) if getattr(args, "story_json", None) else None
     cover_first = bool(getattr(args, "cover_first", True))
     if getattr(args, "mode", None) == "slideshow":
@@ -322,15 +293,12 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         cover_duration=float(getattr(args, "cover_duration", 3.0)),
         outro_last=bool(getattr(args, "outro_last", True)),
         outro_duration=float(getattr(args, "outro_duration", 5.0)),
-        asset_profile=getattr(args, "asset_profile", None),
-        profile_root=getattr(args, "profile_root", None),
         zone_aware_slideshow=bool(getattr(args, "zone_aware_slideshow", False)),
         audio_handoff=Path(args.audio_handoff) if getattr(args, "audio_handoff", None) else None,
         audio_quality_report=audio_bundle.quality_report if audio_bundle else None,
-        image_handoff=Path(args.image_handoff) if getattr(args, "image_handoff", None) else None,
     )
     validate_render_request(request)
-    return request, profile_dir, defaults
+    return request, None, {"profile_dir": None, "cover": None, "scenes_dir": None}
 
 
 
@@ -434,8 +402,8 @@ def execute_render_request(
                             progress_callback=progress_callback,
                         )
                         if request.zone_aware_slideshow and request.story_json and request.subtitle and request.scenes_dir:
-                            zone_segments = build_story_zone_segments(
-                                story_json=request.story_json,
+                            zone_segments = build_zone_segments(
+                                timeline_json=request.story_json,
                                 subtitle=request.subtitle,
                                 scenes_dir=request.scenes_dir,
                             )
@@ -522,7 +490,7 @@ def execute_render_request(
                     duration_seconds=quality["duration"]["container_seconds"],
                     resolution=f"{output_width}x{output_height}",
                     input_manifests=(
-                        path for path in (request.audio_handoff, request.image_handoff) if path is not None
+                        path for path in (request.audio_handoff,) if path is not None
                     ),
                 )
                 if bool(request.quality_gate) and not quality["passed"]:
@@ -573,6 +541,5 @@ execute_request = execute_render_request
 __all__ = [
     "RenderVideoRequest", "VideoQualityGateError", "execute_render_request", "execute_request",
     "render_video_studio", "render_video_workspace", "request_from_args",
-    "resolve_asset_profile_runtime", "validate_render_request", "validate_request",
-    "read_audio_handoff", "read_image_handoff", "write_result_manifest",
+    "validate_render_request", "validate_request", "read_audio_handoff", "write_result_manifest",
 ]

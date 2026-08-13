@@ -11,7 +11,7 @@ from typing import Any, Iterable, Optional
 from video.config import IMAGE_EXTENSIONS, ZONE_IMAGE_ALIASES, ZONE_IMAGE_SEQUENCE
 from video.validation import collect_scene_images
 
-STORY_ZONE_SEQUENCE: tuple[str, ...] = (
+ZONE_SEQUENCE: tuple[str, ...] = (
     "greeting",
     "opening",
     "introduction",
@@ -42,7 +42,7 @@ class SrtEntry:
 
 
 @dataclass(frozen=True)
-class StoryZoneSegment:
+class ZoneSegment:
     zone: str
     image: Path
     start: float
@@ -62,7 +62,7 @@ def _ascii_key(value: object) -> str:
     return re.sub(r"[^a-z0-9]+", " ", lowered).strip()
 
 
-def normalize_story_zone(value: object) -> Optional[str]:
+def normalize_zone(value: object) -> Optional[str]:
     key = _ascii_key(value)
     if not key:
         return None
@@ -100,14 +100,14 @@ def normalize_image_zone_from_path(path: Path) -> Optional[str]:
     return None
 
 
-def collect_story_zone_images(scenes_dir: Path) -> dict[str, Path]:
+def collect_zone_images(scenes_dir: Path) -> dict[str, Path]:
     images = [p for p in collect_scene_images(scenes_dir) if p.suffix.lower() in IMAGE_EXTENSIONS]
     mapped: dict[str, Path] = {}
     for image in images:
         image_zone = normalize_image_zone_from_path(image)
         if image_zone is None:
             continue
-        if image_zone in STORY_ZONE_SEQUENCE:
+        if image_zone in ZONE_SEQUENCE:
             mapped.setdefault(image_zone, image)
     return mapped
 
@@ -149,11 +149,11 @@ def parse_srt(path: Path) -> list[SrtEntry]:
     return entries
 
 
-def load_story_script(story_json: Path) -> list[dict[str, Any]]:
-    raw = json.loads(story_json.read_text(encoding="utf-8-sig"))
+def load_timeline_script(timeline_json: Path) -> list[dict[str, Any]]:
+    raw = json.loads(timeline_json.read_text(encoding="utf-8-sig"))
     script = raw.get("script") if isinstance(raw, dict) else None
     if not isinstance(script, list):
-        raise ValueError(f"story.json must contain a script array: {story_json}")
+        raise ValueError(f"Timeline JSON must contain a script array: {timeline_json}")
     return [item for item in script if isinstance(item, dict)]
 
 
@@ -194,7 +194,7 @@ def _iter_zone_ranges(
 ) -> list[tuple[str, float, float]]:
     ranges: dict[str, list[float]] = {}
     for item, entry in script_srt_pairs:
-        zone = normalize_story_zone(item.get("zone"))
+        zone = normalize_zone(item.get("zone"))
         if zone is None:
             continue
         if entry.end <= entry.start:
@@ -204,7 +204,7 @@ def _iter_zone_ranges(
         current[1] = max(current[1], entry.end)
 
     ordered: list[tuple[str, float, float]] = []
-    for zone in STORY_ZONE_SEQUENCE:
+    for zone in ZONE_SEQUENCE:
         if zone not in ranges:
             continue
         start, end = ranges[zone]
@@ -224,42 +224,42 @@ def _iter_zone_ranges(
     return ordered
 
 
-def build_story_zone_segments(
+def build_zone_segments(
     *,
-    story_json: Path,
+    timeline_json: Path,
     subtitle: Path,
     scenes_dir: Path,
-) -> list[StoryZoneSegment]:
-    script = load_story_script(story_json)
+) -> list[ZoneSegment]:
+    script = load_timeline_script(timeline_json)
     entries = parse_srt(subtitle)
     if not entries:
         raise ValueError(f"No SRT entries found: {subtitle}")
 
     pairs = _match_script_to_srt(script, entries)
     if not pairs:
-        raise ValueError("Could not match story.json script items to subtitle entries.")
+        raise ValueError("Could not match timeline script items to subtitle entries.")
 
     zone_ranges = _iter_zone_ranges(pairs)
     if not zone_ranges:
         raise ValueError(
-            "Could not build zone timing from story.json and story.srt. "
+            "Could not build zone timing from timeline JSON and subtitles. "
             "Check that the SRT timestamps are not all zero."
         )
 
-    image_by_zone = collect_story_zone_images(scenes_dir)
+    image_by_zone = collect_zone_images(scenes_dir)
     if not image_by_zone:
-        raise ValueError(f"No scene images matched story zones in: {scenes_dir}")
+        raise ValueError(f"No scene images matched timeline zones in: {scenes_dir}")
 
-    segments: list[StoryZoneSegment] = []
+    segments: list[ZoneSegment] = []
     previous_image: Optional[Path] = None
     for zone, start, end in zone_ranges:
         image = image_by_zone.get(zone) or previous_image or next(iter(image_by_zone.values()))
-        segments.append(StoryZoneSegment(zone=zone, image=image, start=start, end=end))
+        segments.append(ZoneSegment(zone=zone, image=image, start=start, end=end))
         previous_image = image
     return segments
 
 
-def estimate_story_zone_duration(segments: list[StoryZoneSegment]) -> float:
+def estimate_zone_duration(segments: list[ZoneSegment]) -> float:
     if not segments:
         return 0.0
     return sum(segment.duration for segment in segments)

@@ -47,7 +47,12 @@ def _legacy_models_root(module_file: str | Path | None = None) -> Path:
 
 
 def models_root(module_file: str | Path | None = None) -> Path:
-    root = _module_models_root(module_file) or _legacy_models_root(module_file)
+    configured_root = str(os.environ.get("AI_AUDIO_MODELS_ROOT") or "").strip()
+    root = (
+        Path(configured_root).expanduser().resolve()
+        if configured_root
+        else (_module_models_root(module_file) or _legacy_models_root(module_file))
+    )
     root.mkdir(parents=True, exist_ok=True)
     return root
 

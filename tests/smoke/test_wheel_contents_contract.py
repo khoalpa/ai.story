@@ -13,6 +13,5 @@ def test_wheel_contents_checker_covers_packages_assets_and_launchers() -> None:
     assert "'audio/assets/bgm_config.json'" in content
     assert "'audio/assets/bgm/bgm_lofi.mp3'" in content
     assert "'audio/assets/bgm/zone_opening.mp3'" in content
-    assert "'video/assets/profiles/demo/manifest.json'" in content
     assert "'studio/gui_entry.py'" in content
 

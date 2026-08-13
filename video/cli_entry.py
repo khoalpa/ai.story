@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 from video.cli_utils import UsedFilesTracker, setup_stdio
-from video.config import DEFAULT_PROFILE_ROOT
 from video.encoding_profiles import PROFILE_CHOICES
 from video.error_handling import USER_FACING_EXCEPTIONS, format_user_facing_error
 from video.ffmpeg_runner import ensure_tools
@@ -24,21 +23,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--audio", type=str, default=None, help="Input audio file; overrides --audio-handoff."
     )
     parser.add_argument("--audio-handoff", default=None, help="audio.video-handoff manifest path.")
-    parser.add_argument("--image-handoff", default=None, help="image.video-handoff manifest path.")
     parser.add_argument(
         "--output", type=str, required=True, help="Output MP4 file path (for example: output/video.mp4)."
-    )
-    parser.add_argument(
-        "--asset-profile",
-        type=str,
-        default=None,
-        help="Runtime asset profile name, for example: calm or trend. The video renderer resolves manifest.json to read default_cover/default_scenes_dir when available.",
-    )
-    parser.add_argument(
-        "--profile-root",
-        type=str,
-        default=DEFAULT_PROFILE_ROOT,
-        help=f"Root directory containing asset profiles (default: {DEFAULT_PROFILE_ROOT})",
     )
     parser.add_argument(
         "--cover",
@@ -121,12 +107,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--story-json",
         type=str,
         default=None,
-        help="Optional story.json file for zone-aware slideshow timing.",
+        help="Optional timeline JSON file for zone-aware slideshow timing.",
     )
     parser.add_argument(
         "--zone-aware-slideshow",
         action="store_true",
-        help="In slideshow mode, time scene images from story.json zones and subtitle timestamps.",
+        help="In slideshow mode, time scene images from timeline zones and subtitle timestamps.",
     )
     parser.add_argument(
         "--check-images",
@@ -159,7 +145,7 @@ def _print_image_readiness(report: ImageReadinessReport) -> None:
 
 def run_from_args(args: argparse.Namespace) -> Path:
     used_files = UsedFilesTracker()
-    request, profile_dir, defaults = request_from_args(args)
+    request, _, _ = request_from_args(args)
     image_readiness = inspect_video_image_readiness(
         mode=request.mode,
         aspect=request.aspect,
@@ -177,12 +163,6 @@ def run_from_args(args: argparse.Namespace) -> Path:
         _print_image_readiness(image_readiness)
         raise ValueError("Images are not ready for video render.")
     ensure_tools()
-    if request.asset_profile:
-        used_files.note("Asset profile", request.asset_profile)
-    if profile_dir is not None:
-        print(f"Using asset profile: {request.asset_profile} ({profile_dir})")
-        used_files.add("Resolved profile directory", profile_dir)
-
     used_files.add("Input audio", request.audio)
     used_files.add("Rendered video", request.output)
 
@@ -190,18 +170,14 @@ def run_from_args(args: argparse.Namespace) -> Path:
         raise FileNotFoundError(f"Subtitle not found: {request.subtitle}")
     if request.cover is not None:
         used_files.add("Cover image", request.cover)
-    elif request.mode == "static" and defaults.get("cover") is not None:
-        used_files.add("Default cover from profile", defaults["cover"])
     if request.scenes_dir is not None:
         used_files.add("Scenes directory", request.scenes_dir)
-    elif request.mode == "slideshow" and defaults.get("scenes_dir") is not None:
-        used_files.add("Default scenes directory from profile", defaults["scenes_dir"])
     if request.subtitle is not None:
         used_files.add("Subtitle file", request.subtitle)
     if request.story_json is not None:
         if not request.story_json.is_file():
             raise FileNotFoundError(f"story.json not found: {request.story_json}")
-        used_files.add("Story JSON", request.story_json)
+        used_files.add("Timeline JSON", request.story_json)
 
     result = execute_render_request(request)
 

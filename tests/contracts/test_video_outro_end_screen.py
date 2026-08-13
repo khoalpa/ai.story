@@ -4,12 +4,12 @@ import pytest
 from PIL import Image
 
 from video.slideshow_concat import append_outro_segment
-from video.story_zone_timeline import StoryZoneSegment
+from video.zone_timeline import ZoneSegment
 from video.validation import inspect_video_image_readiness, resolve_slideshow_outro
 
 
-def _segment(image: Path, start: float, end: float) -> StoryZoneSegment:
-    return StoryZoneSegment(zone=image.stem, image=image, start=start, end=end)
+def _segment(image: Path, start: float, end: float) -> ZoneSegment:
+    return ZoneSegment(zone=image.stem, image=image, start=start, end=end)
 
 
 def _write_image(path: Path) -> None:

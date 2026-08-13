@@ -3,52 +3,10 @@ from __future__ import annotations
 import json
 import hashlib
 import mimetypes
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 SCHEMA_VERSION = 1
-
-
-def _resolve(manifest: Path, raw: object) -> Path:
-    descriptor = raw if isinstance(raw, dict) else None
-    if isinstance(raw, dict):
-        raw = raw.get("path")
-    path = Path(str(raw or ""))
-    resolved = path.resolve() if path.is_absolute() else (manifest.parent / path).resolve()
-    if descriptor and descriptor.get("sha256") and resolved.is_file():
-        if hashlib.sha256(resolved.read_bytes()).hexdigest() != descriptor["sha256"]:
-            raise ValueError(f"Artifact checksum mismatch: {resolved}")
-    return resolved
-
-
-@dataclass(frozen=True)
-class StoryAudioHandoff:
-    manifest_path: Path
-    plain_script: Path
-
-
-def read_story_handoff(manifest_path: Path) -> StoryAudioHandoff:
-    manifest_path = manifest_path.resolve()
-    data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    _validate_envelope(data, "story.audio-handoff", "story")
-    artifact = (data.get("artifacts") or {}).get("plain_script")
-    if not artifact:
-        raise ValueError("Story audio handoff is missing artifacts.plain_script")
-    return StoryAudioHandoff(manifest_path, _resolve(manifest_path, artifact))
-
-
-def _validate_envelope(data: object, kind: str, producer: str) -> None:
-    if not isinstance(data, dict):
-        raise ValueError("Handoff manifest root must be an object")
-    if data.get("schema_version") != SCHEMA_VERSION:
-        raise ValueError(f"Expected {kind} schema version {SCHEMA_VERSION}")
-    if data.get("kind") != kind:
-        raise ValueError(f"Expected handoff kind {kind}")
-    if data.get("producer") != producer:
-        raise ValueError(f"Expected producer {producer}")
-    if not data.get("created_at"):
-        raise ValueError("Handoff manifest is missing created_at")
 
 
 def write_video_handoff(

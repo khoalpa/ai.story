@@ -10,6 +10,5 @@ def test_wheel_contents_checker_covers_packages_assets_and_launchers() -> None:
     assert "'audio/__init__.py'" in content
     assert "'studio/__init__.py'" in content
     assert "'audio/assets/abbreviation_map.json'" in content
-    assert "'video/assets/profiles/demo/manifest.json'" in content
     assert "'studio/gui_entry.py'" in content
 

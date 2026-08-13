@@ -2,18 +2,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-"""Compatibility layer for legacy imports and the historical root script.
-
-New internal code should import directly from the focused modules inside
-``render_video``. This module keeps a compact public API for older callers and
-provides a small set of legacy aliases for backward compatibility.
-"""
+"""Public convenience imports for the Video renderer."""
 
 import importlib
 import warnings
 
-from video.asset_profile_utils import load_asset_profile_manifest, resolve_manifest_relative_path
-from video.app_api import resolve_asset_profile_runtime
 from video.cli_entry import (
     build_parser,
     main,
@@ -27,18 +20,14 @@ from video.validation import autodetect_subtitle_from_audio
 __all__ = [
     "autodetect_subtitle_from_audio",
     "build_parser",
-    "load_asset_profile_manifest",
     "main",
     "make_slideshow_video",
     "make_static_video",
     "parse_args",
-    "resolve_asset_profile_runtime",
-    "resolve_manifest_relative_path",
     "run_from_args",
 ]
 
 _LEGACY_ALIAS_PATHS = {
-    "apply_profile_runtime_defaults": ("video.asset_profile_utils", "apply_profile_runtime_defaults"),
     "build_scale_pad_filter": ("video.subtitle_filters", "build_scale_pad_filter"),
     "build_vf_filter": ("video.subtitle_filters", "build_vf_filter"),
     "build_zone_slideshow_images": ("video.validation", "build_zone_slideshow_images"),

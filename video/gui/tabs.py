@@ -39,7 +39,7 @@ from video.slideshow_concat import (
     build_slideshow_segments,
     prepend_cover_segment,
 )
-from video.story_zone_timeline import StoryZoneSegment, build_story_zone_segments
+from video.zone_timeline import ZoneSegment, build_zone_segments
 from video.validation import (
     ImageReadinessReport,
     autodetect_subtitle_from_audio,
@@ -222,7 +222,7 @@ def _guess_mp4_output_from_audio(audio_path: str, output_dir: str) -> str:
     if raw:
         audio_file = Path(raw)
         return str(Path(output_dir) / f"{audio_file.stem}.mp4")
-    return str(Path(output_dir) / "story.mp4")
+    return str(Path(output_dir) / "video.mp4")
 
 
 def _apply_audio_handoff_prefill(settings: dict[str, Any]) -> None:
@@ -265,7 +265,7 @@ def _ensure_video_input_defaults(settings: dict[str, Any]) -> None:
 
     current_output = str(st.session_state.get("video_output_input") or "").strip()
     if not current_output:
-        st.session_state["video_output_input"] = str(Path(settings["output_dir"]) / "story.mp4")
+        st.session_state["video_output_input"] = str(Path(settings["output_dir"]) / "video.mp4")
 
 def _resolve_cover_path(settings: dict[str, Any]) -> Optional[Path]:
     del settings
@@ -284,9 +284,6 @@ def _prepare_video_inputs(settings: dict[str, Any]) -> None:
 
 def _autodetect_story_json(settings: dict[str, Any], audio_path: Optional[Path]) -> Optional[Path]:
     candidates: list[Path] = []
-    story_bundle = str(workspace_handoff_state(st.session_state).story_video_handoff_dir or "").strip()
-    if story_bundle:
-        candidates.append(Path(story_bundle) / "story.json")
     if audio_path is not None:
         candidates.extend(
             [
@@ -388,7 +385,6 @@ def _append_history(summary: dict[str, Any]) -> None:
             "output_name": output_path.name if output_path else "",
             "mode": summary.get("mode"),
             "aspect": summary.get("aspect"),
-            "asset_profile": summary.get("asset_profile"),
         },
         limit=12,
     )
@@ -419,7 +415,7 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
     rows = [
         {"check": "Audio input", "status": "OK" if audio_path and audio_path.is_file() else "missing", "detail": str(audio_path or "Audio input not set")},
         {"check": "Subtitle", "status": "OK" if subtitle_path and subtitle_path.is_file() else ("not set" if subtitle_path is None else "missing"), "detail": str(subtitle_path or "Leave empty for autodetect or optional subtitle")},
-        {"check": "Story JSON", "status": "OK" if story_json_path and story_json_path.is_file() else ("not set" if story_json_path is None else "missing"), "detail": str(story_json_path or "Leave empty for autodetect or zone-aware slideshow")},
+        {"check": "Timeline JSON", "status": "OK" if story_json_path and story_json_path.is_file() else ("not set" if story_json_path is None else "missing"), "detail": str(story_json_path or "Leave empty for autodetect or zone-aware slideshow")},
         {"check": "Cover", "status": "OK" if cover_path and cover_path.is_file() else "missing", "detail": str(cover_path or "Cover not set")},
         {"check": "Scenes dir", "status": "OK" if scenes_dir and scenes_dir.is_dir() else "missing", "detail": str(scenes_dir or "Scenes directory not set")},
     ]
@@ -467,7 +463,6 @@ def _render_video_focus_hint(view_name: str) -> None:
     if not target_field:
         return
     mapping = {
-        "story_bundle": "Story bundle",
         "audio_input": "Audio file",
         "subtitle_input": "Subtitle file",
         "cover_input": "Cover image",
@@ -507,7 +502,7 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
             key="video_subtitle_input",
         )
         st.text_input(
-            "Story JSON (leave empty = autodetect)",
+            "Timeline JSON (leave empty = autodetect)",
             key="video_story_json_input",
         )
         st.text_input("Output MP4", key="video_output_input")
@@ -773,7 +768,7 @@ def render_run_tab(settings: dict[str, Any]) -> None:
 def _build_test_slideshow_segments(
     inputs: dict[str, Any],
     settings: dict[str, Any],
-) -> tuple[list[StoryZoneSegment], Optional[str]]:
+) -> tuple[list[ZoneSegment], Optional[str]]:
     scenes_dir = inputs.get("scenes_dir")
     if scenes_dir is None or not Path(scenes_dir).is_dir():
         return [], None
@@ -792,8 +787,8 @@ def _build_test_slideshow_segments(
             story_json = inputs.get("story_json")
             subtitle = inputs.get("subtitle")
             if story_json and subtitle and Path(story_json).is_file() and Path(subtitle).is_file():
-                segments = build_story_zone_segments(
-                    story_json=Path(story_json),
+                segments = build_zone_segments(
+                    timeline_json=Path(story_json),
                     subtitle=Path(subtitle),
                     scenes_dir=Path(scenes_dir),
                 )
@@ -908,7 +903,7 @@ def _render_test_media_inputs(inputs: dict[str, Any], summary: dict[str, Any]) -
     for label, key, source_key in (
         ("Audio", "audio", None),
         ("Subtitle", "subtitle", None),
-        ("Story JSON", "story_json", None),
+        ("Timeline JSON", "story_json", None),
         ("Video output", "output", None),
         ("Cover", "cover", "cover_source"),
         ("Scenes", "scenes_dir", "scenes_source"),

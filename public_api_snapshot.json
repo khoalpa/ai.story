@@ -1,4 +1,4 @@
 {
-  "audio.app_api": ["execute_request", "read_story_handoff", "write_video_handoff", "render_audio_workspace"],
-  "video.app_api": ["RenderVideoRequest", "execute_request", "read_audio_handoff", "read_image_handoff", "write_result_manifest", "render_video_workspace"]
+  "audio.app_api": ["execute_request", "write_video_handoff", "render_audio_workspace"],
+  "video.app_api": ["RenderVideoRequest", "execute_request", "read_audio_handoff", "write_result_manifest", "render_video_workspace"]
 }

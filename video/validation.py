@@ -79,7 +79,7 @@ def validate_static_inputs(audio: Path | None, cover: Path | None) -> None:
     if audio is None:
         raise ValueError("Audio file cannot be empty.")
     if cover is None:
-        raise ValueError("Static mode needs a cover image or an asset profile with default_cover.")
+        raise ValueError("Static mode needs a cover image.")
     if not cover.is_file():
         raise FileNotFoundError(f"Cover image not found: {cover}")
     if not audio.is_file():

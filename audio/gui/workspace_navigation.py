@@ -12,26 +12,18 @@ WORKSPACE_ACTIVE_APP_SELECTOR_KEY = "workspace_active_app_selector"
 WORKSPACE_PENDING_APP_KEY = "workspace_pending_app"
 WORKSPACE_PENDING_VIEW_KEY = "workspace_pending_view"
 WORKSPACE_PENDING_FIELD_KEY = "workspace_pending_field"
-WORKSPACE_STORY_TARGET_VIEW_KEY = "workspace_story_target_view"
 WORKSPACE_AUDIO_TARGET_VIEW_KEY = "workspace_audio_target_view"
-WORKSPACE_IMAGE_TARGET_VIEW_KEY = "workspace_image_target_view"
 WORKSPACE_VIDEO_TARGET_VIEW_KEY = "workspace_video_target_view"
-WORKSPACE_STORY_TARGET_FIELD_KEY = "workspace_story_target_field"
 WORKSPACE_AUDIO_TARGET_FIELD_KEY = "workspace_audio_target_field"
-WORKSPACE_IMAGE_TARGET_FIELD_KEY = "workspace_image_target_field"
 WORKSPACE_VIDEO_TARGET_FIELD_KEY = "workspace_video_target_field"
 
 TARGET_VIEW_KEY_MAP = {
-    "Story": WORKSPACE_STORY_TARGET_VIEW_KEY,
     "Audio": WORKSPACE_AUDIO_TARGET_VIEW_KEY,
-    "Image": WORKSPACE_IMAGE_TARGET_VIEW_KEY,
     "Video": WORKSPACE_VIDEO_TARGET_VIEW_KEY,
 }
 
 TARGET_FIELD_KEY_MAP = {
-    "Story": WORKSPACE_STORY_TARGET_FIELD_KEY,
     "Audio": WORKSPACE_AUDIO_TARGET_FIELD_KEY,
-    "Image": WORKSPACE_IMAGE_TARGET_FIELD_KEY,
     "Video": WORKSPACE_VIDEO_TARGET_FIELD_KEY,
 }
 

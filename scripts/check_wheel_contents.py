@@ -18,7 +18,6 @@ REQUIRED_MEMBERS = [
     'audio/assets/bgm_config.json',
     'audio/assets/bgm/bgm_lofi.mp3',
     'audio/assets/bgm/zone_opening.mp3',
-    'video/assets/profiles/demo/manifest.json',
 ]
 
 

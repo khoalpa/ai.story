@@ -27,9 +27,6 @@ LAST_PREVIEW_AUDIO_PATH_KEY = "last_preview_audio_path"
 LAST_PREVIEW_AUDIO_ERROR_KEY = "last_preview_audio_error"
 AUDIO_LAST_OUTPUT_KEY = "audio_last_output"
 AUDIO_LAST_SRT_OUTPUT_KEY = "audio_last_srt_output"
-AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY = "audio_last_auto_plain_script"
-STUDIO_AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY = "studio_audio_last_auto_plain_script"
-AUDIO_LOCK_TO_STORY_HANDOFF_KEY = "audio_lock_to_story_handoff"
 PLAIN_SCRIPT_EDITOR_KEY = "plain_script_editor"
 CANONICAL_EDITOR_KEY = "canonical_editor"
 RAW_EDITOR_KEY = "raw_editor"
@@ -66,11 +63,6 @@ AUDIO_PREVIEW_DEFAULTS: dict[str, object] = {
     LAST_PREVIEW_AUDIO_ERROR_KEY: "",
 }
 
-AUDIO_HANDOFF_DEFAULTS: dict[str, object] = {
-    AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY: "",
-    AUDIO_LOCK_TO_STORY_HANDOFF_KEY: False,
-}
-
 VOICE_NARRATOR_SPEED_KEY = "voice_narrator_speed"
 VOICE_FEMALE_SPEED_KEY = "voice_female_speed"
 VOICE_MALE_SPEED_KEY = "voice_male_speed"
@@ -91,7 +83,6 @@ AUDIO_DEFAULTS: dict[str, object] = {
     **AUDIO_EDITOR_DEFAULTS,
     **AUDIO_RUN_DEFAULTS,
     **AUDIO_PREVIEW_DEFAULTS,
-    **AUDIO_HANDOFF_DEFAULTS,
     **VOICE_SPEED_DEFAULTS,
 }
 
@@ -105,16 +96,8 @@ def _get_session_state(state: SessionState | None = None) -> SessionState:
 def ensure_session_defaults(state: SessionState | None = None) -> None:
     session = _get_session_state(state)
 
-    legacy_auto_plain = session.get(STUDIO_AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY)
-    if legacy_auto_plain is not None and AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY not in session:
-        session[AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY] = legacy_auto_plain
-
     for key, value in AUDIO_DEFAULTS.items():
         session.setdefault(key, value)
-
-    session[STUDIO_AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY] = session.get(
-        AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY, ""
-    )
 
 
 @dataclass
@@ -184,29 +167,6 @@ class AudioRunState:
 
 
 @dataclass
-class AudioHandoffState:
-    state: SessionState
-
-    @property
-    def auto_plain_script(self) -> str:
-        return str(self.state.get(AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY) or "")
-
-    @auto_plain_script.setter
-    def auto_plain_script(self, value: str) -> None:
-        normalized = value or ""
-        self.state[AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY] = normalized
-        self.state[STUDIO_AUDIO_LAST_AUTO_PLAIN_SCRIPT_KEY] = normalized
-
-    @property
-    def lock_to_story_handoff(self) -> bool:
-        return bool(self.state.get(AUDIO_LOCK_TO_STORY_HANDOFF_KEY, False))
-
-    @lock_to_story_handoff.setter
-    def lock_to_story_handoff(self, value: bool) -> None:
-        self.state[AUDIO_LOCK_TO_STORY_HANDOFF_KEY] = bool(value)
-
-
-@dataclass
 class AudioSession:
     state: SessionState
 
@@ -217,10 +177,6 @@ class AudioSession:
     @property
     def run(self) -> AudioRunState:
         return AudioRunState(self.state)
-
-    @property
-    def handoff(self) -> AudioHandoffState:
-        return AudioHandoffState(self.state)
 
     @property
     def plain_script_text(self) -> str:
@@ -261,22 +217,6 @@ class AudioSession:
     @pending_plain_script.setter
     def pending_plain_script(self, value: Any) -> None:
         self.run.pending_plain_script = value
-
-    @property
-    def auto_plain_script(self) -> str:
-        return self.handoff.auto_plain_script
-
-    @auto_plain_script.setter
-    def auto_plain_script(self, value: str) -> None:
-        self.handoff.auto_plain_script = value
-
-    @property
-    def lock_to_story_handoff(self) -> bool:
-        return self.handoff.lock_to_story_handoff
-
-    @lock_to_story_handoff.setter
-    def lock_to_story_handoff(self, value: bool) -> None:
-        self.handoff.lock_to_story_handoff = value
 
     @property
     def last_output(self) -> str:

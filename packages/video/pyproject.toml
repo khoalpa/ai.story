@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ai-video"
 version = "0.1.0"
-description = "Standalone video rendering package for AI Story Studio."
+description = "Standalone video rendering package for AI Audio & Video Studio."
 license = {text = "MIT"}
-authors = [{name = "AI Story Studio"}]
+authors = [{name = "AI Audio & Video Studio"}]
 requires-python = ">=3.10"
 dependencies = ["streamlit>=1.49,<2", "Pillow>=10,<12"]
 

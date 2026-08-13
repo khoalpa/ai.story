@@ -185,7 +185,7 @@ def _render_slideshow_behavior_settings() -> dict[str, Any]:
             "Use story zones to time images",
             value=bool(config.SLIDESHOW_ZONE_AWARE),
             key="zone_aware_slideshow",
-            help="When enabled, slideshow image durations come from story.json zones and subtitle timestamps.",
+            help="When enabled, slideshow image durations come from timeline zones and subtitle timestamps.",
         )
         cover_first = st.checkbox(
             "Use cover as first screen",
@@ -321,13 +321,8 @@ def get_video_settings() -> dict[str, Any]:
 
     return {
         **provider_values,
-        "profile_root": None,
         "input_root": input_root,
         "output_dir": output_dir,
-        "profiles": [],
-        "asset_profile": None,
-        "defaults": {"profile_dir": None, "cover": None, "scenes_dir": None},
-        "profile_error": None,
         "mode": mode,
         "aspect": aspect,
         "duration_per_image": float(duration_per_image),

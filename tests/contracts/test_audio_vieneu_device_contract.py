@@ -177,6 +177,7 @@ def test_vieneu_get_engine_passes_lmdeploy_backend_hint(monkeypatch) -> None:
     monkeypatch.setattr(tts_core, "bootstrap_vieneu_runtime", lambda *args, **kwargs: None)
     monkeypatch.setattr(tts_core, "_patch_vieneu_standard_offline_dependencies", lambda: None)
     monkeypatch.setattr(tts_core, "_patch_transformers_meta_to_empty", lambda: None)
+    monkeypatch.setattr(tts_core, "_ensure_vieneu_standard_dependency_snapshots", lambda: ())
     monkeypatch.setattr(tts_core, "resolve_vieneu_model_for_runtime", lambda value, mode, allow_network=False: str(value))
 
     tts_core._ENGINE_CACHE.clear()

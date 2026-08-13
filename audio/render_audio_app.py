@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping, Optional, cast
@@ -16,7 +16,7 @@ from audio.adapters.tts_core import (
     warmup_vieneu_engine,
 )
 from audio.logging_utils import get_logger
-from audio.handoff import read_story_handoff, write_video_handoff
+from audio.handoff import write_video_handoff
 from audio.render_job import RenderJobArtifacts, RenderJobPaths, RuntimeContext, VoiceRuntimeMaps
 from audio.paths import ASSETS_ROOT, DEFAULT_BGM_DIR, PACKAGE_PROFILE_ROOT
 from audio.render_events import (
@@ -381,9 +381,6 @@ def run_render_audio_app(
     ffprobe_exe: str,
     event_sink: RenderEventSink | None = None,
 ) -> RenderAudioAppResult:
-    if request.input_path.suffix.lower() == ".json" and "handoff" in request.input_path.stem:
-        incoming = read_story_handoff(request.input_path)
-        request = replace(request, input_path=incoming.plain_script)
     if not request.input_path.is_file():
         raise FileNotFoundError(f"Input file not found: {request.input_path}")
 

@@ -12,6 +12,9 @@ Story generation and image generation are intentionally outside this repository.
 - Python 3.10 or 3.11
 - FFmpeg and FFprobe for rendering
 
+Large local Audio models may be stored outside the checkout by setting
+`AI_AUDIO_MODELS_ROOT`. See [docs/EXTERNAL_ASSETS.md](docs/EXTERNAL_ASSETS.md).
+
 Install the project:
 
 ```bash
@@ -35,7 +38,7 @@ The unified Studio contains `Overview`, `Audio`, `Video`, and `Project Tools` wo
 
 1. Supply Audio with a plain-text or canonical JSON script.
 2. Render narration and subtitles. Audio can write an `audio.video-handoff` manifest.
-3. Supply Video with the audio file or handoff, plus a cover image or scene-image directory.
+3. Supply Video with the audio file or Audio handoff, plus a cover image or scene-image directory.
 4. Render the MP4 and review its result and quality manifests.
 
 Video does not generate images. Pillow remains a runtime dependency because Video validates image dimensions, formats, and slideshow readiness.
@@ -43,10 +46,6 @@ Video does not generate images. Pillow remains a runtime dependency because Vide
 ## Audio pacing
 
 Narration pacing is adaptive: the mixer measures leading and trailing silence from each synthesized segment and inserts only the amount needed to reach the selected acoustic gap. The default `natural` preset targets 550 ms between sentences, 650 ms on voice/language changes, 800 ms at paragraph breaks, and 1200 ms at zone changes. Explicit `[PAUSE]` and `[SILENCE]` tags take precedence. The `compact`, `dramatic`, and `off` presets are also available.
-
-## Compatibility
-
-Audio still accepts the legacy `story.audio-handoff` manifest as an input compatibility path. Video still accepts the legacy `image.video-handoff` manifest, but new integrations should pass `--cover` and `--scenes-dir` directly. These readers do not require the removed Story or Image packages.
 
 ## Development and verification
 

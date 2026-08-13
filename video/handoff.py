@@ -59,12 +59,6 @@ class AudioVideoHandoff:
     quality_report: Path | None = None
 
 
-@dataclass(frozen=True)
-class ImageVideoHandoff:
-    cover: Path | None
-    scenes: Path
-
-
 def read_audio_handoff(manifest_path: Path) -> AudioVideoHandoff:
     manifest_path = manifest_path.resolve()
     artifacts = _read(manifest_path, "audio.video-handoff", "audio")
@@ -78,14 +72,3 @@ def read_audio_handoff(manifest_path: Path) -> AudioVideoHandoff:
         _resolve(manifest_path, artifacts.get("subtitle")),
         _resolve(manifest_path, artifacts.get("quality_report")),
     )
-
-
-def read_image_handoff(manifest_path: Path) -> ImageVideoHandoff:
-    manifest_path = manifest_path.resolve()
-    artifacts = _read(manifest_path, "image.video-handoff", "image")
-    scenes = _resolve(manifest_path, artifacts.get("scenes"))
-    if scenes is None:
-        raise ValueError("Image video handoff is missing artifacts.scenes")
-    if not scenes.is_dir():
-        raise ValueError(f"Scenes artifact is not a directory in {manifest_path}: {scenes}")
-    return ImageVideoHandoff(_resolve(manifest_path, artifacts.get("cover")), scenes)
