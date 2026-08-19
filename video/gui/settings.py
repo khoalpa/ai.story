@@ -92,7 +92,38 @@ def _render_advanced_encoding_settings() -> dict[str, Any]:
     }
 
 
-def _render_subtitle_style_settings() -> dict[str, Any]:
+def default_subtitle_font_size(mode: str, aspect: str) -> int:
+    return 8 if mode == "slideshow" and aspect == "9x16" else 12
+
+
+def should_update_subtitle_font_size(
+    *, mode: str, current: int, suggested: int, previous_suggestion: int
+) -> bool:
+    return (
+        mode == "slideshow"
+        and current in {previous_suggestion, 8, 12}
+        and current != suggested
+    )
+
+
+def _sync_subtitle_font_size_default(mode: str, aspect: str) -> None:
+    suggested = default_subtitle_font_size(mode, aspect)
+    previous = int(st.session_state.get("video_auto_subtitle_font_size", 12))
+    current = int(st.session_state.get("subtitle_font_size", suggested))
+    if should_update_subtitle_font_size(
+        mode=mode,
+        current=current,
+        suggested=suggested,
+        previous_suggestion=previous,
+    ):
+        st.session_state["subtitle_font_size"] = suggested
+    else:
+        st.session_state.setdefault("subtitle_font_size", suggested)
+    st.session_state["video_auto_subtitle_font_size"] = suggested
+
+
+def _render_subtitle_style_settings(mode: str, aspect: str) -> dict[str, Any]:
+    _sync_subtitle_font_size_default(mode, aspect)
     with st.expander("Subtitle styling", expanded=False):
         subtitle_position = st.selectbox(
             "Subtitle position",
@@ -103,8 +134,8 @@ def _render_subtitle_style_settings() -> dict[str, Any]:
             "Subtitle font size",
             min_value=1,
             max_value=200,
-            value=int(config.DEFAULT_SUBTITLE_FONT_SIZE),
             step=1,
+            key="subtitle_font_size",
         )
         subtitle_outline = st.number_input("Subtitle outline", min_value=0, max_value=20, value=2, step=1)
         subtitle_shadow = st.number_input("Subtitle shadow", min_value=0, max_value=20, value=0, step=1)
@@ -289,7 +320,7 @@ def get_video_settings() -> dict[str, Any]:
         provider_values = provider_settings.as_dict()
 
         st.header(SidebarSection.INPUTS_OUTPUTS)
-        input_root = st.text_input("Input root", value="input")
+        input_root = st.text_input("Input root", value="output")
         output_dir = st.text_input("Output directory", value="output")
 
         st.header(SidebarSection.RENDER)
@@ -311,7 +342,7 @@ def get_video_settings() -> dict[str, Any]:
         )
         advanced_settings = {
             **_render_advanced_encoding_settings(),
-            **_render_subtitle_style_settings(),
+            **_render_subtitle_style_settings(mode, aspect),
             **_render_slideshow_behavior_settings(),
             **_render_ffmpeg_debug_settings(),
             **_render_persistent_history_settings(),

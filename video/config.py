@@ -140,9 +140,9 @@ KEEP_CONCAT_LIST = os.getenv("KEEP_CONCAT_LIST", "0").strip() == "1"
 SLIDESHOW_MATCH_AUDIO = os.getenv("SLIDESHOW_MATCH_AUDIO", "1").strip() == "1"
 SLIDESHOW_ZONE_AWARE = os.getenv("SLIDESHOW_ZONE_AWARE", "1").strip() == "1"
 SLIDESHOW_COVER_FIRST = os.getenv("SLIDESHOW_COVER_FIRST", "1").strip().lower() not in {"0", "false", "no"}
-COVER_DURATION_SECONDS = float(os.getenv("COVER_DURATION_SECONDS", "3.0"))
+COVER_DURATION_SECONDS = float(os.getenv("COVER_DURATION_SECONDS", "9.0"))
 SLIDESHOW_OUTRO_LAST = os.getenv("SLIDESHOW_OUTRO_LAST", "1").strip().lower() not in {"0", "false", "no"}
-OUTRO_DURATION_SECONDS = float(os.getenv("OUTRO_DURATION_SECONDS", "5.0"))
+OUTRO_DURATION_SECONDS = float(os.getenv("OUTRO_DURATION_SECONDS", "9.0"))
 AUDIO_MATCH_EPSILON = float(os.getenv("AUDIO_MATCH_EPSILON", "0.2"))
 PRINT_FFMPEG_VERSION = os.getenv("PRINT_FFMPEG_VERSION", "0").strip() == "1"
 

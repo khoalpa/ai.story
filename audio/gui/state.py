@@ -55,7 +55,7 @@ AUDIO_RUN_DEFAULTS: dict[str, object] = {
 
 AUDIO_PREVIEW_DEFAULTS: dict[str, object] = {
     LAST_PREVIEW_SEGMENTS_KEY: [],
-    PREVIEW_TTS_TEXT_KEY: "Xin chao, day la cau nghe thu giong doc.",
+    PREVIEW_TTS_TEXT_KEY: "Xin chào, đây là câu nghe thử giọng đọc.",
     PREVIEW_TTS_LANG_KEY: "vi",
     PREVIEW_TTS_ROLE_KEY: "narrator",
     PREVIEW_TTS_PROVIDER_KEY: "",
@@ -71,12 +71,12 @@ VOICE_EN_FEMALE_SPEED_KEY = "voice_en_female_speed"
 VOICE_EN_MALE_SPEED_KEY = "voice_en_male_speed"
 
 VOICE_SPEED_DEFAULTS: dict[str, object] = {
-    VOICE_NARRATOR_SPEED_KEY: 0,
-    VOICE_FEMALE_SPEED_KEY: 0,
-    VOICE_MALE_SPEED_KEY: 0,
-    VOICE_EN_NARRATOR_SPEED_KEY: 0,
-    VOICE_EN_FEMALE_SPEED_KEY: 0,
-    VOICE_EN_MALE_SPEED_KEY: 0,
+    VOICE_NARRATOR_SPEED_KEY: 20,
+    VOICE_FEMALE_SPEED_KEY: 20,
+    VOICE_MALE_SPEED_KEY: 20,
+    VOICE_EN_NARRATOR_SPEED_KEY: 20,
+    VOICE_EN_FEMALE_SPEED_KEY: 20,
+    VOICE_EN_MALE_SPEED_KEY: 20,
 }
 
 AUDIO_DEFAULTS: dict[str, object] = {

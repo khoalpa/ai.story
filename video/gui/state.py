@@ -37,15 +37,19 @@ VIDEO_LOCK_TO_AUDIO_HANDOFF_KEY = "video_lock_to_audio_handoff"
 VIDEO_LAST_RESULT_HISTORY_FILE_KEY = "video_last_result_history_file"
 VIDEO_INPUT_COVER_PATH_KEY = "video_input_cover_path"
 VIDEO_INPUT_SCENES_DIR_KEY = "video_input_scenes_dir"
+VIDEO_AUTO_COVER_PATH_KEY = "video_auto_cover_path"
+VIDEO_AUTO_SCENES_DIR_KEY = "video_auto_scenes_dir"
 
 VIDEO_INPUT_DEFAULTS: dict[str, object] = {
-    VIDEO_AUDIO_INPUT_KEY: "output/narration.wav",
+    VIDEO_AUDIO_INPUT_KEY: "output/story.wav",
     VIDEO_SUBTITLE_INPUT_KEY: "",
     VIDEO_OUTPUT_INPUT_KEY: "output/video.mp4",
     VIDEO_COVER_INPUT_KEY: "",
     VIDEO_SCENES_INPUT_KEY: "",
-    VIDEO_INPUT_COVER_PATH_KEY: "input/cover.png",
-    VIDEO_INPUT_SCENES_DIR_KEY: "input/scene_images",
+    VIDEO_INPUT_COVER_PATH_KEY: "output/landscape/cover.png",
+    VIDEO_INPUT_SCENES_DIR_KEY: "output/landscape",
+    VIDEO_AUTO_COVER_PATH_KEY: "output/landscape/cover.png",
+    VIDEO_AUTO_SCENES_DIR_KEY: "output/landscape",
 }
 
 VIDEO_RESULT_DEFAULTS: dict[str, object] = {

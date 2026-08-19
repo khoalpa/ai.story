@@ -562,12 +562,12 @@ def render_settings_sidebar() -> GuiConfigBundle:
                 current_model=str(profile_defaults.get("vieneu_model_name") or app_defaults.get("vieneu_model_name") or resolve_vieneu_model_name("", st.session_state.get("vieneu_mode") or "standard")),
             ),
         )
-        st.session_state.setdefault(VOICE_NARRATOR_SPEED_KEY, int(profile_defaults.get(VOICE_NARRATOR_SPEED_KEY, app_defaults.get(VOICE_NARRATOR_SPEED_KEY, 0))))
-        st.session_state.setdefault(VOICE_FEMALE_SPEED_KEY, int(profile_defaults.get(VOICE_FEMALE_SPEED_KEY, app_defaults.get(VOICE_FEMALE_SPEED_KEY, 0))))
-        st.session_state.setdefault(VOICE_MALE_SPEED_KEY, int(profile_defaults.get(VOICE_MALE_SPEED_KEY, app_defaults.get(VOICE_MALE_SPEED_KEY, 0))))
-        st.session_state.setdefault(VOICE_EN_NARRATOR_SPEED_KEY, int(profile_defaults.get(VOICE_EN_NARRATOR_SPEED_KEY, app_defaults.get(VOICE_EN_NARRATOR_SPEED_KEY, 0))))
-        st.session_state.setdefault(VOICE_EN_FEMALE_SPEED_KEY, int(profile_defaults.get(VOICE_EN_FEMALE_SPEED_KEY, app_defaults.get(VOICE_EN_FEMALE_SPEED_KEY, 0))))
-        st.session_state.setdefault(VOICE_EN_MALE_SPEED_KEY, int(profile_defaults.get(VOICE_EN_MALE_SPEED_KEY, app_defaults.get(VOICE_EN_MALE_SPEED_KEY, 0))))
+        st.session_state.setdefault(VOICE_NARRATOR_SPEED_KEY, int(profile_defaults.get(VOICE_NARRATOR_SPEED_KEY, app_defaults.get(VOICE_NARRATOR_SPEED_KEY, 20))))
+        st.session_state.setdefault(VOICE_FEMALE_SPEED_KEY, int(profile_defaults.get(VOICE_FEMALE_SPEED_KEY, app_defaults.get(VOICE_FEMALE_SPEED_KEY, 20))))
+        st.session_state.setdefault(VOICE_MALE_SPEED_KEY, int(profile_defaults.get(VOICE_MALE_SPEED_KEY, app_defaults.get(VOICE_MALE_SPEED_KEY, 20))))
+        st.session_state.setdefault(VOICE_EN_NARRATOR_SPEED_KEY, int(profile_defaults.get(VOICE_EN_NARRATOR_SPEED_KEY, app_defaults.get(VOICE_EN_NARRATOR_SPEED_KEY, 20))))
+        st.session_state.setdefault(VOICE_EN_FEMALE_SPEED_KEY, int(profile_defaults.get(VOICE_EN_FEMALE_SPEED_KEY, app_defaults.get(VOICE_EN_FEMALE_SPEED_KEY, 20))))
+        st.session_state.setdefault(VOICE_EN_MALE_SPEED_KEY, int(profile_defaults.get(VOICE_EN_MALE_SPEED_KEY, app_defaults.get(VOICE_EN_MALE_SPEED_KEY, 20))))
         st.session_state.setdefault("vieneu_preview_temperature", float(profile_defaults.get("vieneu_preview_temperature") or app_defaults.get("vieneu_preview_temperature") or 0.6))
         st.session_state.setdefault("vieneu_preview_max_chars_chunk", int(profile_defaults.get("vieneu_preview_max_chars_chunk") or app_defaults.get("vieneu_preview_max_chars_chunk") or 160))
         st.session_state.setdefault("vieneu_preview_use_batch", bool(profile_defaults.get("vieneu_preview_use_batch") or app_defaults.get("vieneu_preview_use_batch") or False))

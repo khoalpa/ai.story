@@ -225,6 +225,42 @@ def _guess_mp4_output_from_audio(audio_path: str, output_dir: str) -> str:
     return str(Path(output_dir) / "video.mp4")
 
 
+def default_scenes_directory(input_root: str, aspect: str) -> str:
+    directory = "landscape" if aspect == "16x9" else "portrait"
+    return str(Path(input_root or "output") / directory)
+
+
+def default_cover_path(input_root: str, aspect: str) -> str:
+    return str(Path(default_scenes_directory(input_root, aspect)) / "cover.png")
+
+
+def should_update_scenes_directory(
+    *, mode: str, current: str, suggested: str, previous_suggestion: str
+) -> bool:
+    replaceable_defaults = {
+        "",
+        previous_suggestion,
+        "input/scene_images",
+        "output/landscape",
+        "output/portrait",
+    }
+    return mode == "slideshow" and current in replaceable_defaults and current != suggested
+
+
+def should_update_cover_path(
+    *, mode: str, current: str, suggested: str, previous_suggestion: str
+) -> bool:
+    replaceable_defaults = {
+        "",
+        previous_suggestion,
+        "input/cover.png",
+        "output/cover.png",
+        "output/landscape/cover.png",
+        "output/portrait/cover.png",
+    }
+    return mode == "slideshow" and current in replaceable_defaults and current != suggested
+
+
 def _apply_audio_handoff_prefill(settings: dict[str, Any]) -> None:
     handoff = workspace_handoff_state(st.session_state)
     incoming_audio = handoff.audio_output_path
@@ -260,8 +296,36 @@ def _ensure_video_input_defaults(settings: dict[str, Any]) -> None:
     st.session_state.setdefault("video_scenes_input", "")
     st.session_state.setdefault("video_story_json_input", "")
     st.session_state.setdefault("video_audio_handoff_manifest", "")
-    st.session_state.setdefault("video_input_cover_path", str(Path(settings.get("input_root") or "input") / "cover.png"))
-    st.session_state.setdefault("video_input_scenes_dir", str(Path(settings.get("input_root") or "input") / "scene_images"))
+    input_root = str(settings.get("input_root") or "output")
+    aspect = str(settings.get("aspect") or "16x9")
+
+    suggested_cover = default_cover_path(input_root, aspect)
+    previous_cover_suggestion = str(st.session_state.get("video_auto_cover_path") or "")
+    current_cover = str(st.session_state.get("video_input_cover_path") or "").strip()
+    if should_update_cover_path(
+        mode=str(settings.get("mode") or ""),
+        current=current_cover,
+        suggested=suggested_cover,
+        previous_suggestion=previous_cover_suggestion,
+    ):
+        st.session_state["video_input_cover_path"] = suggested_cover
+        st.session_state["video_auto_cover_path"] = suggested_cover
+    else:
+        st.session_state.setdefault("video_input_cover_path", suggested_cover)
+
+    suggested_scenes = default_scenes_directory(input_root, aspect)
+    previous_suggestion = str(st.session_state.get("video_auto_scenes_dir") or "")
+    current_scenes = str(st.session_state.get("video_input_scenes_dir") or "").strip()
+    if should_update_scenes_directory(
+        mode=str(settings.get("mode") or ""),
+        current=current_scenes,
+        suggested=suggested_scenes,
+        previous_suggestion=previous_suggestion,
+    ):
+        st.session_state["video_input_scenes_dir"] = suggested_scenes
+        st.session_state["video_auto_scenes_dir"] = suggested_scenes
+    else:
+        st.session_state.setdefault("video_input_scenes_dir", suggested_scenes)
 
     current_output = str(st.session_state.get("video_output_input") or "").strip()
     if not current_output:

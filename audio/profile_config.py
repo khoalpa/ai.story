@@ -19,7 +19,7 @@ DEFAULT_VOICE_FEMALE = "Doan"
 DEFAULT_VOICE_MALE = "Doan"
 DEFAULT_EN_VOICE_NARRATOR = "Doan"
 DEFAULT_EN_VOICE_FEMALE = "Doan"
-DEFAULT_EN_VOICE_MALE = "en-US-GuyNeural"
+DEFAULT_EN_VOICE_MALE = "Doan"
 
 PROFILE_CONFIG_DEFAULTS: dict[str, Any] = {
     "profile_root": str(DEFAULT_PROFILE_ROOT),
@@ -35,12 +35,12 @@ PROFILE_CONFIG_DEFAULTS: dict[str, Any] = {
     "voice_en_narrator": DEFAULT_EN_VOICE_NARRATOR,
     "voice_en_female": DEFAULT_EN_VOICE_FEMALE,
     "voice_en_male": DEFAULT_EN_VOICE_MALE,
-    "voice_narrator_speed": 0,
-    "voice_female_speed": 0,
-    "voice_male_speed": 0,
-    "voice_en_narrator_speed": 0,
-    "voice_en_female_speed": 0,
-    "voice_en_male_speed": 0,
+    "voice_narrator_speed": 20,
+    "voice_female_speed": 20,
+    "voice_male_speed": 20,
+    "voice_en_narrator_speed": 20,
+    "voice_en_female_speed": 20,
+    "voice_en_male_speed": 20,
     "vieneu_core": "local",
     "vieneu_mode": "standard",
     "vieneu_api_base": "",

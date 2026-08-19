@@ -51,6 +51,30 @@ def test_audio_validator_accepts_framework_meta_extensions() -> None:
     assert validate_canonical_authoring(authoring) == []
 
 
+def test_audio_validator_accepts_characters_and_schema_version_at_root() -> None:
+    from audio.audio_story_spec import validate_canonical_authoring
+
+    authoring = _framework_authoring()
+    authoring["meta"]["language"] = "vi"
+    authoring["script"][0]["text"] = "Một câu hợp lệ."
+    authoring["characters"] = [{"name": "Mi"}]
+    authoring["schema_version"] = "1.0"
+
+    assert validate_canonical_authoring(authoring) == []
+
+
+def test_audio_validator_ignores_length_min_item_count_rule() -> None:
+    from audio.audio_story_spec import validate_canonical_authoring
+
+    authoring = _framework_authoring()
+    authoring["meta"]["language"] = "vi"
+    authoring["meta"]["length_min"] = 8
+    authoring["meta"]["length_max"] = 10
+    authoring["script"][0]["text"] = "Một câu hợp lệ."
+
+    assert validate_canonical_authoring(authoring) == []
+
+
 def test_audio_gui_conversion_normalizes_framework_language_and_sentences() -> None:
     from audio.gui.helpers import convert_canonical_to_plain_text
 

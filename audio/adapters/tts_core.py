@@ -1173,7 +1173,7 @@ def _normalize_voice_token(value: object) -> str:
 _LEGACY_VIENEU_VOICE_HINTS: dict[str, tuple[tuple[str, ...], ...]] = {
     "vi-vn-hoaimyneural": (("doan",), ("truc", "ly"), ("female", "south")),
     "vi-vn-namminhneural": (("vinh",), ("male", "south")),
-    "en-us-guyneural": (("binh",), ("male", "north")),
+    "en-us-guyneural": (("vinh",), ("male", "south")),
     "doan": (("doan",), ("nu", "mien", "nam"), ("female", "south")),
     "thuc doan": (("doan",), ("nu", "mien", "nam"), ("female", "south")),
     "ly": (("ly",), ("nu", "mien", "bac"), ("female", "north")),

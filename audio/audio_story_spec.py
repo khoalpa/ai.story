@@ -284,6 +284,8 @@ ALLOWED_META_KEYS: Tuple[str, ...] = REQUIRED_META_KEYS + OPTIONAL_META_KEYS
 
 OPTIONAL_ROOT_KEYS: Tuple[str, ...] = (
     "_auto_repair_log",
+    "characters",
+    "schema_version",
 )
 
 SQUARE_BRACKET_TEXT_RE = re.compile(r"[\[\]]")
@@ -539,7 +541,7 @@ def validate_canonical_authoring(data: Any) -> List[str]:
 
     Canonical contract:
     - root object with keys: meta, outline, script
-    - optional root metadata keys: _auto_repair_log
+    - optional root metadata keys: _auto_repair_log, characters, schema_version
     - script is an array of flat canonical items
     - `script` must be an array of canonical items
     - zones must cover all 8 canonical zones in order and never go backward
@@ -554,7 +556,7 @@ def validate_canonical_authoring(data: Any) -> List[str]:
     if extra_root:
         errors.append(
             f"Root JSON có field không hợp lệ: {extra_root}. "
-            "Chỉ cho phép meta/outline/script và _auto_repair_log."
+            "Chỉ cho phép meta/outline/script, _auto_repair_log, characters và schema_version."
         )
 
     if "_auto_repair_log" in data:
@@ -691,15 +693,6 @@ def validate_canonical_authoring(data: Any) -> List[str]:
             first_pos = [zones_seen.index(z) for z in ALLOWED_SCRIPT_ZONES]
             if first_pos != sorted(first_pos):
                 errors.append("script phải bao phủ đủ 8 zone theo đúng thứ tự và không được đi ngược.")
-
-    if isinstance(meta, dict):
-        length_min = meta.get("length_min")
-        if isinstance(length_min, int) and length_min > 0:
-            min_items = length_min * 12
-            if len(script) < min_items:
-                errors.append(
-                    f"script phải có tối thiểu {min_items} item theo rule meta.length_min * 12, hiện có {len(script)} item."
-                )
 
     return errors
 
