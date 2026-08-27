@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
+from uuid import uuid4
 
 APP_DIR_NAME = ".render_video"
 DEFAULT_HISTORY_FILENAME = "history.jsonl"
@@ -43,7 +44,10 @@ def _build_log_file_path(timestamp: datetime, output_hint: str | None = None) ->
         "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in stem).strip("_")
         or "render_video"
     )
-    return logs_dir / f"{timestamp.strftime('%Y%m%dT%H%M%SZ')}_{safe_stem}.log"
+    unique_suffix = uuid4().hex[:8]
+    return logs_dir / (
+        f"{timestamp.strftime('%Y%m%dT%H%M%S%fZ')}_{safe_stem}_{unique_suffix}.log"
+    )
 
 
 def write_run_log(*, stdout: str = "", stderr: str = "", output_hint: str | None = None) -> Path:

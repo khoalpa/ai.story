@@ -12,8 +12,10 @@ if __package__ in {None, ""}:
 def main() -> int:
     try:
         import streamlit as st
+
         from audio.app_api import render_audio_workspace
-        from studio.project_tools import render_project_tools_workspace
+        from studio.overview import render_overview
+        from studio.story_studio import render_story_studio_workspace
         from video.app_api import render_video_workspace
     except ModuleNotFoundError as exc:
         if exc.name == "streamlit":
@@ -44,39 +46,18 @@ def main() -> int:
         """
     )
 
-    def render_overview() -> None:
-        st.subheader("Recommended workflow")
-        st.markdown(
-            """
-            - Open **Audio** and provide a plain-text or canonical JSON script.
-            - Render narration, subtitles, and the Audio-to-Video handoff manifest.
-            - Open **Video** and select the audio handoff plus a cover or scene directory.
-            - Render and validate the final MP4.
-            """
-        )
-
-        st.subheader("Unified workspace")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.info("""**1. Audio**
-
-Render external script -> WAV/MP3 + subtitle.""")
-        with col2:
-            st.info("""**2. Video**
-
-Render audio/subtitle + external cover/scenes -> MP4.""")
-
     st.title(app_title)
-    st.caption("Unified workspace for the Audio -> Video pipeline.")
+
     selected = st.sidebar.radio(
-        "Workspace", ["Overview", "Audio", "Video", "Project Tools"]
+        "Workspace",
+        ["Overview", "Story Studio", "Audio Studio", "Video Studio"],
+        key="studio_workspace",
     )
     renderers = {
         "Overview": render_overview,
-        "Audio": lambda: render_audio_workspace(embedded=True),
-        "Video": lambda: render_video_workspace(embedded=True),
-        "Project Tools": lambda: render_project_tools_workspace(embedded=True),
+        "Story Studio": lambda: render_story_studio_workspace(embedded=True),
+        "Audio Studio": lambda: render_audio_workspace(embedded=True),
+        "Video Studio": lambda: render_video_workspace(embedded=True),
     }
     renderers[selected]()
     return 0

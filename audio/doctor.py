@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 from typing import Sequence
 
 from audio.paths import ASSETS_ROOT
 from audio.runtime_binaries import get_ffmpeg_exe, get_ffprobe_exe
-from audio.runtime_checks import collect_runtime_diagnostics, runtime_diagnostics_to_lines
-
+from audio.runtime_checks import (
+    collect_runtime_diagnostics,
+    runtime_diagnostics_to_lines,
+)
 
 DEFAULT_PROFILE_ROOT = (ASSETS_ROOT / "profiles").resolve()
 DEFAULT_BGM_DIR = (ASSETS_ROOT / "bgm").resolve()

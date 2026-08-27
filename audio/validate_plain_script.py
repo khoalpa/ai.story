@@ -27,19 +27,17 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Sequence
-
-from audio.cli_utils import UsedFilesTracker, setup_stdio
+from typing import Any, Dict, List, Optional, Sequence
 
 from audio.audio_story_spec import (
     TAG_PATTERN,
-    VOICE_BASE_TAGS,
     TECHNICAL_TAG_PREFIXES,
+    VOICE_BASE_TAGS,
     ZONE_KEYWORDS,
     extract_base_token,
     is_legacy_unsupported_tag,
 )
-
+from audio.cli_utils import UsedFilesTracker, setup_stdio
 
 ###############################################################################
 # DATA CLASSES

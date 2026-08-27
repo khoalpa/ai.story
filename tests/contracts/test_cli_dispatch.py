@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 def test_audio_cli_builds_boolean_optional_actions() -> None:
     from audio.entrypoints import build_parser
 

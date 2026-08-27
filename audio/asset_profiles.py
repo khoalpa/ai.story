@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from json import JSONDecodeError
 from dataclasses import dataclass
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 

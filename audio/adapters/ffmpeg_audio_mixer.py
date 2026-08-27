@@ -3,42 +3,46 @@ from __future__ import annotations
 import json
 import math
 import os
-import re
 import shutil
 import statistics
-import struct
 import subprocess
 import sys
 import tempfile
 import time
-import wave
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
-from audio.pipeline.segment_planner import Segment
-from audio.logging_utils import finish_cli_progress, get_logger, render_cli_progress
-from audio.runtime_checks import validate_runtime_executables
-
-
-POST_FX_PRESET_NONE = "none"
-POST_FX_PRESET_STORYTELLING_VI = "storytelling_vi"
-SUPPORTED_AUDIO_FORMATS = {"wav", "mp3"}
-DEFAULT_AUDIO_FORMAT = "wav"
-LOUDNESS_PROFILE_NARRATION = "narration"
-LOUDNESS_PROFILE_SOCIAL_VIDEO = "social_video"
-LOUDNESS_PROFILE_BROADCAST = "broadcast"
-DEFAULT_LOUDNESS_PROFILE = LOUDNESS_PROFILE_NARRATION
-SUPPORTED_LOUDNESS_PROFILES = {
+from audio.adapters.audio_loudness import (
+    DEFAULT_AUDIO_FORMAT,
+    DEFAULT_LOUDNESS_PROFILE,
+    DEFAULT_MP3_BITRATE_KBPS,
+    LOUDNESS_PROFILE_BROADCAST,
     LOUDNESS_PROFILE_NARRATION,
     LOUDNESS_PROFILE_SOCIAL_VIDEO,
-    LOUDNESS_PROFILE_BROADCAST,
-}
+    POST_FX_PRESET_NONE,
+    POST_FX_PRESET_STORYTELLING_VI,
+    LoudnessTarget,
+    analyze_loudness,
+    build_final_output_filter_chain,
+    build_two_pass_loudnorm_filter,
+    get_loudness_target,
+    get_output_codec_args,
+    normalize_audio_format,
+    normalize_loudness_profile,
+)
+from audio.adapters.wav_analysis import (
+    get_wav_duration_seconds,
+    measure_wav_edge_silence,
+)
+from audio.logging_utils import finish_cli_progress, get_logger, render_cli_progress
+from audio.pipeline.segment_planner import Segment
+
 INTERMEDIATE_PCM_CODEC = "pcm_f32le"
 DEFAULT_OUTPUT_CHANNELS = 2
-DEFAULT_MP3_BITRATE_KBPS = 192
 SEGMENT_LOUDNESS_MAX_DROP_LU = 3.5
+
 
 PACING_PRESET_OFF = "off"
 PACING_PRESET_COMPACT = "compact"
@@ -74,11 +78,6 @@ def _cleanup_render_temp_dir(temp_dir: Path) -> None:
         logger.warning("Unable to remove render temp directory %s: %s", temp_dir, exc)
 
 
-def normalize_audio_format(value: object) -> str:
-    normalized = str(value or DEFAULT_AUDIO_FORMAT).strip().lower()
-    return normalized if normalized in SUPPORTED_AUDIO_FORMATS else DEFAULT_AUDIO_FORMAT
-
-
 def normalize_pacing_preset(value: object) -> str:
     normalized = str(value or DEFAULT_PACING_PRESET).strip().lower()
     return normalized if normalized in SUPPORTED_PACING_PRESETS else DEFAULT_PACING_PRESET
@@ -94,201 +93,6 @@ def boundary_pause_target_ms(previous: Segment, current: Segment, pacing_preset:
     if previous.voice != current.voice or previous.lang != current.lang:
         return targets["voice"]
     return targets["sentence"]
-
-
-def measure_wav_edge_silence(
-    audio_path: Path,
-    *,
-    threshold_dbfs: float = -45.0,
-    window_ms: int = 10,
-) -> tuple[float, float]:
-    """Measure leading/trailing silence in PCM or float WAV without optional dependencies.
-
-    The mixer calls this after normalizing every TTS result to WAV, so Edge's
-    compressed response and local providers use the same provider-neutral path.
-    Values are intentionally quantized to a short RMS window to avoid treating
-    isolated low-level samples as speech.
-    """
-    try:
-        raw = audio_path.read_bytes()
-    except OSError:
-        return 0.0, 0.0
-    if len(raw) < 44 or raw[:4] not in {b"RIFF", b"RF64"} or raw[8:12] != b"WAVE":
-        return 0.0, 0.0
-
-    fmt: bytes | None = None
-    data: bytes | None = None
-    offset = 12
-    while offset + 8 <= len(raw):
-        chunk_id = raw[offset:offset + 4]
-        chunk_size = struct.unpack_from("<I", raw, offset + 4)[0]
-        chunk_start = offset + 8
-        chunk_end = min(len(raw), chunk_start + chunk_size)
-        if chunk_id == b"fmt ":
-            fmt = raw[chunk_start:chunk_end]
-        elif chunk_id == b"data":
-            data = raw[chunk_start:chunk_end]
-            break
-        offset = chunk_start + chunk_size + (chunk_size & 1)
-
-    if fmt is None or data is None or len(fmt) < 16:
-        return 0.0, 0.0
-    format_tag, channels, sample_rate, _byte_rate, block_align, bits = struct.unpack_from("<HHIIHH", fmt, 0)
-    if format_tag == 0xFFFE and len(fmt) >= 26:
-        format_tag = struct.unpack_from("<H", fmt, 24)[0]
-    bytes_per_sample = bits // 8
-    if channels <= 0 or sample_rate <= 0 or block_align <= 0 or bytes_per_sample not in {1, 2, 3, 4}:
-        return 0.0, 0.0
-    frame_count = len(data) // block_align
-    if frame_count <= 0:
-        return 0.0, 0.0
-
-    def sample_value(sample: bytes) -> float:
-        if format_tag == 3 and bits == 32:
-            return float(struct.unpack("<f", sample)[0])
-        if format_tag != 1:
-            return 0.0
-        if bits == 8:
-            return (sample[0] - 128) / 128.0
-        value = int.from_bytes(sample, byteorder="little", signed=True)
-        return value / float(1 << (bits - 1))
-
-    window_frames = max(1, int(sample_rate * max(1, window_ms) / 1000))
-    threshold = 10.0 ** (float(threshold_dbfs) / 20.0)
-
-    def window_is_active(first_frame: int, last_frame: int) -> bool:
-        energy = 0.0
-        count = 0
-        for frame in range(first_frame, last_frame):
-            frame_offset = frame * block_align
-            for channel in range(channels):
-                sample_offset = frame_offset + channel * bytes_per_sample
-                value = sample_value(data[sample_offset:sample_offset + bytes_per_sample])
-                energy += value * value
-                count += 1
-        return count > 0 and math.sqrt(energy / count) > threshold
-
-    leading_frames = frame_count
-    for first in range(0, frame_count, window_frames):
-        last = min(frame_count, first + window_frames)
-        if window_is_active(first, last):
-            leading_frames = first
-            break
-
-    trailing_frames = frame_count
-    last = frame_count
-    while last > 0:
-        first = max(0, last - window_frames)
-        if window_is_active(first, last):
-            trailing_frames = frame_count - last
-            break
-        last = first
-
-    return leading_frames / float(sample_rate), trailing_frames / float(sample_rate)
-
-
-@dataclass(frozen=True)
-class LoudnessTarget:
-    integrated_lufs: float
-    true_peak_dbtp: float
-    loudness_range_lu: float
-
-
-LOUDNESS_TARGETS = {
-    LOUDNESS_PROFILE_NARRATION: LoudnessTarget(-16.0, -1.5, 9.0),
-    LOUDNESS_PROFILE_SOCIAL_VIDEO: LoudnessTarget(-14.0, -1.0, 9.0),
-    LOUDNESS_PROFILE_BROADCAST: LoudnessTarget(-23.0, -2.0, 7.0),
-}
-
-
-def normalize_loudness_profile(value: object) -> str:
-    normalized = str(value or DEFAULT_LOUDNESS_PROFILE).strip().lower()
-    return normalized if normalized in SUPPORTED_LOUDNESS_PROFILES else DEFAULT_LOUDNESS_PROFILE
-
-
-def get_loudness_target(profile: str) -> LoudnessTarget:
-    return LOUDNESS_TARGETS[normalize_loudness_profile(profile)]
-
-
-def build_post_fx_filter_chain(preset: str) -> Optional[str]:
-    """Return an ffmpeg audio filter chain for a named post-FX preset.
-
-    The source is synthetic narration, so the default chain avoids denoising and
-    reverb. Both can create audible artifacts on already-clean TTS. Loudness is
-    handled separately by a measured two-pass loudnorm stage.
-    """
-    normalized = (preset or POST_FX_PRESET_NONE).strip().lower()
-    if normalized in {"", POST_FX_PRESET_NONE}:
-        return None
-    if normalized != POST_FX_PRESET_STORYTELLING_VI:
-        raise ValueError(f"Unsupported post FX preset: {preset}")
-
-    return ",".join([
-        "highpass=f=75",
-        "equalizer=f=180:t=q:w=1.0:g=1.0",
-        "equalizer=f=320:t=q:w=1.0:g=-1.5",
-        "equalizer=f=3000:t=q:w=1.2:g=2.0",
-        "acompressor=threshold=0.125:ratio=2:attack=10:release=150:makeup=1.5",
-        "deesser=i=0.12:m=0.35:f=0.50:s=i",
-    ])
-
-
-def build_final_output_filter_chain(preset: str) -> Optional[str]:
-    """Return tone-processing filters; loudness normalization is added later."""
-    return build_post_fx_filter_chain(preset)
-
-
-def get_output_codec_args(audio_format: str, mp3_bitrate_kbps: int = DEFAULT_MP3_BITRATE_KBPS) -> list[str]:
-    fmt = normalize_audio_format(audio_format)
-    if fmt == "mp3":
-        bitrate = min(320, max(96, int(mp3_bitrate_kbps)))
-        return ["-acodec", "libmp3lame", "-b:a", f"{bitrate}k", "-write_xing", "1"]
-    return ["-acodec", "pcm_s24le"]
-
-
-_LOUDNORM_JSON_RE = re.compile(r"\{\s*\"input_i\".*?\}", re.DOTALL)
-
-
-def _loudnorm_base_filter(target: LoudnessTarget, *, print_format: str) -> str:
-    return (
-        f"loudnorm=I={target.integrated_lufs}:LRA={target.loudness_range_lu}:"
-        f"TP={target.true_peak_dbtp}:print_format={print_format}"
-    )
-
-
-def analyze_loudness(
-    input_file: Path,
-    ffmpeg_exe: str,
-    target: LoudnessTarget,
-    prefix_filter: Optional[str] = None,
-) -> dict[str, float]:
-    filters = [prefix_filter] if prefix_filter else []
-    filters.append(_loudnorm_base_filter(target, print_format="json"))
-    cmd = [
-        ffmpeg_exe, "-hide_banner", "-nostats", "-i", str(input_file),
-        "-af", ",".join(filters), "-f", "null", os.devnull,
-    ]
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(f"Unable to measure audio loudness: {proc.stderr[-2000:]}")
-    matches = _LOUDNORM_JSON_RE.findall(proc.stderr or "")
-    if not matches:
-        raise RuntimeError("FFmpeg loudnorm did not return measurement JSON")
-    raw = json.loads(matches[-1])
-    keys = ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")
-    try:
-        return {key: float(raw[key]) for key in keys}
-    except (KeyError, TypeError, ValueError) as exc:
-        raise RuntimeError(f"Invalid FFmpeg loudnorm measurements: {raw!r}") from exc
-
-
-def build_two_pass_loudnorm_filter(target: LoudnessTarget, measured: dict[str, float]) -> str:
-    return (
-        f"loudnorm=I={target.integrated_lufs}:LRA={target.loudness_range_lu}:TP={target.true_peak_dbtp}:"
-        f"measured_I={measured['input_i']}:measured_LRA={measured['input_lra']}:"
-        f"measured_TP={measured['input_tp']}:measured_thresh={measured['input_thresh']}:"
-        f"offset={measured['target_offset']}:linear=true:print_format=summary"
-    )
 
 
 def get_output_progress_label(audio_format: str, has_filter_chain: bool = False) -> str:
@@ -336,6 +140,7 @@ def apply_post_fx(
     output_channels: int = DEFAULT_OUTPUT_CHANNELS,
     mp3_bitrate_kbps: int = DEFAULT_MP3_BITRATE_KBPS,
     progress_callback: Optional[Callable[[dict], None]] = None,
+    duration_seconds: float | None = None,
 ) -> Path:
     tone_filter_chain = build_final_output_filter_chain(preset)
     loudness_target = get_loudness_target(loudness_profile)
@@ -365,7 +170,7 @@ def apply_post_fx(
     cmd.extend(codec_args)
     cmd.append(str(staged_output))
 
-    total_seconds = get_audio_duration_seconds(input_wav, ffprobe_exe) or 0.001
+    total_seconds = duration_seconds or get_audio_duration_seconds(input_wav, ffprobe_exe) or 0.001
     label = get_output_progress_label(audio_format, has_filter_chain=True)
     try:
         run_ffmpeg_with_progress(cmd, total_seconds, label=label, progress_callback=progress_callback)
@@ -453,18 +258,9 @@ class FfmpegMixConfig:
 
 
 def get_audio_duration_seconds(audio_path: Path, ffprobe_exe: str) -> Optional[float]:
-    def wav_duration() -> Optional[float]:
-        if audio_path.suffix.lower() != ".wav" or not audio_path.is_file():
-            return None
-        try:
-            with wave.open(str(audio_path), "rb") as wav_file:
-                frame_rate = wav_file.getframerate()
-                frame_count = wav_file.getnframes()
-                if frame_rate <= 0 or frame_count <= 0:
-                    return None
-                return frame_count / float(frame_rate)
-        except (wave.Error, OSError, EOFError):
-            return None
+    wav_duration = get_wav_duration_seconds(audio_path) if audio_path.suffix.lower() == ".wav" else None
+    if wav_duration is not None:
+        return wav_duration
 
     try:
         cmd = [
@@ -476,14 +272,14 @@ def get_audio_duration_seconds(audio_path: Path, ffprobe_exe: str) -> Optional[f
         ]
         proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if proc.returncode != 0:
-            return wav_duration()
+            return None
         out = proc.stdout.strip()
         if not out:
-            return wav_duration()
+            return None
         duration = float(out)
-        return duration if duration > 0 else wav_duration()
+        return duration if duration > 0 else None
     except Exception:
-        return wav_duration()
+        return None
 
 
 def probe_audio_stream(audio_path: Path, ffprobe_exe: str) -> dict:
@@ -519,7 +315,13 @@ def write_audio_quality_report(
     probe = probe_audio_stream(audio_path, ffprobe_exe)
     streams = probe.get("streams") or [{}]
     stream = streams[0] if streams else {}
-    actual_duration = get_audio_duration_seconds(audio_path, ffprobe_exe) or 0.0
+    format_info = probe.get("format") or {}
+    try:
+        actual_duration = float(format_info.get("duration") or 0.0)
+    except (TypeError, ValueError):
+        actual_duration = 0.0
+    if actual_duration <= 0.0:
+        actual_duration = get_audio_duration_seconds(audio_path, ffprobe_exe) or 0.0
     duration_delta = abs(actual_duration - max(0.0, float(source_duration_seconds)))
     segment_measurements: list[dict] = []
     valid_segment_files = [path for path in (segment_files or []) if path.is_file()]
@@ -848,7 +650,7 @@ def ffmpeg_mix_audio(
                 str(dry_block),
             ]
             run_ff(cmd_concat)
-            block_dur = get_audio_duration_seconds(dry_block, mix_config.ffprobe_exe) or 0.0
+            block_dur = sum(get_audio_duration_seconds(path, mix_config.ffprobe_exe) or 0.0 for path in piece_paths)
             if block_dur <= 0.0:
                 return dry_block, block_dur
             has_bgm = bool(block_bgm_path and block_bgm_path.is_file())
@@ -905,8 +707,7 @@ def ffmpeg_mix_audio(
                 str(mixed_block),
             ]
             run_ff(cmd_mix)
-            mixed_dur = get_audio_duration_seconds(mixed_block, mix_config.ffprobe_exe) or block_dur
-            return mixed_block, mixed_dur
+            return mixed_block, block_dur
     
         intro_clip_path = resolve_audio_clip_path(mix_config.intro_clip_file, bgm_dir, out_file.parent)
         outro_clip_path = resolve_audio_clip_path(mix_config.outro_clip_file, bgm_dir, out_file.parent)
@@ -1061,8 +862,10 @@ def ffmpeg_mix_audio(
             output_channels=output_channels,
             mp3_bitrate_kbps=mix_config.mp3_bitrate_kbps,
             progress_callback=(lambda data: progress_callback({"stage": "post_fx", **data}) if progress_callback else None),
+            duration_seconds=total_seconds,
         )
 
+        actual_total_seconds: float | None = None
         if mix_config.quality_gate:
             report_path, report = write_audio_quality_report(
                 final_out_file,
@@ -1086,8 +889,10 @@ def ffmpeg_mix_audio(
                 failed_checks = ", ".join(name for name, passed in report["checks"].items() if not passed)
                 raise RuntimeError(f"Audio quality gate failed ({failed_checks}). Report: {report_path}")
             logger.info("Audio quality gate passed: %s", report_path)
+            actual_total_seconds = float(report["duration"]["output_seconds"])
     
-        actual_total_seconds = get_audio_duration_seconds(final_out_file, mix_config.ffprobe_exe)
+        if actual_total_seconds is None:
+            actual_total_seconds = get_audio_duration_seconds(final_out_file, mix_config.ffprobe_exe)
         if actual_total_seconds is not None and abs(actual_total_seconds - total_seconds) >= 1.0:
             logger.info("%s Final duration: %s", get_output_progress_label(normalized_audio_format), format_hms(actual_total_seconds))
     

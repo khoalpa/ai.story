@@ -7,7 +7,13 @@ from typing import Any, Optional
 
 import streamlit as st
 
-from video import config
+from video.app_api import RenderVideoRequest, VideoQualityGateError
+from video.error_handling import (
+    USER_FACING_EXCEPTIONS,
+    format_unexpected_error,
+    format_user_facing_error,
+)
+from video.ffmpeg_runner import get_media_duration_seconds
 from video.gui.diagnostics_blocks import render_runtime_diagnostics_block
 from video.gui.history_utils import append_capped_history_entry
 from video.gui.panel_utils import (
@@ -16,30 +22,27 @@ from video.gui.panel_utils import (
     render_json_summary_expander,
     render_session_history,
 )
-from video.gui.shared_state import append_global_run_event, get_workspace_target_field, set_video_handoff, update_global_run_monitor
 from video.gui.progress_details import format_progress_text
 from video.gui.runtime_usage import render_runtime_usage_compact
+from video.gui.service import run_video_job
+from video.gui.shared_state import (
+    append_global_run_event,
+    get_workspace_target_field,
+    set_video_handoff,
+    update_global_run_monitor,
+)
+from video.gui.state import ensure_session_defaults, video_session
+from video.gui.user_messages import show_missing_input
+from video.gui.view_models import build_video_run_summary
 from video.gui.workspace_handoff import workspace_handoff_state
 from video.gui.workspace_source_outputs import workspace_source_outputs
-from video.gui.user_messages import show_missing_input, show_provider_error
 from video.handoff import read_audio_handoff
-from video.app_api import RenderVideoRequest, VideoQualityGateError
-from video.error_handling import (
-    USER_FACING_EXCEPTIONS,
-    format_unexpected_error,
-    format_user_facing_error,
-)
-from video.ffmpeg_runner import get_media_duration_seconds
-from video.gui.service import run_video_job
-from video.gui.state import ensure_session_defaults, video_session
-from video.gui.view_models import build_video_run_summary
 from video.runtime_tools import collect_runtime_diagnostics
 from video.slideshow_concat import (
     append_outro_segment,
     build_slideshow_segments,
     prepend_cover_segment,
 )
-from video.zone_timeline import ZoneSegment, build_zone_segments
 from video.validation import (
     ImageReadinessReport,
     autodetect_subtitle_from_audio,
@@ -49,6 +52,7 @@ from video.validation import (
     resolve_slideshow_cover,
     resolve_slideshow_outro,
 )
+from video.zone_timeline import ZoneSegment, build_zone_segments
 
 
 def _existing_picker_directory(path_value: str) -> str:
@@ -234,6 +238,11 @@ def default_cover_path(input_root: str, aspect: str) -> str:
     return str(Path(default_scenes_directory(input_root, aspect)) / "cover.png")
 
 
+def default_video_output(output_dir: str, aspect: str) -> str:
+    filename = "video_landscape.mp4" if aspect == "16x9" else "video_portrait.mp4"
+    return str(Path(output_dir or "output") / filename)
+
+
 def should_update_scenes_directory(
     *, mode: str, current: str, suggested: str, previous_suggestion: str
 ) -> bool:
@@ -257,6 +266,19 @@ def should_update_cover_path(
         "output/cover.png",
         "output/landscape/cover.png",
         "output/portrait/cover.png",
+    }
+    return mode == "slideshow" and current in replaceable_defaults and current != suggested
+
+
+def should_update_video_output(
+    *, mode: str, current: str, suggested: str, previous_suggestion: str
+) -> bool:
+    replaceable_defaults = {
+        "",
+        previous_suggestion,
+        "output/video.mp4",
+        "output/video_landscape.mp4",
+        "output/video_portrait.mp4",
     }
     return mode == "slideshow" and current in replaceable_defaults and current != suggested
 
@@ -327,9 +349,19 @@ def _ensure_video_input_defaults(settings: dict[str, Any]) -> None:
     else:
         st.session_state.setdefault("video_input_scenes_dir", suggested_scenes)
 
+    suggested_output = default_video_output(str(settings.get("output_dir") or "output"), aspect)
+    previous_output_suggestion = str(st.session_state.get("video_auto_output_path") or "")
     current_output = str(st.session_state.get("video_output_input") or "").strip()
-    if not current_output:
-        st.session_state["video_output_input"] = str(Path(settings["output_dir"]) / "video.mp4")
+    if should_update_video_output(
+        mode=str(settings.get("mode") or ""),
+        current=current_output,
+        suggested=suggested_output,
+        previous_suggestion=previous_output_suggestion,
+    ):
+        st.session_state["video_output_input"] = suggested_output
+        st.session_state["video_auto_output_path"] = suggested_output
+    else:
+        st.session_state.setdefault("video_output_input", suggested_output)
 
 def _resolve_cover_path(settings: dict[str, Any]) -> Optional[Path]:
     del settings
@@ -457,7 +489,8 @@ def _append_history(summary: dict[str, Any]) -> None:
 
 def render_doctor_tab(settings: dict[str, Any]) -> None:
     ensure_session_defaults()
-    st.subheader("Video doctor")
+    st.subheader("Doctor")
+    st.caption("Check Video runtime, input, and image readiness.")
     _prepare_video_inputs(settings)
     diagnostics = collect_runtime_diagnostics(
         ffmpeg_exe=str(settings.get("ffmpeg_exe") or ""),
@@ -541,7 +574,8 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
     _prepare_video_inputs(settings)
 
     st.subheader("Inputs")
-    _render_video_focus_hint("Inputs")
+    st.caption("Prepare and review the assets used by Video.")
+    _render_video_focus_hint("inputs")
     st.checkbox(
         "Lock input to Audio handoff",
         key="video_lock_to_audio_handoff",
@@ -600,6 +634,8 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
 
 
 def render_run_tab(settings: dict[str, Any]) -> None:
+    st.subheader("Run")
+    st.caption("Validate and render the current Video job.")
     inputs = _collect_inputs(settings)
     errors = inputs["errors"]
     if errors:
@@ -652,6 +688,7 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     aspect=settings["aspect"],
                     duration_per_image=settings["duration_per_image"],
                     subtitle=inputs["subtitle"],
+                    show_subtitles=bool(settings.get("show_subtitles", True)),
                     story_json=inputs["story_json"],
                     cover=inputs["cover"],
                     scenes_dir=inputs["scenes_dir"],
@@ -674,11 +711,17 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     video_movflags=settings.get("video_movflags"),
                     slideshow_match_audio=settings.get("slideshow_match_audio"),
                     zone_aware_slideshow=settings.get("zone_aware_slideshow"),
+                    environment_overlays=bool(settings.get("environment_overlays", True)),
+                    environment_overlay_intensity=str(settings.get("environment_overlay_intensity", "normal")),
+                    environment_overlay_fade=float(settings.get("environment_overlay_fade", 0.6)),
+                    environment_allow_lens_effects=bool(settings.get("environment_allow_lens_effects", True)),
+                    environment_global_film_grain=float(settings.get("environment_global_film_grain", 0.0)),
                     audio_match_epsilon=settings.get("audio_match_epsilon"),
                     keep_concat_list=settings.get("keep_concat_list"),
                     subtitle_font=settings.get("subtitle_font"),
                     subtitle_font_size=settings.get("subtitle_font_size"),
                     subtitle_text_color=settings.get("subtitle_text_color"),
+                    subtitle_text_opacity=settings.get("subtitle_text_opacity"),
                     subtitle_outline=settings.get("subtitle_outline"),
                     subtitle_shadow=settings.get("subtitle_shadow"),
                     subtitle_background_color=settings.get("subtitle_background_color"),
@@ -915,21 +958,77 @@ def _render_slideshow_order_gallery(
     st.subheader("Slideshow image order")
     if error:
         st.warning(f"Could not build the exact slideshow timeline: {error}")
-        return
-    if not segments:
-        st.info("No slideshow image timeline is available yet.")
+    gallery_items = _build_slideshow_gallery_items(inputs, settings, segments)
+    if not gallery_items:
+        st.info("No slideshow images are available yet.")
         return
 
-    st.caption(f"The renderer will use {len(segments)} image segment(s) in this order.")
-    for row_start in range(0, len(segments), 4):
+    st.caption(
+        f"Configured image order: {len(gallery_items)} image(s); "
+        f"{len(segments)} effective timeline segment(s)."
+    )
+    for row_start in range(0, len(gallery_items), 4):
         columns = st.columns(4)
-        for offset, segment in enumerate(segments[row_start : row_start + 4]):
+        for offset, (image_path, image_segments) in enumerate(
+            gallery_items[row_start : row_start + 4]
+        ):
             index = row_start + offset + 1
-            columns[offset].image(str(segment.image), width=160)
-            columns[offset].caption(
-                f"#{index:02d} {segment.image.name}\n"
-                f"{segment.zone} · {segment.start:.1f}s–{segment.end:.1f}s"
-            )
+            columns[offset].image(str(image_path), width=160)
+            if image_segments:
+                timing = ", ".join(
+                    f"{segment.zone} · {segment.start:.1f}s–{segment.end:.1f}s"
+                    for segment in image_segments
+                )
+            else:
+                timing = "not visible with current timing"
+            columns[offset].caption(f"#{index:02d} {image_path.name}\n{timing}")
+
+
+def _build_slideshow_gallery_items(
+    inputs: dict[str, Any],
+    settings: dict[str, Any],
+    segments: list[ZoneSegment],
+) -> list[tuple[Path, list[ZoneSegment]]]:
+    """List every configured image, including ones clipped out by endpoint timing."""
+    scenes_dir = inputs.get("scenes_dir")
+    if scenes_dir is None or not Path(scenes_dir).is_dir():
+        return []
+
+    scene_root = Path(scenes_dir)
+    cover = resolve_slideshow_cover(
+        inputs.get("cover"),
+        scene_root,
+        cover_first=bool(settings.get("cover_first", True)),
+    )
+    outro = resolve_slideshow_outro(
+        scene_root,
+        outro_last=bool(settings.get("outro_last", True)),
+    )
+    scene_images = build_zone_slideshow_images(collect_scene_images(scene_root))
+    endpoint_paths = {
+        path.resolve(strict=False)
+        for path in (cover, outro)
+        if path is not None and path.is_file()
+    }
+    scene_images = [
+        image for image in scene_images if image.resolve(strict=False) not in endpoint_paths
+    ]
+
+    ordered_images: list[Path] = []
+    if cover is not None and cover.is_file():
+        ordered_images.append(cover)
+    ordered_images.extend(scene_images)
+    if outro is not None and outro.is_file():
+        ordered_images.append(outro)
+
+    segments_by_image: dict[Path, list[ZoneSegment]] = {}
+    for segment in segments:
+        key = segment.image.resolve(strict=False)
+        segments_by_image.setdefault(key, []).append(segment)
+    return [
+        (image, segments_by_image.get(image.resolve(strict=False), []))
+        for image in ordered_images
+    ]
 
 
 def _render_slideshow_endpoint(
@@ -989,6 +1088,7 @@ def _render_test_media_inputs(inputs: dict[str, Any], summary: dict[str, Any]) -
 
 def render_test_tab(settings: dict[str, Any]) -> None:
     st.subheader("Test")
+    st.caption("Resolve inputs and preview the effective Video plan.")
     inputs = _collect_inputs(settings)
     summary = dict(inputs.get("summary") or {})
 
@@ -1090,6 +1190,8 @@ def render_test_tab(settings: dict[str, Any]) -> None:
 
 def render_preview_logs_tab(settings: dict[str, Any]) -> None:
     del settings
+    st.subheader("Results & Logs")
+    st.caption("Inspect the latest Video output and runtime logs.")
     out = workspace_source_outputs(st.session_state).video_output
     if out and Path(out).is_file():
         st.video(out)
@@ -1108,6 +1210,8 @@ def render_preview_logs_tab(settings: dict[str, Any]) -> None:
 
 def render_history_tab(settings: dict[str, Any]) -> None:
     del settings
+    st.subheader("History")
+    st.caption("Review Video renders from the current session.")
     items = st.session_state.get("video_run_history", [])
     render_session_history(
         items,

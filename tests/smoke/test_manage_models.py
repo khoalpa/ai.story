@@ -4,7 +4,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 MODEL_STORE = ROOT / "audio" / "model_store.py"
 MANAGE_MODELS = ROOT / "scripts" / "manage_models.py"

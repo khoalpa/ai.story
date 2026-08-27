@@ -6,12 +6,21 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping, Optional
 
+from audio.adapters.tts_core import (
+    get_default_vieneu_local_target,
+    normalize_vieneu_backend,
+    normalize_vieneu_device,
+    resolve_vieneu_model_name,
+)
 from audio.asset_profile_utils import load_asset_profile_manifest
-from audio.paths import ASSETS_ROOT, DEFAULT_BGM_DIR, PACKAGE_PROFILE_ROOT
 from audio.bgm_config_schema import BgmConfigSchema, load_bgm_config_schema
-from audio.profile_manifest_schema import ProfileManifestSchema, load_profile_manifest_schema
+from audio.paths import ASSETS_ROOT, DEFAULT_BGM_DIR, PACKAGE_PROFILE_ROOT
+from audio.profile_manifest_schema import (
+    ProfileManifestSchema,
+    load_profile_manifest_schema,
+)
 from audio.tts_provider import DEFAULT_TTS_PROVIDER, normalize_tts_provider
-from audio.adapters.tts_core import get_default_vieneu_local_target, normalize_vieneu_backend, normalize_vieneu_device, resolve_vieneu_model_name
+
 DEFAULT_PROFILE_ROOT = str(PACKAGE_PROFILE_ROOT)
 DEFAULT_BGM_DIR_STR = str(DEFAULT_BGM_DIR)
 DEFAULT_VOICE_NARRATOR = "Doan"
@@ -35,12 +44,12 @@ PROFILE_CONFIG_DEFAULTS: dict[str, Any] = {
     "voice_en_narrator": DEFAULT_EN_VOICE_NARRATOR,
     "voice_en_female": DEFAULT_EN_VOICE_FEMALE,
     "voice_en_male": DEFAULT_EN_VOICE_MALE,
-    "voice_narrator_speed": 20,
-    "voice_female_speed": 20,
-    "voice_male_speed": 20,
-    "voice_en_narrator_speed": 20,
-    "voice_en_female_speed": 20,
-    "voice_en_male_speed": 20,
+    "voice_narrator_speed": 0,
+    "voice_female_speed": 0,
+    "voice_male_speed": 0,
+    "voice_en_narrator_speed": 0,
+    "voice_en_female_speed": 0,
+    "voice_en_male_speed": 0,
     "vieneu_core": "local",
     "vieneu_mode": "standard",
     "vieneu_api_base": "",
@@ -54,8 +63,8 @@ PROFILE_CONFIG_DEFAULTS: dict[str, Any] = {
     "vieneu_preview_text_max_len": 100,
     "vieneu_render_temperature": 0.7,
     "vieneu_render_max_chars_chunk": 240,
-    "vieneu_render_use_batch": False,
-    "vieneu_render_max_batch_size_run": 1,
+    "vieneu_render_use_batch": True,
+    "vieneu_render_max_batch_size_run": 4,
 }
 
 PROFILE_CONFIG_FIELD_NAMES = set(PROFILE_CONFIG_DEFAULTS.keys())
@@ -125,8 +134,8 @@ class ProfileConfig:
     vieneu_preview_text_max_len: int = 100
     vieneu_render_temperature: float = 0.7
     vieneu_render_max_chars_chunk: int = 240
-    vieneu_render_use_batch: bool = False
-    vieneu_render_max_batch_size_run: int = 1
+    vieneu_render_use_batch: bool = True
+    vieneu_render_max_batch_size_run: int = 4
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "profile_root", _normalize_required_string(self.profile_root, "profile_root"))

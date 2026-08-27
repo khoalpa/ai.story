@@ -5,11 +5,19 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping
 
-from audio.render_audio_app import RenderAudioAppRequest
-from audio.adapters.ffmpeg_audio_mixer import DEFAULT_PACING_PRESET, normalize_pacing_preset
-from audio.adapters.tts_core import get_default_vieneu_local_target, normalize_vieneu_backend, resolve_vieneu_effective_mode, resolve_vieneu_model_name
-from audio.tts_provider import DEFAULT_TTS_PROVIDER, normalize_tts_provider
+from audio.adapters.ffmpeg_audio_mixer import (
+    DEFAULT_PACING_PRESET,
+    normalize_pacing_preset,
+)
+from audio.adapters.tts_core import (
+    get_default_vieneu_local_target,
+    normalize_vieneu_backend,
+    resolve_vieneu_effective_mode,
+    resolve_vieneu_model_name,
+)
 from audio.profile_config import ProfileConfig
+from audio.render_audio_app import RenderAudioAppRequest
+from audio.tts_provider import DEFAULT_TTS_PROVIDER, normalize_tts_provider
 
 APP_CONFIG_ALIASES: dict[str, str] = {
     "debug_mode": "debug",
@@ -47,8 +55,8 @@ APP_CONFIG_DEFAULTS: dict[str, Any] = {
     "vieneu_preview_text_max_len": 100,
     "vieneu_render_temperature": 0.7,
     "vieneu_render_max_chars_chunk": 240,
-    "vieneu_render_use_batch": False,
-    "vieneu_render_max_batch_size_run": 1,
+    "vieneu_render_use_batch": True,
+    "vieneu_render_max_batch_size_run": 4,
 }
 
 APP_CONFIG_FIELD_NAMES = set(APP_CONFIG_DEFAULTS.keys())
@@ -99,8 +107,8 @@ class AppConfig:
     vieneu_preview_text_max_len: int = 100
     vieneu_render_temperature: float = 0.7
     vieneu_render_max_chars_chunk: int = 240
-    vieneu_render_use_batch: bool = False
-    vieneu_render_max_batch_size_run: int = 1
+    vieneu_render_use_batch: bool = True
+    vieneu_render_max_batch_size_run: int = 4
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "ffmpeg_exe", _normalize_required_string(self.ffmpeg_exe, "ffmpeg_exe"))

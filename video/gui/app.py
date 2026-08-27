@@ -13,9 +13,7 @@ def render_video_workspace(*, embedded: bool = False) -> None:
         st.set_page_config(page_title=APP_TITLE, page_icon=":material/movie:", layout="wide")
         st.title(APP_TITLE)
         st.caption("Unified GUI for the audio -> MP4 pipeline, including preview, logs, and history.")
-    else:
-        st.subheader(APP_TITLE)
-        st.caption("Audio -> MP4 pipeline with static/slideshow mode")
+
 
     settings = get_video_settings()
     render_video_main_panel(settings, embedded=embedded)

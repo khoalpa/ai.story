@@ -2,14 +2,15 @@
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_studio_gui_exposes_project_tools_workspace() -> None:
-    content = (ROOT / "studio" / "gui_entry.py").read_text(encoding="utf-8")
-    assert "render_project_tools_workspace" in content
-    assert '"Project Tools"' in content
+def test_story_studio_exposes_project_tools() -> None:
+    shell = (ROOT / "studio" / "gui_entry.py").read_text(encoding="utf-8")
+    workspace = (ROOT / "studio" / "story_studio.py").read_text(encoding="utf-8")
+    assert "render_story_studio_workspace" in shell
+    assert "render_project_tools_workspace(embedded=True)" in workspace
+    assert '"Công cụ"' in workspace
 
 
 def test_studio_owns_project_tools() -> None:

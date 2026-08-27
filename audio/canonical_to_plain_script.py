@@ -22,7 +22,11 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from audio.audio_story_spec import normalize_canonical_authoring_zones, render_plain_script, validate_canonical_authoring
+from audio.audio_story_spec import (
+    normalize_canonical_authoring_zones,
+    render_plain_script,
+    validate_canonical_authoring,
+)
 from audio.cli_utils import UsedFilesTracker, setup_stdio
 
 

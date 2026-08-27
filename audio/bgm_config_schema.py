@@ -7,6 +7,7 @@ from typing import Any, Dict, Mapping, Optional
 
 from audio.exceptions import BgmConfigError
 from audio.logging_utils import get_logger
+from audio.story_environments import CANONICAL_STORY_ENVIRONMENT_SET
 
 logger = get_logger(__name__)
 
@@ -35,14 +36,15 @@ BGM_ZONE_KEYS = (
 
 ENV_KEY_ALIASES = {
     "city_soft": "night_city_soft",
-    "cafe_soft": "cafe",
-    "rain_soft": "rain",
+    "cafe": "cafe_soft",
+    "rain": "rain_soft",
     "forest": "forest_deep_ambience",
     "night_city": "night_city_soft",
     "night-rain": "night_rain_balcony",
     "night_rain": "night_rain_balcony",
     "rain-night": "rain_night",
-    "hospital_roomt": "hospital_room",
+    "hospital_room": "hospital_corridor_soft",
+    "hospital_roomt": "hospital_corridor_soft",
 }
 
 
@@ -53,6 +55,11 @@ def normalize_env_key(value: Any) -> Optional[str]:
     if not raw:
         return None
     return ENV_KEY_ALIASES.get(raw, raw)
+
+
+def is_canonical_env_key(value: Any) -> bool:
+    normalized = normalize_env_key(value)
+    return normalized in CANONICAL_STORY_ENVIRONMENT_SET
 
 
 def _to_float(value: Any, field_name: str) -> Optional[float]:

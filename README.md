@@ -7,9 +7,12 @@ AI Audio & Video Studio is a pair of standalone Python applications plus a unifi
 
 Story generation and image generation are intentionally outside this repository. Scripts and visual assets can come from any authoring or image-generation tool.
 
+The current canonical authoring reference is `ChatGPT_prompt_v3.11.11.txt`. Runtime
+contract tests use this version; superseded prompt files are not authoritative.
+
 ## Requirements
 
-- Python 3.10 or 3.11
+- Python 3.10, 3.11, or 3.12
 - FFmpeg and FFprobe for rendering
 
 Large local Audio models may be stored outside the checkout by setting
@@ -22,6 +25,9 @@ python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
+For development, install `requirements-dev.txt` instead. The supported Python
+range is `>=3.10,<3.13`; CI exercises Python 3.10, 3.11, and 3.12.
+
 ## Entry points
 
 ```bash
@@ -32,7 +38,10 @@ render-video-gui
 ai-studio-gui
 ```
 
-The unified Studio contains `Overview`, `Audio`, `Video`, and `Project Tools` workspaces.
+The unified Studio contains `Overview`, `Audio`, `Video`, and `Story Studio` workspaces.
+`Story Studio` discovers the story, validation, package-quality, and series-anchor JSON
+reports in one output directory and combines their content, verdicts, continuity data,
+technical details, and repository QA tools.
 
 ## Workflow
 
@@ -57,9 +66,14 @@ python scripts/run_audio_to_video_e2e.py --fixture --report e2e-report.json
 python scripts/check_public_api.py
 python scripts/check_dependency_direction.py
 python scripts/check_standalone_architecture.py
+python scripts/check_module_size_budget.py
 python scripts/check_wheel_contents.py
 python scripts/check_independent_wheels.py
 python scripts/release_smoke.py
 ```
+
+See [Troubleshooting](docs/TROUBLESHOOTING.md),
+[standalone-package migration](docs/MIGRATION_STANDALONE_PACKAGES.md), and
+[deprecations](docs/DEPRECATIONS.md) for operational details.
 
 Independent wheels are defined under `packages/audio`, `packages/video`, and `packages/studio`.

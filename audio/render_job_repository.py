@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from audio.render_job_store import JsonFileJobStore, JobRunRecord, JobStore
+from audio.render_job_store import JobRunRecord, JobStore, JsonFileJobStore
 
 
 @dataclass(frozen=True)

@@ -3,13 +3,13 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Optional, Sequence
 
+from video.app_api import execute_render_request, request_from_args
 from video.cli_utils import UsedFilesTracker, setup_stdio
 from video.encoding_profiles import PROFILE_CHOICES
 from video.error_handling import USER_FACING_EXCEPTIONS, format_user_facing_error
 from video.ffmpeg_runner import ensure_tools
-from video.app_api import execute_render_request, request_from_args
 from video.validation import ImageReadinessReport, inspect_video_image_readiness
 
 DESCRIPTION = "Render an MP4 video from finished audio plus a cover image or slideshow scenes."
@@ -104,6 +104,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional subtitle file (SRT/ASS) to burn into the MP4.",
     )
     parser.add_argument(
+        "--show-subtitles",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Burn subtitles into the MP4 when available (default: enabled).",
+    )
+    parser.add_argument(
         "--story-json",
         type=str,
         default=None,
@@ -114,6 +120,24 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="In slideshow mode, time scene images from timeline zones and subtitle timestamps.",
     )
+    parser.add_argument(
+        "--environment-overlays",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Apply atmosphere overlays from story.json environment fields (default: enabled).",
+    )
+    parser.add_argument(
+        "--environment-overlay-intensity",
+        choices=["subtle", "normal", "cinematic"],
+        default="normal",
+    )
+    parser.add_argument("--environment-overlay-fade", type=float, default=0.6)
+    parser.add_argument(
+        "--environment-allow-lens-effects",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument("--environment-global-film-grain", type=float, default=0.0)
     parser.add_argument(
         "--check-images",
         action="store_true",

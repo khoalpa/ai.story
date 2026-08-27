@@ -1,0 +1,82 @@
+Tạo một tệp MP3 âm thanh môi trường chân thực dựa trên mô tả của người dùng.
+
+YÊU CẦU CHUNG
+
+1. Diễn giải mô tả thành một không gian âm thanh thực tế, có vị trí, khoảng cách và chiều sâu rõ ràng.
+2. Tái hiện môi trường bằng các âm thanh nguồn có thể nhận biết được, thay vì dùng tiếng noise liên tục làm thành phần chính.
+3. Mỗi âm thanh phải phù hợp với bối cảnh, thời gian, địa điểm và điều kiện môi trường được mô tả.
+4. Âm thanh nền phải nhẹ, tự nhiên và biến đổi tinh tế theo thời gian, nhưng toàn bộ soundscape phải đủ to và rõ để nghe được ngay ở mức âm lượng thông thường của tai nghe hoặc loa laptop.
+5. Bổ sung các sự kiện âm thanh nhỏ, xuất hiện không đều, để tạo cảm giác môi trường đang thực sự tồn tại.
+6. Phân bố âm thanh hợp lý trong không gian stereo:
+
+   * Âm thanh gần rõ hơn nhưng không đột ngột.
+   * Âm thanh xa phải nhỏ, tối, mờ và có độ vang phù hợp.
+   * Âm thanh có thể di chuyển nhẹ giữa kênh trái và phải nếu hợp lý.
+7. Tạo diễn biến tự nhiên; không lặp lại một mẫu âm thanh theo chu kỳ dễ nhận biết.
+8. Các sự kiện phải có khoảng nghỉ và mức độ ngẫu nhiên vừa phải, tránh làm môi trường quá bận rộn.
+9. Không sử dụng nhạc, giọng nói, lời thoại hoặc âm thanh kể chuyện, trừ khi mô tả của người dùng yêu cầu rõ ràng.
+10. Không thêm những âm thanh nổi bật không được bối cảnh gợi ý.
+
+YÊU CẦU VỀ TÍNH CHÂN THỰC
+
+* Ưu tiên âm thanh thu âm hoặc âm thanh nguồn chân thực.
+* Nếu phải tổng hợp âm thanh, cần tạo đủ biến thiên về cao độ, âm lượng, khoảng cách, hướng và thời gian.
+* Không dùng white noise, pink noise, brown noise hoặc tiếng rền đơn điệu làm toàn bộ soundscape.
+* Noise chỉ được dùng rất nhẹ để mô phỏng room tone, gió, điều hòa hoặc không khí nền.
+* Tránh tiếng “rè rè”, “xì xì”, hum điện tử hoặc drone đều kéo dài.
+* Không để tất cả các lớp âm thanh phát liên tục với cùng một mức âm lượng.
+* Tránh hiệu ứng âm thanh quá sạch, quá rõ hoặc mang cảm giác thư viện âm thanh được ghép cơ học.
+* Không tạo tiếng click, clipping, méo tiếng, thay đổi âm lượng đột ngột hoặc điểm nối dễ nhận biết.
+
+CẤU TRÚC SOUNDSCAPE
+
+Phân tích mô tả và tự động xây dựng tối đa bốn lớp:
+
+1. Room tone hoặc environmental bed rất nhẹ.
+2. Các âm thanh nền xa, đặc trưng cho địa điểm.
+3. Các sự kiện âm thanh trung cảnh xuất hiện không đều.
+4. Một số chi tiết âm thanh gần, tinh tế, chỉ khi phù hợp với bối cảnh.
+
+Không bắt buộc phải có đủ bốn lớp. Chỉ sử dụng những lớp cần thiết để giữ cho môi trường tự nhiên.
+
+YÊU CẦU VỀ ÂM LƯỢNG VÀ ĐỘ RÕ
+
+* Ưu tiên mức âm lượng nghe rõ ngay khi phát, không yêu cầu người nghe phải tăng volume lên gần mức tối đa.
+* Loudness tích hợp mục tiêu: khoảng -21 đến -18 LUFS-I. Có thể điều chỉnh nhẹ theo bối cảnh, nhưng không xuất tệp có loudness quá thấp chỉ để giữ cảm giác “ambient”.
+* True peak không vượt quá -3 dBTP để giữ headroom và tránh clipping sau khi mã hóa MP3.
+* Các âm thanh nguồn quan trọng phải có phần thân âm và transient đủ rõ, không bị room tone hoặc lớp nền che lấp.
+* Cân bằng phổ âm để nghe tốt trên loa laptop: kiểm soát sub-bass dưới khoảng 50 Hz; giữ dải trung và trung-cao tự nhiên, rõ nhưng không chói hoặc sắc.
+* Có thể dùng compression nhẹ hoặc automation gain để tăng độ rõ và ổn định mức nghe; tránh nén mạnh làm mất chiều sâu gần–xa hoặc làm mọi lớp có cùng âm lượng.
+* Nếu bản dựng ban đầu quá nhỏ, hãy tăng gain của các nguồn âm chính trước; không chỉ nâng toàn bộ noise floor hoặc normalize toàn bộ tệp một cách máy móc.
+* Luôn nghe thử hoặc đo lại sau khi mã hóa MP3; nếu âm thanh vẫn nhỏ trên loa laptop ở volume khoảng 40–60%, cần cân chỉnh lại trước khi xuất.
+
+THÔNG SỐ ĐẦU RA
+
+* Định dạng: MP3.
+* Stereo.
+* Sample rate: 48 kHz.
+* Bitrate: từ 192 kbps trở lên nếu dung lượng cho phép.
+* Thời lượng mặc định: 90 giây.
+* Fade-in và fade-out nhẹ khoảng 2–3 giây.
+* Loudness đạt khoảng -21 đến -18 LUFS-I, nghe rõ bằng tai nghe và loa laptop nhưng vẫn giữ đúng tính chất âm thanh môi trường.
+* True peak tối đa -3 dBTP; không clipping.
+* Không normalize quá mạnh hoặc tăng gain đồng loạt làm tiếng nền, hum hay hiss trở nên nổi bật.
+* Không để khoảng lặng hoàn toàn ngoài chủ ý.
+* Tệp phải phát được đầy đủ từ đầu đến cuối và đúng thời lượng yêu cầu.
+
+Trước khi xuất tệp, hãy kiểm tra:
+
+* Có âm thanh nào nghe giống tiếng rè kéo dài hay không.
+* Các sự kiện có bị lặp đều hoặc dễ đoán hay không.
+* Không gian có chiều sâu gần–xa hay không.
+* Loudness tích hợp có nằm trong khoảng mục tiêu -21 đến -18 LUFS-I hay không.
+* True peak có vượt -3 dBTP hoặc có clipping hay không.
+* Các nguồn âm chính có nghe rõ trên loa laptop ở volume khoảng 40–60% mà không cần tăng gần tối đa hay không.
+* Việc tăng loudness có vô tình làm room tone, hum, hiss hoặc noise nền trở nên nổi bật hay không.
+* Có clipping, tiếng click hoặc đoạn âm thanh bị cắt hay không.
+* Thời lượng thực tế có đúng với yêu cầu hay không.
+
+Nếu mô tả chưa cung cấp đủ chi tiết, hãy tự lựa chọn phương án tự nhiên, tối giản và phù hợp nhất. Không yêu cầu người dùng xác nhận lại trừ khi có nhiều cách diễn giải hoàn toàn khác nhau.
+
+MÔ TẢ CỦA NGƯỜI DÙNG:
+[Chèn mô tả tại đây]

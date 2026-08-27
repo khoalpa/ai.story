@@ -5,6 +5,7 @@ import sys
 from typing import Sequence
 
 from video import __version__
+
 MAPPING = {"render-video"}
 DEFAULT_COMMAND = "render-video"
 

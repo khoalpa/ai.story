@@ -4,19 +4,37 @@ import inspect
 import logging
 import os
 import shutil
-import subprocess
-import threading
-import unicodedata
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from audio.adapters import vieneu_rate as _vieneu_rate
+from audio.adapters.vieneu_engine_lifecycle import VieneuEngineLifecycle
+from audio.adapters.vieneu_rate import (
+    apply_vieneu_time_stretch,
+)
+from audio.adapters.vieneu_rate import (
+    normalize_vieneu_segment_rate as _normalize_vieneu_segment_rate,
+)
+from audio.adapters.vieneu_voice_migration import (
+    migrate_vieneu_legacy_voice_id,
+)
+from audio.adapters.vieneu_voice_migration import (
+    normalize_voice_token as _normalize_voice_token,
+)
 from audio.env_runtime import bootstrap_vieneu_runtime, prefer_gpu_enabled
 from audio.exceptions import TtsDependencyError, TtsError
+from audio.model_store import (
+    list_local_targets,
+    provider_cache_dir,
+    provider_target_dir,
+)
 from audio.pipeline.segment_planner import Segment
-from audio.pipeline.flow_state import normalize_rate_value
-from audio.pipeline.segment_planner import rate_str_to_factor
-from audio.model_store import list_local_targets, provider_cache_dir, provider_target_dir
+
+# Backward-compatible module handle for callers/tests that monkeypatch
+# ``tts_core.subprocess.run`` around time-stretch operations.
+subprocess = _vieneu_rate.subprocess
+_build_atempo_filter = _vieneu_rate.build_atempo_filter
 
 DEFAULT_VIENEU_MODE = "standard"
 SUPPORTED_VIENEU_MODES = (
@@ -47,8 +65,9 @@ VIENEU_V3_CODEC_FILES = (
 DEFAULT_VIENEU_API_BASE = "http://127.0.0.1:23333/v1"
 DEFAULT_VIENEU_DEVICE = "cuda"
 
-_ENGINE_LOCK = threading.Lock()
-_ENGINE_CACHE: dict[tuple[str, str, str, bool], Any] = {}
+_ENGINE_LIFECYCLE = VieneuEngineLifecycle()
+_ENGINE_LOCK = _ENGINE_LIFECYCLE.lock
+_ENGINE_CACHE = _ENGINE_LIFECYCLE.cache
 _LOG = logging.getLogger(__name__)
 _VIENEU_STANDARD_OFFLINE_PATCHED = False
 _TRANSFORMERS_META_TO_EMPTY_PATCHED = False
@@ -236,15 +255,14 @@ def _patch_vieneu_standard_offline_dependencies() -> None:
     if _VIENEU_STANDARD_OFFLINE_PATCHED:
         return
 
+    import neucodec.model as neucodec_model
     import torch
     import torch.nn as nn
-    from transformers import AutoFeatureExtractor, HubertModel
-
     import vieneu.base as vieneu_base
-    import neucodec.model as neucodec_model
     from neucodec.codec_decoder_vocos import CodecDecoderVocos
     from neucodec.codec_encoder_distill import DistillCodecEncoder
     from neucodec.module import SemanticEncoder
+    from transformers import AutoFeatureExtractor, HubertModel
 
     original_neucodec_from_pretrained = neucodec_model.NeuCodec._from_pretrained.__func__
     original_load_codec = vieneu_base.BaseVieneuTTS._load_codec
@@ -265,7 +283,8 @@ def _patch_vieneu_standard_offline_dependencies() -> None:
         model_cls = neucodec_model.NeuCodec if model_id == "neuphonic/neucodec" else neucodec_model.DistillNeuCodec
         model = model_cls(24_000, 480)
         state_dict = torch.load(ckpt_path, map_location)
-        contains_list = lambda s, items: any(item in s for item in items)
+        def contains_list(value: str, items: list[str]) -> bool:
+            return any(item in value for item in items)
         state_dict = {
             key: value
             for key, value in state_dict.items()
@@ -923,15 +942,7 @@ def _get_engine(
     backend = resolve_vieneu_runtime_backend(resolved_mode, clean_model, clean_device, clean_backend)
     cache_key = (resolved_mode, clean_api_base, clean_model, clean_device, backend, bool(allow_network))
 
-    cached = _ENGINE_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
-
-    with _ENGINE_LOCK:
-        cached = _ENGINE_CACHE.get(cache_key)
-        if cached is not None:
-            return cached
-
+    def create_engine() -> Any:
         Vieneu = _import_vieneu_factory()
         kwargs: dict[str, Any] = {}
 
@@ -1004,8 +1015,9 @@ def _get_engine(
             engine = Vieneu(mode=resolved_mode, **kwargs)
             if resolved_mode == "standard":
                 _configure_vieneu_standard_local_prompt(engine, backbone_repo)
-    _ENGINE_CACHE[cache_key] = engine
-    return engine
+        return engine
+
+    return _ENGINE_LIFECYCLE.get_or_create(cache_key, create_engine)
 
 
 def get_vieneu_engine(
@@ -1080,8 +1092,7 @@ def warmup_vieneu_engine(
 
 
 def clear_vieneu_runtime_caches() -> None:
-    with _ENGINE_LOCK:
-        _ENGINE_CACHE.clear()
+    _ENGINE_LIFECYCLE.clear()
     _list_vieneu_preset_voices_cached.cache_clear()
 
 
@@ -1160,93 +1171,6 @@ def _resolve_voice_id(seg: Segment, voice_map_vi: dict[str, str], voice_map_en: 
     return str(mapping.get(role) or mapping.get("narrator") or "").strip()
 
 
-def _strip_accents(value: object) -> str:
-    text = unicodedata.normalize("NFKD", str(value or ""))
-    return "".join(ch for ch in text if not unicodedata.combining(ch))
-
-
-def _normalize_voice_token(value: object) -> str:
-    text = _strip_accents(value).replace("đ", "d").replace("Đ", "D")
-    return " ".join(text.strip().lower().split())
-
-
-_LEGACY_VIENEU_VOICE_HINTS: dict[str, tuple[tuple[str, ...], ...]] = {
-    "vi-vn-hoaimyneural": (("doan",), ("truc", "ly"), ("female", "south")),
-    "vi-vn-namminhneural": (("vinh",), ("male", "south")),
-    "en-us-guyneural": (("vinh",), ("male", "south")),
-    "doan": (("doan",), ("nu", "mien", "nam"), ("female", "south")),
-    "thuc doan": (("doan",), ("nu", "mien", "nam"), ("female", "south")),
-    "ly": (("ly",), ("nu", "mien", "bac"), ("female", "north")),
-    "ngoc": (("ngoc",), ("nu", "mien", "bac"), ("female", "north")),
-    "bich ngoc": (("ngoc",), ("nu", "mien", "bac"), ("female", "north")),
-    "vinh": (("vinh",), ("nam", "mien", "nam"), ("male", "south")),
-    "xuan vinh": (("vinh",), ("nam", "mien", "nam"), ("male", "south")),
-    "binh": (("binh",), ("nam", "mien", "bac"), ("male", "north")),
-    "tuyen": (("tuyen",), ("nam", "mien", "bac"), ("male", "north")),
-    "pham tuyen": (("tuyen",), ("nam", "mien", "bac"), ("male", "north")),
-}
-
-
-def migrate_vieneu_legacy_voice_id(
-    voice_id: object,
-    available_choices: list[tuple[str, str]] | tuple[tuple[str, str], ...],
-) -> str:
-    raw = str(voice_id or "").strip()
-    if not raw:
-        return ""
-    normalized = _normalize_voice_token(raw)
-    if not normalized:
-        return raw
-
-    entries: list[tuple[str, str, str, str, set[str]]] = []
-    for label, preset_id in tuple(available_choices or ()):
-        clean_id = str(preset_id or "").strip()
-        clean_label = str(label or clean_id).strip()
-        if not clean_id:
-            continue
-        norm_id = _normalize_voice_token(clean_id)
-        norm_label = _normalize_voice_token(clean_label)
-        tokens = set((norm_id + " " + norm_label).split())
-        entries.append((clean_id, clean_label, norm_id, norm_label, tokens))
-
-    if not entries:
-        return raw
-
-    for clean_id, _clean_label, norm_id, norm_label, _tokens in entries:
-        if normalized in {
-            norm_id,
-            norm_label,
-            _normalize_voice_token(norm_label.split("(", 1)[0].strip()),
-        }:
-            return clean_id
-
-    hint_groups = _LEGACY_VIENEU_VOICE_HINTS.get(normalized)
-    if not hint_groups:
-        return raw
-
-    ranked: list[tuple[int, str]] = []
-    for clean_id, _clean_label, norm_id, norm_label, tokens in entries:
-        score = 0
-        if normalized in tokens:
-            score += 100
-        for idx, group in enumerate(hint_groups):
-            group_tokens = {tok for tok in (_normalize_voice_token(item) for item in group) if tok}
-            if not group_tokens:
-                continue
-            if group_tokens.issubset(tokens):
-                score += 30 - idx * 5
-            elif any(tok in tokens for tok in group_tokens):
-                score += 8 - idx
-        if score > 0:
-            ranked.append((score, clean_id))
-
-    if ranked:
-        ranked.sort(key=lambda item: (-item[0], item[1]))
-        return ranked[0][1]
-
-    return raw
-
-
 def _resolve_preset_voice(engine: Any, voice_id: str) -> Any | None:
     raw = str(voice_id or "").strip()
     if not raw:
@@ -1301,91 +1225,6 @@ def resolve_vieneu_segment_voice(
     voice_id = _resolve_voice_id(seg, voice_map_vi, voice_map_en)
     voice = _resolve_preset_voice(engine, voice_id) if voice_id else None
     return voice_id, voice
-
-
-def _normalize_vieneu_segment_rate(seg: Segment) -> str:
-    raw_rate = normalize_rate_value(getattr(seg, "rate", "") or "", fallback="0%")
-    return raw_rate
-
-
-def _build_atempo_filter(rate: str) -> str:
-    # atempo accepts factors from 0.5 through 2.0 on all supported FFmpeg
-    # versions. Chain filters for rates outside that interval.
-    factor = max(0.01, rate_str_to_factor(rate))
-    factors: list[float] = []
-    while factor > 2.0:
-        factors.append(2.0)
-        factor /= 2.0
-    while factor < 0.5:
-        factors.append(0.5)
-        factor /= 0.5
-    if not factors or abs(factor - 1.0) > 1e-9:
-        factors.append(factor)
-    return ",".join(f"atempo={item:.8g}" for item in factors)
-
-
-def apply_vieneu_time_stretch(out_wav: Path, *, rate: str, ffmpeg_exe: str = "ffmpeg") -> None:
-    normalized_rate = normalize_rate_value(rate, fallback="0%")
-    if abs(rate_str_to_factor(normalized_rate) - 1.0) < 1e-9:
-        return
-
-    stretched_wav = out_wav.with_name(f".{out_wav.stem}.time_stretch{out_wav.suffix}")
-    command = [
-        str(ffmpeg_exe or "ffmpeg"),
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-i",
-        str(out_wav),
-        "-filter:a",
-        _build_atempo_filter(normalized_rate),
-        "-c:a",
-        "pcm_s16le",
-        str(stretched_wav),
-    ]
-    try:
-        subprocess.run(command, check=True, capture_output=True, text=True)
-        os.replace(stretched_wav, out_wav)
-    except Exception as exc:
-        try:
-            stretched_wav.unlink(missing_ok=True)
-        except OSError:
-            pass
-        stderr = str(getattr(exc, "stderr", "") or "").strip()
-        detail = f" Details: {stderr}" if stderr else ""
-        raise TtsError(f"VieNeu time-stretch failed for rate {normalized_rate}.{detail}") from exc
-
-
-def _apply_vieneu_rate_hint(voice: Any, *, rate: str) -> Any:
-    if voice is None:
-        return None
-
-    rate_factor = rate_str_to_factor(rate)
-    if isinstance(voice, dict):
-        updated = dict(voice)
-        for key, value in (
-            ("rate", rate),
-            ("speed", rate_factor),
-            ("speaking_rate", rate_factor),
-            ("rate_factor", rate_factor),
-        ):
-            if key in updated:
-                updated[key] = value
-        return updated
-
-    for attr, value in (
-        ("rate", rate),
-        ("speed", rate_factor),
-        ("speaking_rate", rate_factor),
-        ("rate_factor", rate_factor),
-    ):
-        if hasattr(voice, attr):
-            try:
-                setattr(voice, attr, value)
-            except Exception:
-                continue
-    return voice
 
 
 def _build_vieneu_infer_kwargs(*, engine: Any, seg: Segment, voice: Any, temperature: float, max_chars: int) -> dict[str, Any]:

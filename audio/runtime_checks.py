@@ -4,13 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from audio.runtime_diagnostics import (
-    RuntimeDiagnosticsReport,
-    collect_runtime_diagnostics as _collect_runtime_diagnostics,
-    format_runtime_diagnostics,
-    resolve_tool_path,
-)
-from audio.paths import ASSETS_ROOT
 from audio.exceptions import (
     AssetProfileError,
     DependencyError,
@@ -18,11 +11,19 @@ from audio.exceptions import (
     RuntimePathError,
 )
 from audio.logging_utils import get_logger
-from audio.paths import PACKAGE_PROFILE_ROOT
+from audio.paths import ASSETS_ROOT, PACKAGE_PROFILE_ROOT
 from audio.runtime_binaries import (
     DEFAULT_WINDOWS_FFMPEG,
     DEFAULT_WINDOWS_FFPROBE,
     prefer_real_binary,
+)
+from audio.runtime_diagnostics import (
+    RuntimeDiagnosticsReport,
+    format_runtime_diagnostics,
+    resolve_tool_path,
+)
+from audio.runtime_diagnostics import (
+    collect_runtime_diagnostics as _collect_runtime_diagnostics,
 )
 
 logger = get_logger(__name__)

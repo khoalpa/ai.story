@@ -3,7 +3,6 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SCANNED_DIRS = [ROOT / name for name in ("audio", "video", "common", "tests", "scripts")]
 SCANNED_FILES = [ROOT / name for name in ("conftest.py", "pyproject.toml", "package_api_policy.json", "pytest.ini")]

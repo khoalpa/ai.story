@@ -5,7 +5,6 @@ from typing import Any, Optional
 
 from video.gui.view_model_utils import path_to_text, pick_mapping_values
 
-
 _VIDEO_SETTINGS_FIELDS = (
     'mode',
     'aspect',
@@ -29,12 +28,19 @@ _VIDEO_SETTINGS_FIELDS = (
     'video_movflags',
     'slideshow_match_audio',
     'zone_aware_slideshow',
+    'environment_overlays',
+    'environment_overlay_intensity',
+    'environment_overlay_fade',
+    'environment_allow_lens_effects',
+    'environment_global_film_grain',
     'audio_match_epsilon',
     'keep_concat_list',
+    'show_subtitles',
     'subtitle_position',
     'subtitle_font',
     'subtitle_font_size',
     'subtitle_text_color',
+    'subtitle_text_opacity',
     'subtitle_outline',
     'subtitle_shadow',
     'subtitle_background_color',

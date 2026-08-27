@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from audio.tts_provider import TTS_PROVIDER_VIENEU, get_tts_provider_descriptor, normalize_tts_provider
 from audio.providers.base import VoiceChoice
+from audio.tts_provider import (
+    TTS_PROVIDER_VIENEU,
+    get_tts_provider_descriptor,
+    normalize_tts_provider,
+)
 
 
 def find_local_voice_notice(*, tts_provider: str, lang: str) -> str | None:

@@ -189,6 +189,13 @@ def _match_script_to_srt(script: list[dict[str, Any]], entries: list[SrtEntry]) 
     return matched
 
 
+def match_script_to_srt(
+    script: list[dict[str, Any]], entries: list[SrtEntry]
+) -> list[tuple[dict[str, Any], SrtEntry]]:
+    """Public timeline matcher shared by zone and environment renderers."""
+    return _match_script_to_srt(script, entries)
+
+
 def _iter_zone_ranges(
     script_srt_pairs: Iterable[tuple[dict[str, Any], SrtEntry]]
 ) -> list[tuple[str, float, float]]:
@@ -238,6 +245,14 @@ def build_zone_segments(
     pairs = _match_script_to_srt(script, entries)
     if not pairs:
         raise ValueError("Could not match timeline script items to subtitle entries.")
+    required_matches = max(1, (len(script) + 1) // 2)
+    if len(pairs) < required_matches:
+        raise ValueError(
+            "Timeline JSON and subtitles appear to describe different scripts: "
+            f"matched only {len(pairs)}/{len(script)} timeline item(s) to "
+            f"{len(entries)} subtitle entry/entries. Select a story.json generated "
+            "from the same story as the audio/subtitles, or disable zone-aware slideshow."
+        )
 
     zone_ranges = _iter_zone_ranges(pairs)
     if not zone_ranges:

@@ -21,8 +21,6 @@ from audio.render_job_repository import JobRepository
 from audio.render_job_store import JobRunRecord
 
 
-
-
 @dataclass(frozen=True)
 class BatchManifestItemResult:
     manifest_job: BatchManifestJob

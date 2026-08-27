@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import streamlit as st
 
-from audio.render_job_repository import JobQuery, JobRepository
 from audio.gui.user_messages import show_empty_result
+from audio.render_job_repository import JobQuery, JobRepository
 
 
-def render_run_history(repository: JobRepository) -> None:
-    st.subheader("Job history")
+def render_run_history(repository: JobRepository, *, show_heading: bool = True) -> None:
+    if show_heading:
+        st.subheader("Job history")
     query = JobQuery(limit=50, newest_first=True)
     rows = []
     for record in repository.query(query):

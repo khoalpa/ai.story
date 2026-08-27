@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple
 
 from audio.bgm_config_utils import BgmRuntimeConfig
-from audio.pipeline.flow_state import EnvironmentFlowState, VoiceFlowState, default_rate_for_voice as _default_rate_for_voice
+from audio.pipeline.flow_state import EnvironmentFlowState, VoiceFlowState
+from audio.pipeline.flow_state import default_rate_for_voice as _default_rate_for_voice
 
 VoiceTag = Literal["narrator", "female", "male"]
 

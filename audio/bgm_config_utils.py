@@ -14,8 +14,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from audio.bgm_config_schema import BGM_ZONE_KEYS, load_bgm_config_schema, normalize_env_key
-from audio.exceptions import BgmConfigError
+from audio.bgm_config_schema import (
+    BGM_ZONE_KEYS,
+    load_bgm_config_schema,
+    normalize_env_key,
+)
 from audio.logging_utils import get_logger
 
 logger = get_logger(__name__)

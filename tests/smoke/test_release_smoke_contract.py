@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -14,20 +13,25 @@ def test_release_smoke_covers_installed_wheel_and_gui_entrypoints() -> None:
     assert 'pip", "show", "ai-studio"' in content
 
 
-def test_requirements_are_consolidated() -> None:
+def test_runtime_and_development_requirements_are_separated() -> None:
     root = ROOT
     assert (root / "requirements.txt").exists()
     assert not (root / "requirements-core.txt").exists()
     assert not (root / "requirements-gui.txt").exists()
     assert not (root / "requirements-test.txt").exists()
-    assert not (root / "requirements-dev.txt").exists()
+    assert (root / "requirements-dev.txt").exists()
 
     requirements = (root / "requirements.txt").read_text(encoding="utf-8").lower()
 
     assert "edge-tts" in requirements
     assert "streamlit" in requirements
-    assert "pytest" in requirements
-    assert "wheel" in requirements
+    assert "pytest" not in requirements
+    assert "wheel" not in requirements
+
+    development = (root / "requirements-dev.txt").read_text(encoding="utf-8").lower()
+    assert "-r requirements.txt" in development
+    assert "pytest" in development
+    assert "wheel" in development
 
 
 def test_release_smoke_uses_timeouts_and_offline_friendly_env() -> None:

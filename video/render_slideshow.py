@@ -6,6 +6,10 @@ from typing import Callable, Optional
 
 from video import config
 from video.command_builders import build_slideshow_ffmpeg_cmd
+from video.environment_overlays import (
+    build_environment_filter_chain,
+    build_environment_segments,
+)
 from video.ffmpeg_runner import (
     ensure_output_dir,
     ffmpeg_base_args,
@@ -17,12 +21,13 @@ from video.runtime_tools import is_available_tool
 from video.slideshow_concat import (
     append_outro_segment,
     build_slideshow_segments,
-    estimate_slideshow_duration as estimate_slideshow_duration_core,
     prepend_cover_segment,
+    write_timeline_concat_list,
+)
+from video.slideshow_concat import (
+    estimate_slideshow_duration as estimate_slideshow_duration_core,
 )
 from video.slideshow_concat import write_concat_list as write_concat_list_core
-from video.slideshow_concat import write_timeline_concat_list
-from video.zone_timeline import build_zone_segments, estimate_zone_duration
 from video.subtitle_filters import build_vf_filter
 from video.validation import (
     collect_scene_images,
@@ -30,6 +35,7 @@ from video.validation import (
     resolve_slideshow_outro,
     validate_slideshow_inputs,
 )
+from video.zone_timeline import build_zone_segments, estimate_zone_duration
 
 logger = get_logger(__name__)
 
@@ -78,6 +84,11 @@ def make_slideshow_video(
     subtitle: Optional[Path] = None,
     story_json: Optional[Path] = None,
     zone_aware: bool = False,
+    environment_overlays: bool = True,
+    environment_overlay_intensity: str = "normal",
+    environment_overlay_fade: float = 0.6,
+    environment_allow_lens_effects: bool = True,
+    environment_global_film_grain: float = 0.0,
     progress_callback: Optional[Callable[[float, str], None]] = None,
 ) -> None:
     images = validate_slideshow_inputs(audio, scenes_dir)
@@ -112,11 +123,33 @@ def make_slideshow_video(
                 "Slideshow zone mode: mapped images by opening/zone/outro before rendering."
             )
 
-    vf_filter = build_vf_filter(
-        aspect,
-        subtitle,
-        pre_subtitle_fps=config.DEFAULT_FPS,
-    )
+    def video_filter(expected_duration: float) -> str:
+        atmosphere_filters: list[str] = []
+        if environment_overlays and story_json is not None and subtitle is not None:
+            environment_segments = build_environment_segments(
+                timeline_json=story_json,
+                subtitle=subtitle,
+                suppress_before=cover_duration if slideshow_cover is not None else 0.0,
+                suppress_after=(
+                    max(0.0, expected_duration - outro_duration)
+                    if slideshow_outro is not None else None
+                ),
+            )
+            atmosphere_filters = build_environment_filter_chain(
+                environment_segments,
+                intensity=environment_overlay_intensity,
+                fade_seconds=environment_overlay_fade,
+                allow_lens_effects=environment_allow_lens_effects,
+                global_film_grain=environment_global_film_grain,
+                width=config.get_output_resolution(aspect)[0],
+                height=config.get_output_resolution(aspect)[1],
+            )
+        return build_vf_filter(
+            aspect,
+            subtitle,
+            pre_subtitle_fps=config.DEFAULT_FPS,
+            pre_subtitle_filters=atmosphere_filters,
+        )
     if zone_aware:
         if story_json is None:
             raise ValueError("Zone-aware slideshow requires a story.json file.")
@@ -131,10 +164,17 @@ def make_slideshow_video(
         segments = prepend_cover_segment(segments, slideshow_cover, cover_duration)
         segments = append_outro_segment(segments, slideshow_outro, outro_duration)
         expected_out = estimate_zone_duration(segments)
+        vf_filter = video_filter(expected_out)
         tmp_list_path: Optional[Path] = None
+        tmp_filter_path: Optional[Path] = None
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".ffconcat") as tmp:
                 tmp_list_path = Path(tmp.name)
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, suffix=".fffilter", encoding="utf-8"
+            ) as tmp_filter:
+                tmp_filter.write(vf_filter)
+                tmp_filter_path = Path(tmp_filter.name)
             write_timeline_concat_list(segments, tmp_list_path)
             force_key_frames = ",".join(f"{segment.start:.3f}" for segment in segments)
             cmd = build_slideshow_ffmpeg_cmd(
@@ -143,6 +183,7 @@ def make_slideshow_video(
                 audio=audio,
                 output=output,
                 vf_filter=vf_filter,
+                vf_filter_script=tmp_filter_path,
                 video_codec=config.DEFAULT_VIDEO_CODEC,
                 preset=config.DEFAULT_PRESET,
                 crf=config.DEFAULT_CRF,
@@ -169,6 +210,11 @@ def make_slideshow_video(
                         tmp_list_path.unlink(missing_ok=True)
                     except OSError:
                         pass
+            if tmp_filter_path is not None:
+                try:
+                    tmp_filter_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
         return
 
     ffprobe_exe = config.get_ffprobe_exe()
@@ -190,10 +236,17 @@ def make_slideshow_video(
     segments = prepend_cover_segment(segments, slideshow_cover, cover_duration)
     segments = append_outro_segment(segments, slideshow_outro, outro_duration)
     expected_out = estimate_zone_duration(segments)
+    vf_filter = video_filter(expected_out)
     tmp_list_path: Optional[Path] = None
+    tmp_filter_path: Optional[Path] = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".ffconcat") as tmp:
             tmp_list_path = Path(tmp.name)
+        with tempfile.NamedTemporaryFile(
+            mode="w", delete=False, suffix=".fffilter", encoding="utf-8"
+        ) as tmp_filter:
+            tmp_filter.write(vf_filter)
+            tmp_filter_path = Path(tmp_filter.name)
         write_timeline_concat_list(segments, tmp_list_path)
         cmd = build_slideshow_ffmpeg_cmd(
             ffmpeg_base=ffmpeg_base_args(),
@@ -201,6 +254,7 @@ def make_slideshow_video(
             audio=audio,
             output=output,
             vf_filter=vf_filter,
+            vf_filter_script=tmp_filter_path,
             video_codec=config.DEFAULT_VIDEO_CODEC,
             preset=config.DEFAULT_PRESET,
             crf=config.DEFAULT_CRF,
@@ -227,3 +281,8 @@ def make_slideshow_video(
                     tmp_list_path.unlink(missing_ok=True)
                 except OSError:
                     pass
+        if tmp_filter_path is not None:
+            try:
+                tmp_filter_path.unlink(missing_ok=True)
+            except OSError:
+                pass

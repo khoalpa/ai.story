@@ -6,21 +6,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from audio.env_runtime import bootstrap_vieneu_runtime
-from audio.exceptions import (
-    AssetProfileError,
-    AudioStoryError,
-    DependencyError,
-    FfmpegDependencyError,
-    RuntimePathError,
-    TtsDependencyError,
-    TtsNetworkError,
-    UnsupportedTtsProviderError,
-)
-from audio.render_audio_app import run_render_audio_app, validate_only_script
-from audio.render_job_repository import JobRepository
-from audio.pipeline.segment_planner import Segment
-from audio.tts_provider import TTS_PROVIDER_EDGE, TTS_PROVIDER_VIENEU, normalize_tts_provider
 from audio.adapters.edge_tts import tts_segment_to_file
 from audio.adapters.tts_core import (
     DEFAULT_VIENEU_API_BASE,
@@ -29,13 +14,31 @@ from audio.adapters.tts_core import (
     clear_vieneu_runtime_caches,
     list_vieneu_preset_voices,
     normalize_vieneu_mode,
+    resolve_vieneu_effective_mode,
     resolve_vieneu_model_for_runtime,
     resolve_vieneu_model_name,
-    resolve_vieneu_runtime_device,
     resolve_vieneu_runtime_backend,
-    resolve_vieneu_effective_mode,
+    resolve_vieneu_runtime_device,
     synthesize_segment_with_vieneu,
     validate_vieneu_mode_model_compatibility,
+)
+from audio.env_runtime import bootstrap_vieneu_runtime
+from audio.exceptions import (
+    AssetProfileError,
+    DependencyError,
+    FfmpegDependencyError,
+    RuntimePathError,
+    TtsDependencyError,
+    TtsNetworkError,
+    UnsupportedTtsProviderError,
+)
+from audio.pipeline.segment_planner import Segment
+from audio.render_audio_app import run_render_audio_app, validate_only_script
+from audio.render_job_repository import JobRepository
+from audio.tts_provider import (
+    TTS_PROVIDER_EDGE,
+    TTS_PROVIDER_VIENEU,
+    normalize_tts_provider,
 )
 from audio.voice_catalog import get_voice_choices
 
@@ -79,7 +82,7 @@ def summarize_audio_job(result) -> dict[str, Any]:
     return summarize_result(result)
 
 
-def validate_plain_text(plain_text: str) -> tuple[int, tuple[str, ...], tuple[str, ...]]:
+def validate_plain_text(plain_text: str) -> tuple[int, tuple[str, ...], int]:
     with tempfile.TemporaryDirectory(prefix="render_audio_validate_") as tmp:
         tmp_path = Path(tmp) / "story.txt"
         tmp_path.write_text(plain_text, encoding="utf-8")
@@ -87,13 +90,11 @@ def validate_plain_text(plain_text: str) -> tuple[int, tuple[str, ...], tuple[st
 
         if isinstance(result, tuple):
             if len(result) == 3:
-                a, b, c = result
-                if isinstance(c, int):
-                    return c, tuple(b or ()), ()
-                return a, tuple(b or ()), tuple(c or ())
+                exit_code, errors, warnings_count = result
+                return int(exit_code), tuple(errors or ()), int(warnings_count or 0)
             raise ValueError(f"Unexpected validation result tuple shape: {result!r}")
 
-        return result.exit_code, tuple(result.errors), tuple(getattr(result, "warnings", ()))
+        return result.exit_code, tuple(result.errors), len(getattr(result, "warnings", ()))
 
 
 def normalize_vieneu_core(value: object) -> str:

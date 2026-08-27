@@ -706,6 +706,7 @@ def test_vieneu_render_uses_configured_concurrency(monkeypatch) -> None:
         vieneu_model_name="model",
         vieneu_device="cpu",
         max_concurrent_tts=2,
+        cache_enabled=False,
     )
 
     import asyncio
@@ -713,6 +714,63 @@ def test_vieneu_render_uses_configured_concurrency(monkeypatch) -> None:
     asyncio.run(tts_render.render_tts_segments_async([object(), object(), object()], config))
 
     assert max_active == 2
+
+
+def test_provider_aware_concurrency_limits_local_vieneu_gpu() -> None:
+    tts_render = importlib.import_module("audio.services.tts_render")
+
+    assert tts_render.resolve_tts_concurrency("edge", 16) == 16
+    assert tts_render.resolve_tts_concurrency("vieneu", 8, vieneu_device="cuda") == 2
+    assert tts_render.resolve_tts_concurrency("vieneu", 8, vieneu_device="cpu") == 4
+    assert tts_render.resolve_tts_concurrency(
+        "vieneu", 8, vieneu_device="cuda", vieneu_use_batch=True
+    ) == 1
+
+
+def test_vieneu_runtime_event_reports_effective_batch_settings(monkeypatch, tmp_path) -> None:
+    tts_render = importlib.import_module("audio.services.tts_render")
+    segment_planner = importlib.import_module("audio.pipeline.segment_planner")
+
+    class FakeEngine:
+        def get_preset_voice(self, voice_id: str) -> dict[str, str]:
+            return {"voice_id": voice_id}
+
+        def infer_batch(self, texts, voice=None, **_kwargs):  # noqa: ANN001, ANN003
+            return [f"audio:{text}" for text in texts]
+
+        def save(self, audio, out_wav):  # noqa: ANN001
+            out_wav.write_text(str(audio), encoding="utf-8")
+
+    monkeypatch.setattr(tts_render, "get_vieneu_engine", lambda **_kwargs: FakeEngine())
+    monkeypatch.setattr(tts_render, "resolve_vieneu_model_for_runtime", lambda value, *_args, **_kwargs: str(value))
+    monkeypatch.setattr(tts_render, "resolve_vieneu_model_name", lambda value, _mode: str(value))
+    events = []
+    config = tts_render.TtsRenderConfig(
+        wav_dir=tmp_path,
+        voice_map_vi={"narrator": "narrator"},
+        voice_map_en={"narrator": "narrator"},
+        abbr_map={},
+        tts_provider="vieneu",
+        vieneu_mode="standard",
+        vieneu_model_name="model",
+        vieneu_device="cuda",
+        vieneu_render_use_batch=True,
+        vieneu_render_max_batch_size_run=4,
+        max_concurrent_tts=8,
+        event_sink=events.append,
+        cache_enabled=False,
+    )
+    segments = [segment_planner.Segment(text="one", voice="narrator", rate="0%", lang="vi", lang_from_tag=True)]
+
+    import asyncio
+
+    asyncio.run(tts_render.render_tts_segments_async(segments, config))
+
+    runtime_event = next(event for event in events if event.name == "render.tts.runtime.resolved")
+    assert runtime_event.payload["requested_concurrency"] == 8
+    assert runtime_event.payload["effective_concurrency"] == 1
+    assert runtime_event.payload["batch_enabled"] is True
+    assert runtime_event.payload["batch_size"] == 1
 
 
 def test_vieneu_render_uses_infer_batch_when_enabled(monkeypatch, tmp_path) -> None:
@@ -758,6 +816,7 @@ def test_vieneu_render_uses_infer_batch_when_enabled(monkeypatch, tmp_path) -> N
         vieneu_device="cpu",
         vieneu_render_use_batch=True,
         vieneu_render_max_batch_size_run=2,
+        cache_enabled=False,
     )
 
     import asyncio

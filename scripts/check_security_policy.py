@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import ast
 import re
-import sys
 from pathlib import Path
 from urllib.parse import urlparse
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOTS = ("audio", "studio", "video", "scripts")

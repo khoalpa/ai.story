@@ -15,8 +15,21 @@ from .tabs import (
     render_run_tab,
     render_test_tab,
 )
+from .view_registry import (
+    VIDEO_VIEW_BY_ID,
+    VIDEO_VIEW_IDS,
+    VIDEO_VIEW_SPECS,
+    normalize_video_view_id,
+)
 
-_VIDEO_VIEWS = ["Inputs", "Run", "Doctor", "Test", "Preview & Logs", "History"]
+_VIDEO_RENDERERS = {
+    "inputs": render_inputs_tab,
+    "run": render_run_tab,
+    "doctor": render_doctor_tab,
+    "test": render_test_tab,
+    "results_logs": render_preview_logs_tab,
+    "history": render_history_tab,
+}
 
 
 def render_video_main_panel(settings: dict[str, object], *, embedded: bool = False) -> None:
@@ -34,47 +47,25 @@ def _render_embedded_video_panel(settings: dict[str, object]) -> None:
     prepare_embedded_view_selection(
         app_name="Video",
         widget_key="video_embedded_view_selector",
-        options=_VIDEO_VIEWS,
-        default="Inputs",
+        options=list(VIDEO_VIEW_IDS),
+        default="inputs",
+        normalize=normalize_video_view_id,
     )
 
     selected_view = st.radio(
-        "Video view",
-        options=_VIDEO_VIEWS,
+        "Video Studio",
+        options=VIDEO_VIEW_IDS,
         key="video_embedded_view_selector",
         horizontal=True,
+        format_func=lambda view_id: VIDEO_VIEW_BY_ID[view_id].label,
     )
     sync_embedded_view_selection(app_name="Video", widget_value=selected_view)
 
-    if selected_view == "Inputs":
-        render_inputs_tab(settings)
-        return
-    if selected_view == "Run":
-        render_run_tab(settings)
-        return
-    if selected_view == "Doctor":
-        render_doctor_tab(settings)
-        return
-    if selected_view == "Test":
-        render_test_tab(settings)
-        return
-    if selected_view == "History":
-        render_history_tab(settings)
-        return
-    render_preview_logs_tab(settings)
+    _VIDEO_RENDERERS[selected_view](settings)
 
 
 def _render_tabbed_video_panel(settings: dict[str, object]) -> None:
-    tab_inputs, tab_run, tab_doctor, tab_test, tab_preview, tab_history = st.tabs(_VIDEO_VIEWS)
-    with tab_inputs:
-        render_inputs_tab(settings)
-    with tab_run:
-        render_run_tab(settings)
-    with tab_doctor:
-        render_doctor_tab(settings)
-    with tab_test:
-        render_test_tab(settings)
-    with tab_preview:
-        render_preview_logs_tab(settings)
-    with tab_history:
-        render_history_tab(settings)
+    tabs = st.tabs([spec.label for spec in VIDEO_VIEW_SPECS])
+    for tab, spec in zip(tabs, VIDEO_VIEW_SPECS):
+        with tab:
+            _VIDEO_RENDERERS[spec.id](settings)

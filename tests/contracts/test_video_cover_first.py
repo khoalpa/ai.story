@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from video.slideshow_concat import build_slideshow_segments, prepend_cover_segment
-from video.zone_timeline import ZoneSegment, estimate_zone_duration
 from video.validation import build_zone_slideshow_images
+from video.zone_timeline import ZoneSegment, estimate_zone_duration
 
 
 def test_cover_replaces_start_of_regular_slideshow_without_extending_it(tmp_path: Path) -> None:

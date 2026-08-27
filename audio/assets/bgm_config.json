@@ -67,7 +67,7 @@
     }
   },
   "env_ambience_map": {
-    "cafe": {
+    "cafe_soft": {
       "file": "cafe_soft.mp3",
       "gain_db": -24,
       "loop": true
@@ -77,8 +77,73 @@
       "gain_db": -24,
       "loop": true
     },
-    "hospital_room": {
-      "file": "hospital_room.mp3",
+    "garden_morning": {
+      "file": "garden_morning.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "bedroom_warm": {
+      "file": "bedroom_warm.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "office_evening": {
+      "file": "office_evening.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "apartment_night": {
+      "file": "apartment_night.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "train_night": {
+      "file": "train_night.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "sea_wind_soft": {
+      "file": "sea_wind_soft.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "hospital_corridor_soft": {
+      "file": "hospital_corridor_soft.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "old_house_ambience": {
+      "file": "old_house_ambience.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "library_soft": {
+      "file": "library_soft.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "radio_studio_soft": {
+      "file": "radio_studio_soft.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "kitchen_evening": {
+      "file": "kitchen_evening.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "street_after_rain": {
+      "file": "street_after_rain.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "rooftop_wind_soft": {
+      "file": "rooftop_wind_soft.mp3",
+      "gain_db": -24,
+      "loop": true
+    },
+    "river_soft": {
+      "file": "river_soft.mp3",
       "gain_db": -24,
       "loop": true
     },
@@ -87,7 +152,7 @@
       "gain_db": -24,
       "loop": true
     },
-    "rain": {
+    "rain_soft": {
       "file": "rain_soft.mp3",
       "gain_db": -24,
       "loop": true

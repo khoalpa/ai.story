@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.check_security_policy import check_repository, check_subprocess_ast, check_text
+from scripts.check_security_policy import (
+    check_repository,
+    check_subprocess_ast,
+    check_text,
+)
 
 
 def test_repository_passes_security_policy() -> None:

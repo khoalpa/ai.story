@@ -8,7 +8,8 @@ import subprocess
 import sys
 import tempfile
 import unicodedata
-from importlib.metadata import PackageNotFoundError, version as pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from json import JSONDecodeError
 from pathlib import Path
 from typing import Callable, Dict, Optional
@@ -276,6 +277,8 @@ async def render_tts_all(
     auto_en_lines: bool,
     max_concurrent_tts: int,
     progress_callback: Optional[Callable[[int, int], None]] = None,
+    output_indices: Optional[list[int]] = None,
+    segment_completed_callback: Optional[Callable[[int, Path], None]] = None,
 ) -> None:
     total = len(segments)
     if total <= 0:
@@ -298,8 +301,13 @@ async def render_tts_all(
 
     _report_progress(0)
 
-    async def process_one(idx: int, seg: Segment) -> None:
+    resolved_indices = output_indices if output_indices is not None else list(range(total))
+    if len(resolved_indices) != total:
+        raise ValueError("output_indices length must match segments length")
+
+    async def process_one(local_idx: int, seg: Segment) -> None:
         nonlocal done
+        idx = resolved_indices[local_idx]
         out_wav = wav_dir / f"seg_{idx:03d}.wav"
         async with sem:
             try:
@@ -316,6 +324,8 @@ async def render_tts_all(
                     pass
                 logger.error("TTS failed at segment %s: %s", idx + 1, e)
                 raise
+        if segment_completed_callback:
+            segment_completed_callback(idx, out_wav)
         async with progress_lock:
             done += 1
             _report_progress(done)

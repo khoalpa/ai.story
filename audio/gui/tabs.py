@@ -4,16 +4,25 @@ from pathlib import Path
 
 import streamlit as st
 
-from audio.gui.service import _resolve_vieneu_device_for_runtime, describe_vieneu_cuda_turbo_path, resolve_vieneu_runtime_mode
-from audio.render_job_repository import JobRepository
-from audio.runtime_checks import collect_runtime_diagnostics_for_settings, runtime_diagnostics_to_lines
 from audio.gui.diagnostics_blocks import render_runtime_diagnostics_block
+from audio.gui.service import (
+    _resolve_vieneu_device_for_runtime,
+    describe_vieneu_cuda_turbo_path,
+    resolve_vieneu_runtime_mode,
+)
+from audio.render_job_repository import JobRepository
+from audio.runtime_checks import (
+    collect_runtime_diagnostics_for_settings,
+    runtime_diagnostics_to_lines,
+)
 
 from .batch import render_batch_tab as _render_batch_tab
 from .constants import DEFAULT_STORE_PATH
 from .history import render_run_history
 from .run_panel import render_input_tab as _render_input_tab
-from .run_panel import render_preview_tab, render_run_tab as _render_run_tab, render_test_tts_tab as _render_test_tts_tab
+from .run_panel import render_preview_tab
+from .run_panel import render_run_tab as _render_run_tab
+from .run_panel import render_test_tts_tab as _render_test_tts_tab
 
 
 def _build_repository(settings: dict) -> JobRepository:
@@ -24,28 +33,42 @@ def _build_repository(settings: dict) -> JobRepository:
 
 def render_input_tab(settings: dict) -> None:
     del settings
+    st.subheader("Inputs")
+    st.caption("Prepare and review the script used by Audio.")
     _render_input_tab()
 
 
 def render_run_tab(settings: dict) -> None:
+    st.subheader("Run")
+    st.caption("Validate and render the current Audio job.")
     repository = _build_repository(settings)
     _render_run_tab(settings, repository)
 
 
 def render_test_tts_tab(settings: dict) -> None:
+    st.subheader("Test")
+    st.caption("Preview the selected TTS provider and voice before a full run.")
     _render_test_tts_tab(settings)
 
 
 def render_preview_logs_tab(settings: dict) -> None:
-    repository = _build_repository(settings)
+    del settings
+    st.subheader("Results & Logs")
+    st.caption("Inspect the latest Audio output, preview, and event log.")
     render_preview_tab()
-    st.divider()
-    render_run_history(repository)
 
 
 def render_batch_tab(settings: dict) -> None:
+    st.subheader("Batch")
+    st.caption("Run manifests and retry eligible Audio jobs.")
     repository = _build_repository(settings)
     _render_batch_tab(settings, repository)
+
+
+def render_history_tab(settings: dict) -> None:
+    st.subheader("History")
+    st.caption("Review completed and failed Audio jobs.")
+    render_run_history(_build_repository(settings), show_heading=False)
 
 
 def _doctor_asset_rows(settings: dict) -> list[dict[str, str]]:
@@ -69,7 +92,8 @@ def _doctor_asset_rows(settings: dict) -> list[dict[str, str]]:
 
 
 def render_doctor_tab(settings: dict) -> None:
-    st.subheader("Audio doctor")
+    st.subheader("Doctor")
+    st.caption("Check Audio runtime, provider, asset, and configuration readiness.")
     diagnostics = collect_runtime_diagnostics_for_settings(
         str(settings.get("ffmpeg_exe") or ""),
         str(settings.get("ffprobe_exe") or ""),

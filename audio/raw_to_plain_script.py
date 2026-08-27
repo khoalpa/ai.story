@@ -5,7 +5,10 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
-from audio.audio_story_spec import CANONICAL_CONTRACT_VERSION, PLAIN_SCRIPT_FORMAT_VERSION
+from audio.audio_story_spec import (
+    CANONICAL_CONTRACT_VERSION,
+    PLAIN_SCRIPT_FORMAT_VERSION,
+)
 from audio.cli_utils import UsedFilesTracker, setup_stdio
 
 

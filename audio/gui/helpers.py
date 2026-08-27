@@ -3,30 +3,34 @@ from __future__ import annotations
 import io
 import json
 import shutil
-import zipfile
 import time
-from json import JSONDecodeError
+import zipfile
 from dataclasses import asdict, is_dataclass
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Optional
 
 from audio.app_config import AppConfig
 from audio.asset_profile_utils import normalize_profile_root
-from audio.profile_config import ProfileConfig
-from .config_bundle import GuiConfigBundle
 from audio.audio_story_spec import (
     normalize_canonical_authoring_zones,
     render_plain_script,
     validate_canonical_authoring,
 )
-from audio.raw_to_plain_script import build_min_header, has_script_marker, normalize_raw_lines
-from audio.render_audio_app import RenderAudioAppRequest, RenderAudioAppResult
-from audio.validate_plain_script import looks_like_body_only_script
-from audio.render_events import RenderEvent
-
-from .constants import DEFAULT_DOWNLOAD_NAME, PHASE_LABELS, PHASE_ORDER
 from audio.gui.progress_details import format_duration
 from audio.gui.runtime_usage import render_runtime_usage_compact
+from audio.profile_config import ProfileConfig
+from audio.raw_to_plain_script import (
+    build_min_header,
+    has_script_marker,
+    normalize_raw_lines,
+)
+from audio.render_audio_app import RenderAudioAppRequest, RenderAudioAppResult
+from audio.render_events import RenderEvent
+from audio.validate_plain_script import looks_like_body_only_script
+
+from .config_bundle import GuiConfigBundle
+from .constants import DEFAULT_DOWNLOAD_NAME, PHASE_LABELS, PHASE_ORDER
 
 
 def find_binary(name: str) -> str:
@@ -72,6 +76,16 @@ def read_profile_bgm_config(profile_root: str, asset_profile: str) -> str:
 
 
 def convert_canonical_to_plain_text(canonical_text: str) -> str:
+    data = _load_canonical_authoring(canonical_text)
+    return render_plain_script(data)
+
+
+def convert_canonical_to_raw_text(canonical_text: str) -> str:
+    data = _load_canonical_authoring(canonical_text)
+    return "\n".join(str(item["text"]).strip() for item in data["script"])
+
+
+def _load_canonical_authoring(canonical_text: str) -> dict:
     try:
         data = json.loads(canonical_text)
     except json.JSONDecodeError as exc:
@@ -81,7 +95,7 @@ def convert_canonical_to_plain_text(canonical_text: str) -> str:
     errors = validate_canonical_authoring(data)
     if errors:
         raise ValueError("Canonical authoring is invalid:\n- " + "\n- ".join(errors))
-    return render_plain_script(data)
+    return data
 
 
 def convert_raw_to_plain_text(raw_text: str, title: str, default_voice: str, default_lang: str, include_header: bool) -> str:
@@ -166,6 +180,13 @@ class ProgressCollector:
                 self.status_slot.error("Validation failed")
             else:
                 self.status_slot.success("Validation passed")
+        elif event.name == "render.provider.fallback":
+            provider = str(payload.get("provider") or "TTS")
+            from_mode = str(payload.get("from_mode") or "batch")
+            to_mode = str(payload.get("to_mode") or "per-segment")
+            self.status_slot.warning(
+                f"{provider} {from_mode} failed; continuing with {to_mode} rendering."
+            )
 
         if len(self.events) <= 50:
             self.log_slot.code(json.dumps(self.events[-min(12, len(self.events)):], ensure_ascii=False, indent=2), language="json")
@@ -288,6 +309,8 @@ class ProgressCollector:
         detail = ""
         if meta.get("unit") == "segments" and meta.get("total") not in (None, "", 0):
             detail = f" - {int(meta.get('completed', 0))}/{int(meta.get('total', 0))} segments"
+            if meta.get("actual_audio_seconds") is not None:
+                detail += f" - voice generated {self._format_hms(float(meta.get('actual_audio_seconds') or 0))}"
         elif meta.get("stage") == "segments" and meta.get("total") not in (None, "", 0):
             detail = f" - {int(meta.get('completed', 0))}/{int(meta.get('total', 0))} segments"
         elif meta.get("total_seconds") not in (None, "", 0):

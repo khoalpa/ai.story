@@ -4,7 +4,6 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-
 CACHE_DIR_NAMES = {
     "__pycache__",
     ".pytest_cache",

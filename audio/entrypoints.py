@@ -11,7 +11,6 @@ from audio.doctor import main as doctor_main
 from audio.make_audio_edge_tts import main as render_audio_main
 from audio.render_cli_adapter import build_render_audio_arg_parser
 
-
 CommandHandler = Callable[[Sequence[str] | None], None]
 ParserFactory = Callable[[], argparse.ArgumentParser]
 

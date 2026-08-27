@@ -5,6 +5,7 @@ import io
 import json
 import os
 import tempfile
+import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -25,13 +26,24 @@ def render_video_studio(*args: Any, **kwargs: Any) -> None:
 from video import config
 from video.config import get_ffmpeg_exe, get_ffprobe_exe
 from video.encoding_profiles import PROFILE_AUTO, resolve_encoding_profile
-from video.error_handling import USER_FACING_EXCEPTIONS
 from video.ffmpeg_runner import ensure_tools, get_media_duration_seconds
+from video.handoff import read_audio_handoff
 from video.logging_utils import get_logger
+from video.media_quality import (
+    prepare_audio_for_video,
+    prepare_subtitle_for_video,
+    write_video_quality_report,
+)
 from video.render_slideshow import make_slideshow_video
 from video.render_static import make_static_video
+from video.result_manifest import write_result_manifest
 from video.run_history import append_run_history, write_run_log
 from video.runtime_tools import format_runtime_diagnostics
+from video.slideshow_concat import (
+    append_outro_segment,
+    build_slideshow_segments,
+    prepend_cover_segment,
+)
 from video.validation import (
     autodetect_subtitle_from_audio,
     inspect_video_image_readiness,
@@ -39,17 +51,14 @@ from video.validation import (
     resolve_slideshow_outro,
     validate_slideshow_inputs,
 )
-from video.handoff import read_audio_handoff
-from video.result_manifest import write_result_manifest
-from video.media_quality import prepare_audio_for_video, prepare_subtitle_for_video, write_video_quality_report
 from video.zone_timeline import build_zone_segments
-from video.slideshow_concat import (
-    append_outro_segment,
-    build_slideshow_segments,
-    prepend_cover_segment,
-)
 
 logger = get_logger(__name__)
+
+# Rendering temporarily overrides process-wide environment variables, module
+# configuration, and stdout/stderr. Keep that legacy boundary serialized until
+# those dependencies can accept an immutable per-render configuration object.
+_RENDER_LOCK = threading.RLock()
 
 
 class VideoQualityGateError(RuntimeError):
@@ -108,15 +117,16 @@ class RenderVideoRequest:
     subtitle_font: Optional[str] = None
     subtitle_font_size: Optional[int] = None
     subtitle_text_color: Optional[str] = None
+    subtitle_text_opacity: Optional[int] = None
     subtitle_outline: Optional[int] = None
     subtitle_shadow: Optional[int] = None
     subtitle_background_color: Optional[str] = None
     subtitle_background_opacity: Optional[int] = None
     subtitle_position: Optional[str] = None
     subtitle_alignment: Optional[int] = None
-    subtitle_margin_l: Optional[int] = None
-    subtitle_margin_r: Optional[int] = None
-    subtitle_margin_v: Optional[int] = None
+    subtitle_margin_l: Optional[float] = None
+    subtitle_margin_r: Optional[float] = None
+    subtitle_margin_v: Optional[float] = None
     subtitle_force_style: Optional[str] = None
     ffmpeg_loglevel: Optional[str] = None
     ffmpeg_stream_log: Optional[bool] = None
@@ -129,6 +139,12 @@ class RenderVideoRequest:
     render_video_history_file: Optional[str] = None
     audio_handoff: Optional[Path] = None
     audio_quality_report: Optional[Path] = None
+    show_subtitles: bool = True
+    environment_overlays: bool = True
+    environment_overlay_intensity: str = "normal"
+    environment_overlay_fade: float = 0.6
+    environment_allow_lens_effects: bool = True
+    environment_global_film_grain: float = 0.0
 
 
 @contextlib.contextmanager
@@ -168,6 +184,7 @@ def _render_runtime_overrides(request: RenderVideoRequest):
         "SUB_FONT": _optional_env_value(request.subtitle_font),
         "SUB_FONT_SIZE": _optional_env_value(request.subtitle_font_size),
         "SUB_TEXT_COLOR": _optional_env_value(request.subtitle_text_color),
+        "SUB_TEXT_OPACITY": _optional_env_value(request.subtitle_text_opacity),
         "SUB_OUTLINE": _optional_env_value(request.subtitle_outline),
         "SUB_SHADOW": _optional_env_value(request.subtitle_shadow),
         "SUB_BACKGROUND_COLOR": _optional_env_value(request.subtitle_background_color),
@@ -252,7 +269,13 @@ def validate_render_request(request: RenderVideoRequest) -> None:
             raise ValueError("Zone-aware slideshow needs a story.json file.")
         if request.subtitle is None:
             raise ValueError("Zone-aware slideshow needs a subtitle .srt file.")
-        
+    if request.environment_overlay_intensity not in {"subtle", "normal", "cinematic"}:
+        raise ValueError("environment_overlay_intensity must be subtle, normal, or cinematic.")
+    if request.environment_overlay_fade < 0:
+        raise ValueError("environment_overlay_fade must be >= 0.")
+    if request.environment_global_film_grain < 0:
+        raise ValueError("environment_global_film_grain must be >= 0.")
+
 
 def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], dict[str, Optional[Path]]]:
     audio_bundle = read_audio_handoff(Path(args.audio_handoff)) if getattr(args, "audio_handoff", None) else None
@@ -286,6 +309,7 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         loudness_profile=getattr(args, "loudness_profile", "narration"),
         quality_gate=bool(getattr(args, "quality_gate", True)),
         subtitle=subtitle_path,
+        show_subtitles=bool(getattr(args, "show_subtitles", True)),
         story_json=story_json_path,
         cover=resolved_cover,
         scenes_dir=resolved_scenes_dir,
@@ -294,6 +318,11 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         outro_last=bool(getattr(args, "outro_last", True)),
         outro_duration=float(getattr(args, "outro_duration", 5.0)),
         zone_aware_slideshow=bool(getattr(args, "zone_aware_slideshow", False)),
+        environment_overlays=bool(getattr(args, "environment_overlays", True)),
+        environment_overlay_intensity=str(getattr(args, "environment_overlay_intensity", "normal")),
+        environment_overlay_fade=float(getattr(args, "environment_overlay_fade", 0.6)),
+        environment_allow_lens_effects=bool(getattr(args, "environment_allow_lens_effects", True)),
+        environment_global_film_grain=float(getattr(args, "environment_global_film_grain", 0.0)),
         audio_handoff=Path(args.audio_handoff) if getattr(args, "audio_handoff", None) else None,
         audio_quality_report=audio_bundle.quality_report if audio_bundle else None,
     )
@@ -302,7 +331,7 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
 
 
 
-def execute_render_request(
+def _execute_render_request_unlocked(
     request: RenderVideoRequest,
     progress_callback=None,
 ) -> dict[str, str]:
@@ -310,6 +339,9 @@ def execute_render_request(
     stdout_buffer = io.StringIO()
     stderr_buffer = io.StringIO()
     status = "ok"
+    primary_error: BaseException | None = None
+    result_manifest: Path | None = None
+    quality_report: Path | None = None
     validate_render_request(request)
     effective_cover = (
         resolve_slideshow_cover(
@@ -370,8 +402,9 @@ def execute_render_request(
                         source_quality = json.loads(source_quality_report.read_text(encoding="utf-8"))
                         audio_preflight["source_quality_report"] = str(source_quality_report.resolve())
                         audio_preflight["source_quality_passed"] = bool(source_quality.get("passed"))
+                    visible_subtitle = request.subtitle if request.show_subtitles else None
                     render_subtitle, subtitle_auto_wrapped = prepare_subtitle_for_video(
-                        request.subtitle,
+                        visible_subtitle,
                         Path(temp_dir) / "wrapped_subtitle.srt",
                     )
                     if request.mode == "static":
@@ -399,6 +432,11 @@ def execute_render_request(
                             subtitle=render_subtitle,
                             story_json=request.story_json,
                             zone_aware=bool(request.zone_aware_slideshow),
+                            environment_overlays=request.environment_overlays,
+                            environment_overlay_intensity=request.environment_overlay_intensity,
+                            environment_overlay_fade=request.environment_overlay_fade,
+                            environment_allow_lens_effects=request.environment_allow_lens_effects,
+                            environment_global_film_grain=request.environment_global_film_grain,
                             progress_callback=progress_callback,
                         )
                         if request.zone_aware_slideshow and request.story_json and request.subtitle and request.scenes_dir:
@@ -478,7 +516,7 @@ def execute_render_request(
                     expected_width=output_width,
                     expected_height=output_height,
                     expected_fps=config.DEFAULT_FPS,
-                    subtitle=request.subtitle,
+                    subtitle=request.subtitle if request.show_subtitles else None,
                     reference_images=reference_images,
                     audio_preflight=audio_preflight,
                     subtitle_auto_wrapped=subtitle_auto_wrapped,
@@ -503,36 +541,55 @@ def execute_render_request(
                         output_path=request.output,
                         result_manifest_path=result_manifest,
                     )
-    except VideoQualityGateError:
+    except VideoQualityGateError as exc:
         status = "quality_warning"
+        primary_error = exc
         raise
-    except USER_FACING_EXCEPTIONS + (RuntimeError, TypeError, AssertionError):
+    except BaseException as exc:
         status = "error"
+        primary_error = exc
         raise
     finally:
         result = {"stdout": stdout_buffer.getvalue(), "stderr": stderr_buffer.getvalue()}
         elapsed_seconds = round(time.perf_counter() - started_at, 3)
-        log_path = write_run_log(
-            stdout=result["stdout"], stderr=result["stderr"], output_hint=str(request.output)
-        )
-        history_path = append_run_history(
-            {
-                **asdict(request),
-                "effective_cover": str(effective_cover) if effective_cover is not None else None,
-                "effective_outro": str(effective_outro) if effective_outro is not None else None,
-                "status": status,
-                "elapsed_seconds": elapsed_seconds,
-                "log_file": str(log_path),
-            }
-        )
-        result["history_file"] = str(history_path)
-        result["log_file"] = str(log_path)
+        try:
+            # The render context has already restored its environment here, so
+            # reapply only for persistence to honor per-request history paths.
+            with _render_runtime_overrides(request):
+                log_path = write_run_log(
+                    stdout=result["stdout"], stderr=result["stderr"], output_hint=str(request.output)
+                )
+                history_path = append_run_history(
+                    {
+                        **asdict(request),
+                        "effective_cover": str(effective_cover) if effective_cover is not None else None,
+                        "effective_outro": str(effective_outro) if effective_outro is not None else None,
+                        "status": status,
+                        "elapsed_seconds": elapsed_seconds,
+                        "log_file": str(log_path),
+                    }
+                )
+            result["history_file"] = str(history_path)
+            result["log_file"] = str(log_path)
+        except Exception:
+            if primary_error is None:
+                raise
+            logger.exception("Unable to persist video render log/history")
         result["status"] = status
         result["elapsed_seconds"] = str(elapsed_seconds)
-        if status == "ok":
+        if status == "ok" and result_manifest is not None and quality_report is not None:
             result["result_manifest_path"] = str(result_manifest)
             result["quality_report_path"] = str(quality_report)
     return result
+
+
+def execute_render_request(
+    request: RenderVideoRequest,
+    progress_callback=None,
+) -> dict[str, str]:
+    """Execute one render while protecting process-wide runtime overrides."""
+    with _RENDER_LOCK:
+        return _execute_render_request_unlocked(request, progress_callback=progress_callback)
 
 
 validate_request = validate_render_request

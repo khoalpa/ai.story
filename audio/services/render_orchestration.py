@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from time import perf_counter
+
 from audio.adapters.ffmpeg_audio_mixer import FfmpegMixConfig, format_hms
-from audio.services.mix import MixRequest, mix_audio_story
+from audio.adapters.tts_core import resolve_vieneu_model_name
+from audio.adapters.wav_analysis import get_wav_duration_seconds
+from audio.pipeline.segment_planner import Segment
 from audio.render_events import (
     RenderEventSink,
     RenderPhaseCompletedEvent,
@@ -9,15 +13,46 @@ from audio.render_events import (
     emit_event,
     emit_render_event,
 )
-from audio.render_job import RenderJobArtifacts, RenderJobPaths, RuntimeContext, VoiceRuntimeMaps
+from audio.render_job import (
+    RenderJobArtifacts,
+    RenderJobPaths,
+    RuntimeContext,
+    VoiceRuntimeMaps,
+)
+from audio.services.mix import MixRequest, mix_audio_story
 from audio.services.render_script import estimate_audio_duration_seconds
-from audio.pipeline.segment_planner import Segment
 from audio.services.subtitle import write_srt_from_timeline
 from audio.services.tts_render import TtsRenderConfig, render_tts_segments
-from audio.adapters.tts_core import resolve_vieneu_model_name
 
 BGM_FADE_IN_DEFAULT = 0.6
 BGM_FADE_OUT_DEFAULT = 0.6
+
+
+class _GeneratedWavDurationTracker:
+    """Incrementally total completed segment WAVs without re-reading old files."""
+
+    def __init__(self, wav_dir, segment_count: int) -> None:
+        self.wav_dir = wav_dir
+        self.segment_count = max(0, int(segment_count))
+        self._measured: set[int] = set()
+        self.total_seconds = 0.0
+
+    def refresh(self) -> float:
+        for wav_path in self.wav_dir.glob("seg_*.wav"):
+            try:
+                index = int(wav_path.stem.removeprefix("seg_"))
+            except ValueError:
+                continue
+            if index < 0 or index >= self.segment_count:
+                continue
+            if index in self._measured:
+                continue
+            duration = get_wav_duration_seconds(wav_path)
+            if duration is None:
+                continue
+            self._measured.add(index)
+            self.total_seconds += duration
+        return self.total_seconds
 
 
 def build_mix_config(
@@ -79,16 +114,33 @@ def run_render_job(
     vieneu_backend: str = "auto",
     vieneu_render_temperature: float = 0.7,
     vieneu_render_max_chars_chunk: int = 240,
-    vieneu_render_use_batch: bool = False,
-    vieneu_render_max_batch_size_run: int = 1,
+    vieneu_render_use_batch: bool = True,
+    vieneu_render_max_batch_size_run: int = 4,
 ) -> RenderJobArtifacts:
     paths.out_dir.mkdir(parents=True, exist_ok=True)
     paths.wav_dir.mkdir(parents=True, exist_ok=True)
 
+    estimated_audio_seconds = estimate_audio_duration_seconds(segments)
+    job_started_at = perf_counter()
     emit_render_event(
         event_sink,
         RenderPhaseStartedEvent(phase="tts", details={"wav_dir": paths.wav_dir, "segment_count": len(segments)}),
     )
+    tts_started_at = perf_counter()
+    generated_duration = _GeneratedWavDurationTracker(paths.wav_dir, len(segments))
+
+    def report_tts_progress(completed: int, total: int) -> None:
+        emit_event(
+            event_sink,
+            "render.phase.progress",
+            phase="tts",
+            completed=completed,
+            total=total,
+            unit="segments",
+            percent=int(completed * 100 / max(1, total)) if total else 100,
+            actual_audio_seconds=round(generated_duration.refresh(), 3),
+        )
+
     render_tts_segments(
         segments,
         TtsRenderConfig(
@@ -110,27 +162,31 @@ def run_render_job(
             vieneu_render_use_batch=vieneu_render_use_batch,
             vieneu_render_max_batch_size_run=vieneu_render_max_batch_size_run,
             ffmpeg_exe=ffmpeg_exe,
+            event_sink=event_sink,
         ),
-        progress_callback=lambda completed, total: emit_event(
-            event_sink,
-            "render.phase.progress",
-            phase="tts",
-            completed=completed,
-            total=total,
-            unit="segments",
-            percent=int(completed * 100 / max(1, total)) if total else 100,
-        ),
+        progress_callback=report_tts_progress,
     )
 
+    tts_elapsed_seconds = perf_counter() - tts_started_at
     emit_render_event(
         event_sink,
-        RenderPhaseCompletedEvent(phase="tts", details={"wav_dir": paths.wav_dir, "segment_count": len(segments)}),
+        RenderPhaseCompletedEvent(
+            phase="tts",
+            details={
+                "wav_dir": paths.wav_dir,
+                "segment_count": len(segments),
+                "elapsed_ms": round(tts_elapsed_seconds * 1000, 3),
+                "segments_per_second": round(len(segments) / max(tts_elapsed_seconds, 1e-9), 4),
+                "realtime_factor": round(tts_elapsed_seconds / max(estimated_audio_seconds, 1e-9), 4),
+            },
+        ),
     )
 
     emit_render_event(
         event_sink,
         RenderPhaseStartedEvent(phase="mix", details={"out_file": paths.out_file, "bgm_dir": runtime_ctx.bgm_dir}),
     )
+    mix_started_at = perf_counter()
     timeline, final_out_file = mix_audio_story(
         MixRequest(
             segments=segments,
@@ -151,26 +207,47 @@ def run_render_job(
         ),
         progress_callback=lambda data: emit_event(event_sink, "render.phase.progress", phase="mix", **data),
     )
+    mix_elapsed_seconds = perf_counter() - mix_started_at
     emit_render_event(
         event_sink,
-        RenderPhaseCompletedEvent(phase="mix", details={"out_file": final_out_file}),
+        RenderPhaseCompletedEvent(
+            phase="mix",
+            details={
+                "out_file": final_out_file,
+                "elapsed_ms": round(mix_elapsed_seconds * 1000, 3),
+                "realtime_factor": round(mix_elapsed_seconds / max(estimated_audio_seconds, 1e-9), 4),
+            },
+        ),
     )
 
     emit_render_event(
         event_sink,
         RenderPhaseStartedEvent(phase="subtitle", details={"srt_path": paths.srt_path}),
     )
+    subtitle_started_at = perf_counter()
     write_srt_from_timeline(timeline, paths.srt_path)
+    subtitle_elapsed_seconds = perf_counter() - subtitle_started_at
     emit_render_event(
         event_sink,
-        RenderPhaseCompletedEvent(phase="subtitle", details={"srt_path": paths.srt_path}),
+        RenderPhaseCompletedEvent(
+            phase="subtitle",
+            details={"srt_path": paths.srt_path, "elapsed_ms": round(subtitle_elapsed_seconds * 1000, 3)},
+        ),
     )
 
-    est_seconds = estimate_audio_duration_seconds(segments)
+    total_elapsed_seconds = perf_counter() - job_started_at
+    emit_event(
+        event_sink,
+        "render.telemetry.completed",
+        elapsed_ms=round(total_elapsed_seconds * 1000, 3),
+        estimated_audio_seconds=round(estimated_audio_seconds, 3),
+        realtime_factor=round(total_elapsed_seconds / max(estimated_audio_seconds, 1e-9), 4),
+        segment_count=len(segments),
+    )
     return RenderJobArtifacts(
         segments=segments,
-        estimated_duration_seconds=est_seconds,
-        estimated_duration_hms=format_hms(est_seconds),
+        estimated_duration_seconds=estimated_audio_seconds,
+        estimated_duration_hms=format_hms(estimated_audio_seconds),
         wav_dir=paths.wav_dir,
         out_file=final_out_file,
         srt_path=paths.srt_path,

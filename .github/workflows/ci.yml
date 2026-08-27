@@ -15,7 +15,7 @@ jobs:
       - name: Install the minimum supported Streamlit
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt "streamlit==1.49.0"
+          python -m pip install -r requirements-dev.txt "streamlit==1.49.0"
       - name: Smoke test every Streamlit launcher at the minimum version
         run: pytest -q tests/smoke/test_streamlit_launchers.py
 
@@ -23,7 +23,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python: ['3.10', '3.11']
+        python: ['3.10', '3.11', '3.12']
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
 
       - name: Run Ruff
         run: ruff check .
@@ -71,6 +71,9 @@ jobs:
 
       - name: Check standalone architecture
         run: python scripts/check_standalone_architecture.py
+
+      - name: Enforce module size budgets
+        run: python scripts/check_module_size_budget.py
 
       - name: Verify wheel contents
         run: python scripts/check_wheel_contents.py

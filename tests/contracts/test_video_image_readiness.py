@@ -11,6 +11,13 @@ def _write_image(path: Path, size: tuple[int, int] = (1080, 1920)) -> None:
     Image.new("RGB", size, color=(32, 64, 96)).save(path)
 
 
+def _corrupt_png_checksum(path: Path) -> None:
+    data = bytearray(path.read_bytes())
+    idat = data.index(b"IDAT")
+    data[idat + 4] ^= 0x01
+    path.write_bytes(data)
+
+
 def test_static_cover_readiness_accepts_valid_image(tmp_path: Path) -> None:
     cover = tmp_path / "cover.png"
     _write_image(cover)
@@ -36,6 +43,21 @@ def test_slideshow_readiness_rejects_corrupt_scene_image(tmp_path: Path) -> None
         mode="slideshow",
         aspect="9x16",
         scenes_dir=scenes_dir,
+    )
+
+    assert report.ready is False
+    assert any("cannot be opened" in message for message in report.errors)
+
+
+def test_static_readiness_reports_png_checksum_error(tmp_path: Path) -> None:
+    cover = tmp_path / "cover.png"
+    _write_image(cover)
+    _corrupt_png_checksum(cover)
+
+    report = inspect_video_image_readiness(
+        mode="static",
+        aspect="9x16",
+        cover=cover,
     )
 
     assert report.ready is False

@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Standalone narration and audio rendering package for AI Audio & Video Studio."
 license = {text = "MIT"}
 authors = [{name = "AI Audio & Video Studio"}]
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 dependencies = ["PyYAML==6.0.3", "edge-tts==7.2.7", "vieneu>=3.2.4,<4", "neucodec>=0.0.5", "streamlit>=1.49,<2"]
 
 [project.scripts]

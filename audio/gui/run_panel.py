@@ -5,28 +5,44 @@ from pathlib import Path
 
 import streamlit as st
 
-from audio.gui.workspace_state import append_global_run_event, get_workspace_target_field, send_audio_to_video, set_audio_handoff, update_global_run_monitor
-from audio.gui.workspace_source_outputs import workspace_source_outputs
-
 from audio.exceptions import AudioStoryError
-from audio.render_job_repository import JobRepository
-
-from .helpers import (
-    ProgressCollector,
-    build_output_zip,
-    make_request,
-    normalize_plain_script_text,
-    output_download_name,
+from audio.gui.user_messages import UserMessage, render_user_message, show_missing_input
+from audio.gui.workspace_source_outputs import workspace_source_outputs
+from audio.gui.workspace_state import (
+    append_global_run_event,
+    get_workspace_target_field,
+    send_audio_to_video,
+    set_audio_handoff,
+    update_global_run_monitor,
 )
-from .service import _preview_voice_rate, _preview_voice_role, _preview_voice_speed_key, format_runtime_error, preview_tts_sample, run_audio_job, summarize_audio_job, validate_plain_text, validate_provider_runtime_settings
+from audio.render_job_repository import JobRepository
+from audio.services.render_runtime import build_voice_maps, resolve_runtime_context
 from audio.tts_provider import get_tts_provider_choices, get_tts_provider_descriptor
 from audio.voice_catalog import get_voice_choices, resolve_voice_selection
 
-from audio.services.render_runtime import build_voice_maps, resolve_runtime_context
+from .helpers import (
+    ProgressCollector,
+    make_request,
+    normalize_plain_script_text,
+)
+from .run_results import (
+    render_final_segment_rate_debug,
+    render_output_downloads,
+    render_preview_table,
+)
+from .service import (
+    _preview_voice_rate,
+    _preview_voice_role,
+    _preview_voice_speed_key,
+    format_runtime_error,
+    preview_tts_sample,
+    run_audio_job,
+    summarize_audio_job,
+    validate_plain_text,
+    validate_provider_runtime_settings,
+)
 from .view_models import build_audio_run_summary
 from .workspace import render_workspace_tab
-from audio.gui.user_messages import UserMessage, render_user_message, show_missing_input, show_preview_warning
-
 
 
 def _apply_pending_run_plain_text() -> None:
@@ -34,128 +50,6 @@ def _apply_pending_run_plain_text() -> None:
     if pending is not None:
         st.session_state["last_plain_script"] = pending
         st.session_state["run_plain_text"] = pending
-
-
-def render_preview_table() -> None:
-    segments = st.session_state.get("last_preview_segments", [])
-    if not segments:
-        show_preview_warning(
-            "segment preview",
-            reason="Run validate or render first to build the segment list.",
-            actions=["Open the Run tab and use Quick Validate or Run pipeline.", "Return to the preview table after new results are available."],
-        )
-        return
-
-    rows = []
-    for idx, seg in enumerate(segments, start=1):
-        rows.append(
-            {
-                "#": idx,
-                "voice": getattr(seg, "voice", ""),
-                "lang": getattr(seg, "lang", ""),
-                "zone": getattr(seg, "zone", ""),
-                "env": getattr(seg, "env", ""),
-                "bgm": getattr(seg, "bgm", ""),
-                "ambience": getattr(seg, "ambience", ""),
-                "rate": getattr(seg, "rate", ""),
-                "pause_before_ms": getattr(seg, "pause_ms_before", 0),
-                "text": getattr(seg, "text", ""),
-            }
-        )
-    st.dataframe(rows, width="stretch", height=420)
-
-
-
-def _audio_download_meta(out_file: str | None, summary: dict) -> tuple[str, str]:
-    path = Path(out_file) if out_file else None
-    ext = path.suffix.lower() if path else ""
-    fmt = str(summary.get("audio_format", "")).strip().lower()
-
-    if ext == ".wav" or fmt == "wav":
-        return "Download WAV", "audio/wav"
-    return "Download MP3", "audio/mpeg"
-
-
-
-def render_output_downloads(summary: dict) -> None:
-    out_file = summary.get("out_file")
-    srt_path = summary.get("srt_path")
-    quality_report = summary.get("quality_report")
-    debug_json = summary.get("debug_json")
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        if out_file and Path(out_file).is_file():
-            label, mime = _audio_download_meta(out_file, summary)
-            st.audio(out_file)
-            st.download_button(
-                label,
-                data=Path(out_file).read_bytes(),
-                file_name=Path(out_file).name,
-                mime=mime,
-                width="stretch",
-            )
-    with col2:
-        if srt_path and Path(srt_path).is_file():
-            st.download_button(
-                "Download SRT",
-                data=Path(srt_path).read_bytes(),
-                file_name=Path(srt_path).name,
-                mime="text/plain",
-                width="stretch",
-            )
-    with col3:
-        if quality_report and Path(quality_report).is_file():
-            st.download_button(
-                "Download Quality Report",
-                data=Path(quality_report).read_bytes(),
-                file_name=Path(quality_report).name,
-                mime="application/json",
-                width="stretch",
-            )
-    with col4:
-        if debug_json and Path(debug_json).is_file():
-            st.download_button(
-                "Download Debug JSON",
-                data=Path(debug_json).read_bytes(),
-                file_name=Path(debug_json).name,
-                mime="application/json",
-                width="stretch",
-            )
-
-    bundle = build_output_zip(summary)
-    if bundle is not None:
-        st.download_button(
-            "Download output bundle (.zip)",
-            data=bundle,
-            file_name=output_download_name(),
-            mime="application/zip",
-            width="stretch",
-        )
-
-
-def _render_final_segment_rate_debug() -> None:
-    segments = st.session_state.get("last_preview_segments", [])
-    if not segments:
-        return
-
-    rows = []
-    for idx, seg in enumerate(segments, start=1):
-        text = str(getattr(seg, "text", "") or "").strip()
-        rows.append(
-            {
-                "#": idx,
-                "voice": getattr(seg, "voice", ""),
-                "lang": getattr(seg, "lang", ""),
-                "rate": getattr(seg, "rate", ""),
-                "pause_before_ms": getattr(seg, "pause_ms_before", 0),
-                "text": text[:96] + ("..." if len(text) > 96 else ""),
-            }
-        )
-
-    with st.expander("Final segment rates", expanded=False):
-        st.caption("This is the final per-segment rate after all defaults, tags, and sentiment/preset adjustments.")
-        st.dataframe(rows, width="stretch", height=260)
 
 
 
@@ -243,7 +137,7 @@ def run_single_job(plain_text: str, settings: dict, repository: JobRepository) -
         status_slot.success(f"Run completed in mode: {result.mode}")
 
     st.json(summary)
-    _render_final_segment_rate_debug()
+    render_final_segment_rate_debug()
     if summary.get("validate_errors"):
         render_user_message(
             UserMessage(
@@ -617,7 +511,7 @@ def _resolve_runtime_voice_preview(settings: dict) -> tuple[dict[str, object] | 
 def _render_audio_focus_hint() -> None:
     if st.session_state.get("workspace_active_app") != "Audio":
         return
-    if st.session_state.get("audio_embedded_view_selector") != "Run":
+    if st.session_state.get("audio_embedded_view_selector") != "run":
         return
     target_field = str(get_workspace_target_field("Audio", "") or "").strip()
     if not target_field:

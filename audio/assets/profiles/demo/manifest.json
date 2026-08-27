@@ -3,17 +3,17 @@
   "bgm_dir": "../../bgm",
   "bgm_config": "../../bgm_config.json",
   "voices": {
-    "vi_narrator": "Doan",
+    "vi_narrator": "Thục Đoan",
     "vi_female": "Thục Đoan",
-    "vi_male": "Vinh",
-    "voice_narrator": "Doan",
+    "vi_male": "Thục Đoan",
+    "voice_narrator": "Thục Đoan",
     "voice_female": "Thục Đoan",
-    "voice_male": "Vinh",
-    "en_narrator": "Doan",
-    "en_female": "Doan",
-    "en_male": "en-US-GuyNeural",
-    "voice_en_narrator": "Doan",
-    "voice_en_female": "Doan",
-    "voice_en_male": "en-US-GuyNeural"
+    "voice_male": "Thục Đoan",
+    "en_narrator": "Thục Đoan",
+    "en_female": "Thục Đoan",
+    "en_male": "Thục Đoan",
+    "voice_en_narrator": "Thục Đoan",
+    "voice_en_female": "Thục Đoan",
+    "voice_en_male": "Thục Đoan"
   }
 }

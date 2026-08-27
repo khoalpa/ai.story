@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from audio.handoff import write_video_handoff
 from audio.render_audio_app import (
     RenderAudioAppRequest,
     RenderAudioAppResult,
@@ -11,7 +12,6 @@ from audio.render_audio_app import (
     run_render_audio_app,
     validate_only_script,
 )
-from audio.handoff import write_video_handoff
 
 
 def render_audio_workspace(*, embedded: bool = False) -> None:

@@ -16,7 +16,9 @@ Mục tiêu:
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any, Dict, List, Optional, Tuple
+
+from audio.story_environments import CANONICAL_STORY_ENVIRONMENT_SET
 
 ###############################################################################
 # TAG & VOICE SPEC
@@ -277,7 +279,10 @@ OPTIONAL_META_KEYS: Tuple[str, ...] = (
     "framework_version",
     "story_signature",
     "art_direction_id",
+    "story_quality_commitment",
 )
+
+OBJECT_META_KEYS = frozenset({"story_quality_commitment"})
 
 ALLOWED_META_KEYS: Tuple[str, ...] = REQUIRED_META_KEYS + OPTIONAL_META_KEYS
 
@@ -460,7 +465,8 @@ def normalize_canonical_authoring_zones(data: Any) -> Any:
             sentences = _split_framework_script_text(item.get("text"))
             if canonical_zone != zone or len(sentences) > 1:
                 script_changed = True
-                for sentence in sentences or [item.get("text")]:
+                fallback_text = item.get("text")
+                for sentence in sentences or ([fallback_text] if isinstance(fallback_text, str) else []):
                     new_item = dict(item)
                     new_item["zone"] = canonical_zone
                     new_item["text"] = sentence
@@ -591,7 +597,12 @@ def validate_canonical_authoring(data: Any) -> List[str]:
             if k not in meta:
                 continue
             value = meta.get(k)
-            if not isinstance(value, str):
+            if k in OBJECT_META_KEYS:
+                if not isinstance(value, dict):
+                    errors.append(f"meta.{k} must be an object.")
+                elif not value:
+                    errors.append(f"meta.{k} must be a non-empty object.")
+            elif not isinstance(value, str):
                 errors.append(f"meta.{k} must be a string.")
             elif not value.strip():
                 errors.append(f"meta.{k} must be a non-empty string.")
@@ -672,6 +683,8 @@ def validate_canonical_authoring(data: Any) -> List[str]:
             errors.append(f"script[{idx}].environment không được thiếu.")
         elif not isinstance(item.get("environment"), str):
             errors.append(f"script[{idx}].environment phải là string.")
+        elif environment not in CANONICAL_STORY_ENVIRONMENT_SET:
+            errors.append(f"script[{idx}].environment không hợp lệ: {environment!r}.")
         if voice not in ALLOWED_SCRIPT_VOICES:
             errors.append(f"script[{idx}].voice không hợp lệ: {voice!r}.")
         if speed not in ALLOWED_SCRIPT_SPEEDS:

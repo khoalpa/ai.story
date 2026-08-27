@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-import re
-from typing import Any, List, Mapping, Optional, Tuple, Literal
+from typing import Any, Literal, Mapping, Optional, Tuple
 
-from audio.audio_story_spec import TAG_PATTERN, extract_base_token, is_legacy_unsupported_tag
-from audio.pipeline.flow_state import default_rate_for_voice as _default_rate_for_voice, make_relative_rate_tag
+from audio.audio_story_spec import (
+    TAG_PATTERN,
+    extract_base_token,
+    is_legacy_unsupported_tag,
+)
+from audio.pipeline.flow_state import default_rate_for_voice as _default_rate_for_voice
+from audio.pipeline.flow_state import make_relative_rate_tag
 
 VoiceTag = Literal["narrator", "female", "male"]
 
@@ -211,7 +215,7 @@ def parse_tags_and_text(
         if directive_kind == "absolute":
             rate_from_tag = str(directive_value)
         else:
-            rate_from_tag = make_relative_rate_tag(float(directive_value))
+            rate_from_tag = make_relative_rate_tag(float(str(directive_value)))
 
     return (
         voice_from_tag,

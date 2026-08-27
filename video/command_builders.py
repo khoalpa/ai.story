@@ -99,6 +99,7 @@ def build_slideshow_ffmpeg_cmd(
     audio: Path,
     output: Path,
     vf_filter: str,
+    vf_filter_script: Path | None = None,
     video_codec: str,
     preset: str,
     crf: int,
@@ -133,8 +134,11 @@ def build_slideshow_ffmpeg_cmd(
         "1:a:0",
         "-fps_mode",
         "cfr",
-        "-vf",
-        vf_filter,
+        *(
+            ["-filter_script:v", str(vf_filter_script)]
+            if vf_filter_script
+            else ["-vf", vf_filter]
+        ),
         "-c:v",
         video_codec,
         "-preset",

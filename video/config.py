@@ -109,6 +109,9 @@ DEFAULT_MOVFLAGS = os.getenv("VIDEO_MOVFLAGS", "+faststart")
 DEFAULT_ENCODING_PROFILE = os.getenv("VIDEO_ENCODING_PROFILE", PROFILE_AUTO)
 DEFAULT_LOUDNESS_PROFILE = os.getenv("VIDEO_LOUDNESS_PROFILE", "narration")
 DEFAULT_QUALITY_GATE = os.getenv("VIDEO_QUALITY_GATE", "1").strip().lower() not in {"0", "false", "no"}
+QUALITY_CHECK_TIMEOUT_SECONDS = float(os.getenv("VIDEO_QUALITY_CHECK_TIMEOUT_SECONDS", "300"))
+if QUALITY_CHECK_TIMEOUT_SECONDS <= 0:
+    raise ValueError("VIDEO_QUALITY_CHECK_TIMEOUT_SECONDS must be greater than 0.")
 DEFAULT_PIXEL_FORMAT = os.getenv("VIDEO_PIXEL_FORMAT", "yuv420p")
 DEFAULT_COLOR_PRIMARIES = os.getenv("VIDEO_COLOR_PRIMARIES", "bt709")
 DEFAULT_COLOR_TRANSFER = os.getenv("VIDEO_COLOR_TRANSFER", "bt709")
@@ -117,7 +120,7 @@ DEFAULT_COLOR_RANGE = os.getenv("VIDEO_COLOR_RANGE", "tv")
 DEFAULT_GOP_SECONDS = float(os.getenv("VIDEO_GOP_SECONDS", "2.0"))
 DEFAULT_RENDER_MODE = os.getenv("VIDEO_RENDER_MODE", "slideshow").strip().lower()
 DEFAULT_ASPECT = os.getenv("VIDEO_ASPECT", "16x9").strip().lower()
-DEFAULT_SUBTITLE_FONT = os.getenv("SUB_FONT", "Arial").strip() or "Arial"
+DEFAULT_SUBTITLE_FONT = os.getenv("SUB_FONT", "Playwrite VN").strip() or "Playwrite VN"
 DEFAULT_SUBTITLE_FONT_SIZE = int(os.getenv("SUB_FONT_SIZE", "12"))
 DEFAULT_SUBTITLE_TEXT_COLOR = os.getenv("SUB_TEXT_COLOR", "#FFFFFF")
 DEFAULT_SUBTITLE_BACKGROUND_COLOR = os.getenv("SUB_BACKGROUND_COLOR", "#000000")
@@ -145,6 +148,11 @@ SLIDESHOW_OUTRO_LAST = os.getenv("SLIDESHOW_OUTRO_LAST", "1").strip().lower() no
 OUTRO_DURATION_SECONDS = float(os.getenv("OUTRO_DURATION_SECONDS", "9.0"))
 AUDIO_MATCH_EPSILON = float(os.getenv("AUDIO_MATCH_EPSILON", "0.2"))
 PRINT_FFMPEG_VERSION = os.getenv("PRINT_FFMPEG_VERSION", "0").strip() == "1"
+ENVIRONMENT_OVERLAYS_ENABLED = os.getenv("VIDEO_ENVIRONMENT_OVERLAYS", "1").strip().lower() not in {"0", "false", "no"}
+ENVIRONMENT_OVERLAY_INTENSITY = os.getenv("VIDEO_ENVIRONMENT_INTENSITY", "normal").strip().lower()
+ENVIRONMENT_OVERLAY_FADE_SECONDS = float(os.getenv("VIDEO_ENVIRONMENT_FADE_SECONDS", "0.6"))
+ENVIRONMENT_ALLOW_LENS_EFFECTS = os.getenv("VIDEO_ENVIRONMENT_LENS_EFFECTS", "1").strip().lower() not in {"0", "false", "no"}
+ENVIRONMENT_GLOBAL_FILM_GRAIN = float(os.getenv("VIDEO_ENVIRONMENT_FILM_GRAIN", "0"))
 
 
 def get_output_resolution(aspect: AspectRatio) -> tuple[int, int]:

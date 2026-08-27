@@ -255,6 +255,24 @@ class RenderPhaseCompletedEvent(RenderEvent):
         object.__setattr__(self, "payload", payload)
 
 
+@dataclass(frozen=True)
+class RenderProviderFallbackEvent(RenderEvent):
+    name: str = field(default="render.provider.fallback", init=False)
+    payload: Mapping[str, Any] = field(default_factory=dict, init=False)
+    provider: str = ""
+    from_mode: str = ""
+    to_mode: str = ""
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "payload", {
+            "provider": self.provider,
+            "from_mode": self.from_mode,
+            "to_mode": self.to_mode,
+            "reason": self.reason,
+        })
+
+
 EventTarget = Optional[RenderEventSink | RenderEventBus]
 
 

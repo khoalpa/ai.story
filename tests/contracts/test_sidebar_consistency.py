@@ -3,7 +3,6 @@
 import re
 from pathlib import Path
 
-
 SIDEBAR_SECTION_ORDER = [
     "PROFILES",
     "PROVIDER",
@@ -63,5 +62,11 @@ def test_video_runtime_diagnostics_replaces_runtime_wrapper() -> None:
     content = Path("video/gui/settings.py").read_text(encoding="utf-8")
 
     assert "with st.expander(SidebarSection.RUNTIME" not in content
-    assert "render_runtime_diagnostics_block(report, expanded=True" in content
+    assert "render_runtime_diagnostics_block(report, expanded=False" in content
+
+
+def test_audio_runtime_diagnostics_is_collapsed_by_default() -> None:
+    content = Path("audio/gui/settings.py").read_text(encoding="utf-8")
+
+    assert "with _expander(SidebarSection.RUNTIME, expanded=False)" in content
 

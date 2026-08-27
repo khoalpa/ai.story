@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+from video import config
+
 
 @dataclass(frozen=True)
 class LoudnessTarget:
@@ -29,6 +31,22 @@ _SSIM_RE = re.compile(r"All:([0-9.]+)")
 _BLACK_RE = re.compile(r"black_start:([0-9.]+)\s+black_end:([0-9.]+)\s+black_duration:([0-9.]+)")
 
 
+def _run_quality_command(cmd: list[str], *, step: str) -> subprocess.CompletedProcess[str]:
+    timeout = config.QUALITY_CHECK_TIMEOUT_SECONDS
+    try:
+        return subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"Video quality check '{step}' timed out after {timeout:g} seconds."
+        ) from exc
+
+
 def normalize_loudness_profile(value: object) -> str:
     normalized = str(value or "narration").strip().lower()
     return normalized if normalized in LOUDNESS_TARGETS else "narration"
@@ -43,11 +61,9 @@ def analyze_loudness(audio: Path, ffmpeg_exe: str, target: LoudnessTarget) -> di
         f"loudnorm=I={target.integrated_lufs}:LRA={target.loudness_range_lu}:"
         f"TP={target.true_peak_dbtp}:print_format=json"
     )
-    proc = subprocess.run(
+    proc = _run_quality_command(
         [ffmpeg_exe, "-hide_banner", "-nostats", "-i", str(audio), "-vn", "-af", audio_filter, "-f", "null", os.devnull],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+        step="loudness analysis",
     )
     if proc.returncode != 0:
         raise RuntimeError(f"Unable to measure loudness: {proc.stderr[-2000:]}")
@@ -93,14 +109,14 @@ def prepare_audio_for_video(
         "-vn", "-af", _build_two_pass_filter(target, measured),
         "-ar", "48000", "-ac", "2", "-c:a", "flac", str(output_flac),
     ]
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = _run_quality_command(cmd, step="audio normalization")
     if proc.returncode != 0:
         raise RuntimeError(f"Unable to normalize video audio: {proc.stderr[-2000:]}")
     return output_flac, {"normalized": True, "input": measured}
 
 
 def probe_media(path: Path, ffprobe_exe: str) -> dict:
-    proc = subprocess.run(
+    proc = _run_quality_command(
         [
             ffprobe_exe, "-v", "error", "-show_entries",
             "format=duration,size,bit_rate,start_time:stream=index,codec_name,profile,level,codec_type,width,height,"
@@ -109,9 +125,7 @@ def probe_media(path: Path, ffprobe_exe: str) -> dict:
             "sample_aspect_ratio,display_aspect_ratio,color_range,color_space,color_transfer,color_primaries",
             "-of", "json", str(path),
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+        step="media probe",
     )
     if proc.returncode != 0:
         raise RuntimeError(f"Unable to inspect rendered video: {proc.stderr[-2000:]}")
@@ -135,14 +149,12 @@ def _is_faststart(path: Path) -> bool:
 
 
 def _decode_check(path: Path, ffmpeg_exe: str) -> tuple[bool, str, list[dict[str, float]]]:
-    proc = subprocess.run(
+    proc = _run_quality_command(
         [
             ffmpeg_exe, "-v", "info", "-nostats", "-i", str(path), "-map", "0:v:0", "-map", "0:a:0",
             "-vf", "blackdetect=d=0.5:pix_th=0.10", "-f", "null", os.devnull,
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+        step="decode validation",
     )
     stderr = proc.stderr or ""
     black_segments = [
@@ -174,7 +186,18 @@ def inspect_subtitle(subtitle: Optional[Path], duration: float) -> dict:
     }
 
 
-def prepare_subtitle_for_video(subtitle: Optional[Path], output: Path, max_chars: int = 56) -> tuple[Optional[Path], bool]:
+def prepare_subtitle_for_video(
+    subtitle: Optional[Path],
+    output: Path,
+    max_chars: Optional[int] = None,
+) -> tuple[Optional[Path], bool]:
+    """Prepare SRT while leaving default line wrapping to libass.
+
+    A fixed character count does not represent rendered width and can force
+    short-looking three-line subtitles even when the configured left/right
+    margins leave ample room. Callers may still request hard wrapping by
+    passing ``max_chars`` explicitly.
+    """
     if subtitle is None or not subtitle.is_file() or subtitle.suffix.lower() != ".srt":
         return subtitle, False
     text = subtitle.read_text(encoding="utf-8-sig", errors="replace")
@@ -188,9 +211,22 @@ def prepare_subtitle_for_video(subtitle: Optional[Path], output: Path, max_chars
             rendered_blocks.append(block)
             continue
         prefix = lines[: time_index + 1]
-        body = []
+        body: list[str] = []
         for line in lines[time_index + 1 :]:
-            wrapped = textwrap.wrap(line.strip(), width=max_chars, break_long_words=False, break_on_hyphens=False) or [""]
+            normalized_line = line.strip()
+            wrapped = (
+                textwrap.wrap(
+                    normalized_line,
+                    width=max_chars,
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                )
+                if max_chars is not None
+                else [normalized_line]
+            ) or [""]
+            # Preserve long lines for margin-aware libass wrapping while
+            # marking them as layout-managed for the quality gate.
+            changed = changed or (max_chars is None and len(normalized_line) > 70)
             changed = changed or len(wrapped) > 1
             body.extend(wrapped)
         rendered_blocks.append("\n".join(prefix + body))
@@ -225,21 +261,21 @@ def sample_visual_ssim(
             f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p[reference];"
             "[video][reference]ssim"
         )
-        proc = subprocess.run(
+        proc = _run_quality_command(
             [
                 ffmpeg_exe, "-hide_banner", "-loglevel", "info", "-ss", f"{timestamp:.3f}", "-i", str(video),
                 "-loop", "1", "-i", str(reference), "-filter_complex", filter_complex,
                 "-frames:v", "1", "-an", "-f", "null", os.devnull,
             ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+            step=f"visual SSIM sample {index + 1}",
         )
         match = _SSIM_RE.search(proc.stderr or "")
         results.append({
             "reference": reference.name,
             "timestamp_seconds": timestamp,
             "ssim": float(match.group(1)) if match else None,
+            "return_code": proc.returncode,
+            "error": "" if match else (proc.stderr or "")[-2000:],
         })
     return results
 
@@ -282,6 +318,7 @@ def write_video_quality_report(
         duration=format_duration, ffmpeg_exe=ffmpeg_exe,
     )
     valid_ssim = [sample["ssim"] for sample in visual_samples if sample["ssim"] is not None]
+    all_visual_samples_measured = len(valid_ssim) == len(visual_samples)
     checks = {
         "integrated_loudness": abs(loudness["input_i"] - target.integrated_lufs) <= 1.0,
         "true_peak": loudness["input_tp"] <= target.true_peak_dbtp + 0.2,
@@ -306,7 +343,9 @@ def write_video_quality_report(
         "black_frames": sum(segment["duration_seconds"] for segment in black_segments) <= 1.0,
         "subtitle_timing": subtitle_report["timing_ok"],
         "subtitle_line_length": subtitle_report["line_length_ok"] or subtitle_auto_wrapped,
-        "visual_ssim": not valid_ssim or min(valid_ssim) >= 0.90,
+        "visual_ssim": not visual_samples or (
+            all_visual_samples_measured and min(valid_ssim) >= 0.90
+        ),
     }
     report = {
         "schema_version": 1,

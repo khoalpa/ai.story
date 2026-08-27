@@ -2,37 +2,43 @@ from __future__ import annotations
 
 import streamlit as st
 
+from audio.adapters.tts_core import (
+    DEFAULT_VIENEU_API_BASE,
+    adopt_vieneu_cached_codec,
+    adopt_vieneu_cached_distilhubert,
+    get_default_vieneu_local_target,
+    get_default_vieneu_model_name,
+    get_first_vieneu_local_model,
+    get_vieneu_cached_codec_snapshot,
+    get_vieneu_cached_distilhubert_snapshot,
+    is_vieneu_mode_model_compatible,
+    list_vieneu_local_models,
+    resolve_vieneu_model_name,
+)
+from audio.app_config import AppConfig
 from audio.gui.sidebar_sections import SidebarSection
 from audio.gui.user_messages import UserMessage, render_user_message
-from audio.model_store import list_local_models, list_local_targets, provider_models_dir, provider_target_dir
-from audio.app_config import AppConfig
+from audio.model_store import (
+    list_local_models,
+    list_local_targets,
+    provider_models_dir,
+    provider_target_dir,
+)
 from audio.profile_config import ProfileConfig
-from audio.services.render_runtime import DEFAULT_PROFILE_ROOT
-from audio.runtime_checks import collect_runtime_diagnostics_for_settings, runtime_diagnostics_to_lines
-from audio.tts_provider import get_tts_provider_choices, get_tts_provider_descriptor
 from audio.providers.vieneu import BACKEND_OPTIONS as VIENEU_BACKEND_OPTIONS
 from audio.providers.vieneu import CORE_OPTIONS as VIENEU_CORE_OPTIONS
 from audio.providers.vieneu import MODE_OPTIONS as VIENEU_MODE_OPTIONS
 from audio.providers.vieneu import RENDER_AUDIO_OPTIONS as VIENEU_RENDER_AUDIO_OPTIONS
-from audio.voice_catalog import find_local_voice_notice, get_voice_choices, resolve_voice_selection
-from audio.adapters.tts_core import DEFAULT_VIENEU_API_BASE, adopt_vieneu_cached_codec, adopt_vieneu_cached_distilhubert, get_default_vieneu_local_target, get_default_vieneu_model_name, get_first_vieneu_local_model, get_vieneu_cached_codec_snapshot, get_vieneu_cached_distilhubert_snapshot, is_vieneu_mode_model_compatible, list_vieneu_local_models, resolve_vieneu_model_name
-from .state import (
-    VOICE_EN_FEMALE_SPEED_KEY,
-    VOICE_EN_MALE_SPEED_KEY,
-    VOICE_EN_NARRATOR_SPEED_KEY,
-    VOICE_FEMALE_SPEED_KEY,
-    VOICE_MALE_SPEED_KEY,
-    VOICE_NARRATOR_SPEED_KEY,
-    VOICE_SPEED_DEFAULTS,
+from audio.runtime_checks import (
+    collect_runtime_diagnostics_for_settings,
+    runtime_diagnostics_to_lines,
 )
-from .service import (
-    format_runtime_error,
-    get_vieneu_runtime_model_details,
-    normalize_vieneu_core,
-    probe_vieneu_core_connection_from_settings,
-    refresh_vieneu_voices_from_settings,
-    resolve_vieneu_runtime_mode,
-    resolve_vieneu_ui_mode,
+from audio.services.render_runtime import DEFAULT_PROFILE_ROOT
+from audio.tts_provider import get_tts_provider_choices, get_tts_provider_descriptor
+from audio.voice_catalog import (
+    find_local_voice_notice,
+    get_voice_choices,
+    resolve_voice_selection,
 )
 
 from .config_bundle import GuiConfigBundle
@@ -43,6 +49,35 @@ from .helpers import (
     list_profile_bgm_files,
     read_profile_bgm_config,
     read_profile_manifest,
+)
+from .service import (
+    format_runtime_error,
+    get_vieneu_runtime_model_details,
+    normalize_vieneu_core,
+    probe_vieneu_core_connection_from_settings,
+    refresh_vieneu_voices_from_settings,
+    resolve_vieneu_runtime_mode,
+    resolve_vieneu_ui_mode,
+)
+from .voice_speed_controls import (
+    VOICE_EN_FEMALE_SPEED_KEY,
+    VOICE_EN_MALE_SPEED_KEY,
+    VOICE_EN_NARRATOR_SPEED_KEY,
+    VOICE_FEMALE_SPEED_KEY,
+    VOICE_MALE_SPEED_KEY,
+    VOICE_NARRATOR_SPEED_KEY,
+    VOICE_SPEED_DEFAULTS,
+    VOICE_SPEED_KEYS,
+    VOICE_SPEED_MASTER_KEY,
+)
+from .voice_speed_controls import (
+    apply_voice_speed_master as _apply_voice_speed_master,
+)
+from .voice_speed_controls import (
+    render_voice_speed_master as _render_voice_speed_master,
+)
+from .voice_speed_controls import (
+    render_voice_speed_slider as _render_voice_speed_slider,
 )
 
 
@@ -197,46 +232,6 @@ def _render_audio_provider_status() -> None:
     render_user_message(UserMessage(level=str(level or "info"), title="Audio provider", body=str(message or "")))
 
 
-def _format_voice_speed_percent(value: object) -> str:
-    try:
-        speed = int(value)
-    except (TypeError, ValueError):
-        speed = 0
-    if speed == 0:
-        return "0%"
-    return f"{speed:+d}%"
-
-
-def _render_voice_speed_slider(*, key: str, default_value: int) -> int:
-    current_value = st.session_state.get(key)
-    if current_value is None:
-        current_value = default_value
-    try:
-        current_int = int(current_value)
-    except (TypeError, ValueError):
-        current_int = int(default_value)
-    current_int = max(-100, min(100, current_int))
-    st.session_state[key] = current_int
-    col_label, col_slider = st.columns([1.6, 5.9], gap="small")
-    with col_label:
-        st.markdown(
-            "<div style='padding-top: 0.42rem; font-size: 0.94rem; line-height: 1.15; white-space: nowrap;'>Speed</div>",
-            unsafe_allow_html=True,
-        )
-    with col_slider:
-        new_value = int(
-            st.slider(
-                " ",
-                min_value=-100,
-                max_value=100,
-                value=current_int,
-                key=key,
-                label_visibility="collapsed",
-            )
-        )
-
-    return new_value
-
 def _voice_selectbox(
     label: str,
     *,
@@ -313,6 +308,8 @@ def _render_voice_selector_block(*, provider: str, profile_defaults: dict, advan
     else:
         st.subheader("Voice defaults")
         st.caption("The voice list updates automatically with the selected TTS provider. With VieNeu TTS core, preset choices appear when the vieneu SDK is installed.")
+
+    _render_voice_speed_master(defaults=defaults)
 
     voice_narrator = _voice_selectbox(
         "VI narrator",
@@ -643,7 +640,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
             )
             if str(st.session_state.get("vieneu_backend") or "") not in set(VIENEU_BACKEND_OPTIONS):
                 st.session_state["vieneu_backend"] = "auto"
-            vieneu_backend = st.selectbox(
+            st.selectbox(
                 "Backend",
                 list(VIENEU_BACKEND_OPTIONS),
                 key="vieneu_backend",
@@ -924,7 +921,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
             st.subheader("History & Batch")
             store_path = st.text_input("Job store path", value=str(DEFAULT_STORE_PATH))
 
-        with _expander(SidebarSection.RUNTIME, expanded=True):
+        with _expander(SidebarSection.RUNTIME, expanded=False):
             ffmpeg_exe = st.text_input("ffmpeg executable", value=find_binary(str(app_defaults["ffmpeg_exe"])))
             ffprobe_exe = st.text_input("ffprobe executable", value=find_binary(str(app_defaults["ffprobe_exe"])))
             diagnostics = collect_runtime_diagnostics_for_settings(

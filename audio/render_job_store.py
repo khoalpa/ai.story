@@ -29,6 +29,10 @@ class JobRunRecord:
     app_phase_completions: tuple[str, ...] = ()
     render_phase_starts: tuple[str, ...] = ()
     render_phase_completions: tuple[str, ...] = ()
+    render_phase_durations_ms: dict[str, float] = field(default_factory=dict)
+    render_realtime_factor: Optional[float] = None
+    tts_cache_hits: int = 0
+    tts_cache_misses: int = 0
     validation_exit_code: Optional[int] = None
     validation_errors_count: int = 0
     validation_warnings_count: int = 0
@@ -151,6 +155,16 @@ class JobStoreSubscriber:
         elif isinstance(event, RenderPhaseCompletedEvent) or event.name == "render.phase.completed":
             phase = str(payload.get("phase", ""))
             updates["render_phase_completions"] = record.render_phase_completions + (phase,)
+            if payload.get("elapsed_ms") is not None:
+                updates["render_phase_durations_ms"] = {
+                    **record.render_phase_durations_ms,
+                    phase: float(payload["elapsed_ms"]),
+                }
+        elif event.name == "render.telemetry.completed":
+            updates["render_realtime_factor"] = float(payload.get("realtime_factor", 0.0))
+        elif event.name == "render.tts.cache.resolved":
+            updates["tts_cache_hits"] = int(payload.get("hit_count", 0))
+            updates["tts_cache_misses"] = int(payload.get("miss_count", 0))
         elif isinstance(event, AppValidationCompletedEvent) or event.name == "app.validation.completed":
             exit_code = int(payload.get("exit_code", 0))
             updates["status"] = "validation_failed" if exit_code else "validated"

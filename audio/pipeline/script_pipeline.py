@@ -3,10 +3,18 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any, List, Mapping, Optional
 
-from audio.audio_story_spec import TAG_PATTERN, detect_zone_from_comment, extract_base_token
+from audio.audio_story_spec import (
+    TAG_PATTERN,
+    detect_zone_from_comment,
+    extract_base_token,
+)
 from audio.pipeline.flow_state import EnvironmentFlowState, ZoneFlowState
 from audio.pipeline.plain_script_models import ParsedScriptLine, ResolvedScriptLine
-from audio.pipeline.plain_script_parser import detect_env_from_text, map_sfx_value_to_env, parse_tags_and_text
+from audio.pipeline.plain_script_parser import (
+    detect_env_from_text,
+    map_sfx_value_to_env,
+    parse_tags_and_text,
+)
 from audio.pipeline.segment_planner import assign_segments, expand_silence_segments
 
 

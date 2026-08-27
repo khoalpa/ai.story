@@ -19,8 +19,8 @@ from video.gui.workspace_navigation import workspace_navigation_state
 
 def ensure_workspace_state() -> None:
     defaults = {
-        "workspace_audio_target_view": "Input",
-        "workspace_video_target_view": "Inputs",
+        "workspace_audio_target_view": "inputs",
+        "workspace_video_target_view": "inputs",
         "workspace_audio_target_field": "",
         "workspace_video_target_field": "",
         WORKSPACE_LAST_JOB_APP_KEY: "",
@@ -51,11 +51,14 @@ def get_workspace_target_field(app_name: str, default: str = "") -> str:
     return workspace_navigation_state(st.session_state).get_target_field(app_name, default)
 
 
-def prepare_embedded_view_selection(*, app_name: str, widget_key: str, options: list[str], default: str) -> str:
-    target = get_workspace_target_view(app_name, default)
+def prepare_embedded_view_selection(*, app_name: str, widget_key: str, options: list[str], default: str, normalize=lambda value: value) -> str:
+    target = normalize(get_workspace_target_view(app_name, default))
     if target not in options:
         target = default
-    if st.session_state.get(widget_key) not in options:
+    current = normalize(st.session_state.get(widget_key, ""))
+    if current in options:
+        st.session_state[widget_key] = current
+    else:
         st.session_state[widget_key] = target
     return target
 

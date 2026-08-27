@@ -15,7 +15,6 @@ from video.config import (
     ZONE_IMAGE_SEQUENCE,
 )
 
-
 ReadinessLevel = Literal["ok", "warning", "error"]
 
 
@@ -269,7 +268,7 @@ def _inspect_image_file(
             image.verify()
         with Image.open(path) as image:
             width, height = image.size
-    except (OSError, UnidentifiedImageError) as exc:
+    except (OSError, SyntaxError, UnidentifiedImageError) as exc:
         return ImageAssetStatus(
             path=path,
             role=role,

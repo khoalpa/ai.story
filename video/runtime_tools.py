@@ -6,15 +6,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from video.runtime_diagnostics import (
-    RuntimeDiagnosticsReport,
-    collect_runtime_diagnostics as _collect_runtime_diagnostics,
-    describe_tool,
-    read_tool_version,
-    resolve_tool_path as resolve_runtime_tool_path,
-)
 from video.exceptions import RuntimeDependencyError
 from video.logging_utils import get_logger
+from video.runtime_diagnostics import (
+    RuntimeDiagnosticsReport,
+    describe_tool,
+    read_tool_version,
+)
+from video.runtime_diagnostics import (
+    collect_runtime_diagnostics as _collect_runtime_diagnostics,
+)
+from video.runtime_diagnostics import (
+    resolve_tool_path as resolve_runtime_tool_path,
+)
 
 logger = get_logger(__name__)
 

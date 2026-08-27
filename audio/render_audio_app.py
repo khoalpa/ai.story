@@ -6,7 +6,10 @@ from types import SimpleNamespace
 from typing import Any, Mapping, Optional, cast
 
 from audio.adapters.edge_tts import load_abbreviation_map
-from audio.adapters.ffmpeg_audio_mixer import DEFAULT_PACING_PRESET, normalize_pacing_preset
+from audio.adapters.ffmpeg_audio_mixer import (
+    DEFAULT_PACING_PRESET,
+    normalize_pacing_preset,
+)
 from audio.adapters.tts_core import (
     get_default_vieneu_local_target,
     resolve_vieneu_effective_mode,
@@ -15,9 +18,9 @@ from audio.adapters.tts_core import (
     resolve_vieneu_runtime_backend,
     warmup_vieneu_engine,
 )
-from audio.logging_utils import get_logger
+from audio.exceptions import ValidationError
 from audio.handoff import write_video_handoff
-from audio.render_job import RenderJobArtifacts, RenderJobPaths, RuntimeContext, VoiceRuntimeMaps
+from audio.logging_utils import get_logger
 from audio.paths import ASSETS_ROOT, DEFAULT_BGM_DIR, PACKAGE_PROFILE_ROOT
 from audio.render_events import (
     AppDebugSavedEvent,
@@ -31,6 +34,12 @@ from audio.render_events import (
     AppValidationCompletedEvent,
     RenderEventSink,
     emit_render_event,
+)
+from audio.render_job import (
+    RenderJobArtifacts,
+    RenderJobPaths,
+    RuntimeContext,
+    VoiceRuntimeMaps,
 )
 from audio.runtime_checks import (
     collect_runtime_diagnostics,
@@ -52,7 +61,11 @@ from audio.services.render_script import (
     prepare_segments,
     save_segments_debug_json,
 )
-from audio.tts_provider import DEFAULT_TTS_PROVIDER, TTS_PROVIDER_VIENEU, normalize_tts_provider
+from audio.tts_provider import (
+    DEFAULT_TTS_PROVIDER,
+    TTS_PROVIDER_VIENEU,
+    normalize_tts_provider,
+)
 from audio.validate_plain_script import load_text_file as load_validation_lines
 from audio.validate_plain_script import validate_script
 
@@ -104,8 +117,8 @@ REQUEST_DEFAULTS: dict[str, Any] = {
     "vieneu_backend": "auto",
     "vieneu_render_temperature": 0.7,
     "vieneu_render_max_chars_chunk": 240,
-    "vieneu_render_use_batch": False,
-    "vieneu_render_max_batch_size_run": 1,
+    "vieneu_render_use_batch": True,
+    "vieneu_render_max_batch_size_run": 4,
 }
 
 REQUEST_FIELD_NAMES = {
@@ -168,8 +181,8 @@ class RenderAudioAppRequest:
     vieneu_backend: str = "auto"
     vieneu_render_temperature: float = 0.7
     vieneu_render_max_chars_chunk: int = 240
-    vieneu_render_use_batch: bool = False
-    vieneu_render_max_batch_size_run: int = 1
+    vieneu_render_use_batch: bool = True
+    vieneu_render_max_batch_size_run: int = 4
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "input_path", Path(self.input_path))
@@ -384,6 +397,20 @@ def run_render_audio_app(
     if not request.input_path.is_file():
         raise FileNotFoundError(f"Input file not found: {request.input_path}")
 
+    exit_code, validate_errors, warnings_count = validate_only_script(request.input_path)
+    emit_render_event(
+        event_sink,
+        AppValidationCompletedEvent(
+            input_path=request.input_path,
+            exit_code=exit_code,
+            errors=validate_errors,
+            warnings_count=warnings_count,
+        ),
+    )
+    if exit_code and not request.validate_only:
+        details = "\n".join(validate_errors) or "The plain script is invalid."
+        raise ValidationError(f"Plain script validation failed:\n{details}")
+
     request.output_dir.mkdir(parents=True, exist_ok=True)
     emit_render_event(
         event_sink,
@@ -440,16 +467,6 @@ def run_render_audio_app(
     )
 
     if request.validate_only:
-        exit_code, validate_errors, warnings_count = validate_only_script(request.input_path)
-        emit_render_event(
-            event_sink,
-            AppValidationCompletedEvent(
-                input_path=request.input_path,
-                exit_code=exit_code,
-                errors=validate_errors,
-                warnings_count=warnings_count,
-            ),
-        )
         return RenderAudioAppResult(
             request=request,
             mode="validate_only",

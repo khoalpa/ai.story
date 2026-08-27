@@ -30,7 +30,7 @@ def _framework_authoring() -> dict:
         "script": [
             {
                 "zone": zone,
-                "environment": "",
+                "environment": "none",
                 "voice": "NARRATOR",
                 "speed": "NORMAL",
                 "lang": "VI",
@@ -49,6 +49,34 @@ def test_audio_validator_accepts_framework_meta_extensions() -> None:
     authoring["script"][0]["text"] = "Một câu hợp lệ."
 
     assert validate_canonical_authoring(authoring) == []
+
+
+def test_audio_validator_accepts_story_quality_commitment_meta_object() -> None:
+    from audio.audio_story_spec import validate_canonical_authoring
+
+    authoring = _framework_authoring()
+    authoring["meta"]["language"] = "vi"
+    authoring["meta"]["story_quality_commitment"] = {
+        "schema_version": "1.1",
+        "created_by_prompt_version": "3.11.3",
+        "minimum_verifier_version": "3.8.6",
+        "final_script_text_digest_sha256": "abc123",
+        "recomputable_metrics": {"total_words": 42},
+    }
+    authoring["script"][0]["text"] = "Một câu hợp lệ."
+
+    assert validate_canonical_authoring(authoring) == []
+
+
+def test_audio_validator_rejects_non_object_story_quality_commitment() -> None:
+    from audio.audio_story_spec import validate_canonical_authoring
+
+    authoring = _framework_authoring()
+    authoring["meta"]["language"] = "vi"
+    authoring["meta"]["story_quality_commitment"] = "invalid"
+    authoring["script"][0]["text"] = "Một câu hợp lệ."
+
+    assert "meta.story_quality_commitment must be an object." in validate_canonical_authoring(authoring)
 
 
 def test_audio_validator_accepts_characters_and_schema_version_at_root() -> None:
@@ -82,3 +110,13 @@ def test_audio_gui_conversion_normalizes_framework_language_and_sentences() -> N
 
     assert "Câu đầu tiên." in plain
     assert "Câu thứ hai." in plain
+
+
+def test_audio_gui_converts_canonical_to_raw_text() -> None:
+    from audio.gui.helpers import convert_canonical_to_raw_text
+
+    raw = convert_canonical_to_raw_text(json.dumps(_framework_authoring(), ensure_ascii=False))
+
+    assert raw.splitlines()[:2] == ["Câu đầu tiên.", "Câu thứ hai."]
+    assert "[NARRATOR]" not in raw
+    assert "SCRIPT:" not in raw

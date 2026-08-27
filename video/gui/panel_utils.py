@@ -55,7 +55,8 @@ def render_session_history(
         st.info(empty_message)
         return
     if title_builder is None:
-        title_builder = lambda idx, item: f"#{idx}"
+        def title_builder(idx: int, item: dict[str, Any]) -> str:
+            return f"#{idx}"
     for idx, item in enumerate(items, start=1):
         with st.expander(title_builder(idx, item), expanded=False):
             st.json(item)

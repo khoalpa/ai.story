@@ -108,6 +108,18 @@ def test_get_audio_duration_seconds_falls_back_to_wave_when_ffprobe_fails(
     assert mixer.get_audio_duration_seconds(wav_path, "missing-ffprobe") == 1.25
 
 
+def test_wav_duration_does_not_launch_ffprobe(monkeypatch, tmp_path: Path) -> None:
+    wav_path = tmp_path / "fast-duration.wav"
+    _write_pcm_wav(wav_path, seconds=0.75)
+
+    def fail_if_called(*_args, **_kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError("FFprobe must not run for a valid WAV header")
+
+    monkeypatch.setattr(mixer.subprocess, "run", fail_if_called)
+
+    assert mixer.get_audio_duration_seconds(wav_path, "ffprobe") == pytest.approx(0.75, abs=0.001)
+
+
 def test_plain_output_has_no_tone_filter_before_loudness_normalization() -> None:
     filter_chain = mixer.build_final_output_filter_chain(mixer.POST_FX_PRESET_NONE)
 

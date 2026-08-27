@@ -7,7 +7,7 @@ name = "ai-studio"
 version = "0.1.0"
 description = "Unified Audio and Video studio tooling with CLI and Streamlit launchers."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 license = { file = "LICENSE" }
 authors = [
   { name = "AI Audio & Video Studio" }
@@ -106,10 +106,23 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E9", "F63", "F7", "F82"]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"audio/__init__.py" = ["E402"]
+"audio/make_audio_edge_tts.py" = ["E402"]
+"audio/tts_provider.py" = ["F401"]
+"audio/adapters/ffmpeg_audio_mixer.py" = ["F401"]
+"audio/gui/settings.py" = ["F401"]
+"video/app_api.py" = ["E402"]
+"video/gui/service.py" = ["E402"]
+"video/make_video_from_audio.py" = ["E402"]
+"scripts/clean_project.py" = ["E402"]
+"scripts/manage_models.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.10"
+no_site_packages = true
 # Run mypy across the shipped packages so new modules are type-checked by default.
 # Modules listed in the override below are the current type-debt baseline and
 # should be removed from that list as they are cleaned up.

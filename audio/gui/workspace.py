@@ -3,11 +3,17 @@ from __future__ import annotations
 import streamlit as st
 
 from audio.gui.user_messages import UserMessage, render_user_message
-from .helpers import convert_canonical_to_plain_text, convert_raw_to_plain_text, save_uploaded_text
+from audio.validate_plain_script import LineIssue, validate_script
+
+from .helpers import (
+    convert_canonical_to_plain_text,
+    convert_canonical_to_raw_text,
+    convert_raw_to_plain_text,
+    save_uploaded_text,
+)
 from .state import (
     PENDING_PLAIN_SCRIPT_KEY,
     PLAIN_SCRIPT_TEXT_KEY,
-    RUN_PLAIN_TEXT_KEY,
     audio_session,
 )
 
@@ -34,6 +40,17 @@ def _apply_pending_plain_script() -> None:
         session.last_plain_script = pending
 
 
+def _issue_rows(issues: list[LineIssue]) -> list[dict[str, object]]:
+    return [
+        {
+            "Line": issue.line_no if issue.line_no > 0 else "Whole script",
+            "Message": issue.message,
+            "Source": issue.line_text,
+        }
+        for issue in issues
+    ]
+
+
 def render_workspace_tab() -> None:
     _apply_pending_plain_script()
 
@@ -51,10 +68,29 @@ def render_workspace_tab() -> None:
         )
         session = audio_session()
         session.plain_script_text = st.session_state.get("plain_script_editor", "") or ""
+        validation = validate_script(session.plain_script_text.splitlines())
 
-        cols = st.columns(3)
+        if validation.errors:
+            st.error(
+                f"Syntax check found {len(validation.errors)} error(s). "
+                "Fix them before sending this script to the Run panel."
+            )
+            st.dataframe(_issue_rows(validation.errors), width="stretch", hide_index=True)
+        elif session.plain_script_text.strip():
+            st.success("Syntax check passed. This script can be sent to the Run panel.")
+
+        if validation.warnings:
+            with st.expander(f"Warnings ({len(validation.warnings)})"):
+                st.dataframe(_issue_rows(validation.warnings), width="stretch", hide_index=True)
+
+        cols = st.columns(2)
         with cols[0]:
-            if st.button("Use this plain script", width="stretch"):
+            if st.button(
+                "Use this plain script",
+                width="stretch",
+                disabled=not validation.ok,
+                help="Fix the syntax errors shown above before continuing." if not validation.ok else None,
+            ):
                 session = audio_session()
                 selected_text = session.plain_script_text
                 session.last_plain_script = selected_text
@@ -70,9 +106,6 @@ def render_workspace_tab() -> None:
                 mime="text/plain",
                 width="stretch",
             )
-        with cols[2]:
-            st.code(audio_session().plain_script_text[:1200] or "", language="text")
-
     with tab_canonical:
         _sync_editor_state("canonical_json_text", "canonical_editor")
         uploaded_canonical = st.file_uploader("Upload canonical JSON", type=["json"], key="canonical_upload")
@@ -85,22 +118,42 @@ def render_workspace_tab() -> None:
         )
         st.session_state["canonical_json_text"] = st.session_state.get("canonical_editor", "") or ""
 
-        if st.button("Convert canonical -> plain", width="stretch"):
-            try:
-                plain_text = convert_canonical_to_plain_text(st.session_state.get("canonical_json_text", "") or "")
-            except Exception as exc:
-                render_user_message(
-                    UserMessage(
-                        level="error",
-                        title="Could not convert canonical to plain script",
-                        body="The current canonical JSON is invalid or missing required fields.",
-                        technical_details=str(exc),
-                    ),
-                    show_details=True,
-                )
-            else:
-                st.session_state[PENDING_PLAIN_SCRIPT_KEY] = plain_text
-                st.rerun()
+        canonical_actions = st.columns(2)
+        with canonical_actions[0]:
+            if st.button("Convert canonical -> plain", width="stretch"):
+                try:
+                    plain_text = convert_canonical_to_plain_text(st.session_state.get("canonical_json_text", "") or "")
+                except Exception as exc:
+                    render_user_message(
+                        UserMessage(
+                            level="error",
+                            title="Could not convert canonical to plain script",
+                            body="The current canonical JSON is invalid or missing required fields.",
+                            technical_details=str(exc),
+                        ),
+                        show_details=True,
+                    )
+                else:
+                    st.session_state[PENDING_PLAIN_SCRIPT_KEY] = plain_text
+                    st.rerun()
+        with canonical_actions[1]:
+            if st.button("Convert canonical -> raw", width="stretch"):
+                try:
+                    raw_text = convert_canonical_to_raw_text(st.session_state.get("canonical_json_text", "") or "")
+                except Exception as exc:
+                    render_user_message(
+                        UserMessage(
+                            level="error",
+                            title="Could not convert canonical to raw text",
+                            body="The current canonical JSON is invalid or missing required fields.",
+                            technical_details=str(exc),
+                        ),
+                        show_details=True,
+                    )
+                else:
+                    st.session_state["raw_text"] = raw_text
+                    st.session_state["raw_editor"] = raw_text
+                    st.rerun()
 
     with tab_raw:
         _sync_editor_state("raw_text", "raw_editor")

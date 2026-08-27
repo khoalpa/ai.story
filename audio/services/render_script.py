@@ -6,7 +6,6 @@ from typing import Optional
 
 from audio.adapters.ffmpeg_audio_mixer import format_hms
 from audio.pipeline.plain_script_parser import normalize_bgm_name
-from audio.render_job import RenderJobArtifacts, RuntimeContext
 from audio.pipeline.script_pipeline import plan_segments_from_plain_script
 from audio.pipeline.segment_planner import (
     Segment,
@@ -15,6 +14,7 @@ from audio.pipeline.segment_planner import (
     base_chars_per_second_for_voice,
     rate_str_to_factor,
 )
+from audio.render_job import RenderJobArtifacts, RuntimeContext
 
 
 def load_text_file(path: Path) -> str:
