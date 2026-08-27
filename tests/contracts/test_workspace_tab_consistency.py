@@ -71,7 +71,7 @@ def test_audio_history_and_story_studio_have_separate_owners() -> None:
     assert "render_run_history(repository)" not in audio_tabs
     assert "Project Tools" not in audio_panel
     assert '"Story Studio": lambda: render_story_studio_workspace' in studio_shell
-    assert '["Overview", "Audio", "Video", "Story Studio"]' in studio_shell
+    assert '["Overview", "Story Studio", "Audio Studio", "Video Studio"]' in studio_shell
     for legacy_workspace in ('"Story":', '"Validation":', '"Quality":', '"Anchor":', '"Tools":'):
         assert legacy_workspace not in studio_shell
 

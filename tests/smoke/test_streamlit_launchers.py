@@ -47,8 +47,8 @@ studio.session_state["tts_provider"] = "edge_tts"
 studio.run()
 
 for workspace_name, child_radio_label in (
-    ("Audio", "Audio view"),
-    ("Video", "Video view"),
+    ("Audio Studio", "Audio Studio"),
+    ("Video Studio", "Video Studio"),
 ):
     workspace = next(radio for radio in studio.radio if radio.label == "Workspace")
     workspace.set_value(workspace_name).run()
