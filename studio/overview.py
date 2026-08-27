@@ -9,7 +9,6 @@ from studio.package_quality_report import _items, _object
 from studio.story_studio import REPORT_SPECS, load_story_package
 from studio.story_validation_report import _all_gates_pass
 
-
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
@@ -52,10 +51,8 @@ def build_overview_model(
     metrics = _object(commitment.get("recomputable_metrics")) or _object(validation.get("summary"))
     committed_quality = _object(commitment.get("committed_quality_metrics"))
     validation_quality = _object(validation.get("quality"))
-    engagement = _object(validation.get("engagement"))
     quality_summary = _object(quality.get("summary"))
     continuity = _object(anchor.get("continuity"))
-    gates = _items(validation.get("gates"))
     blockers = _items(quality.get("blockers"))
     defects = int(_object(validation.get("summary")).get("material_defect_remaining_count") or 0)
 

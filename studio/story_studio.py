@@ -11,7 +11,10 @@ from studio.package_quality_report import (
     render_package_quality_report,
 )
 from studio.project_tools import render_project_tools_workspace
-from studio.series_anchor_report import _validate_series_anchor, render_series_anchor_report
+from studio.series_anchor_report import (
+    _validate_series_anchor,
+    render_series_anchor_report,
+)
 from studio.story_report import _validate_story, render_story_report
 from studio.story_validation_report import (
     _all_gates_pass,

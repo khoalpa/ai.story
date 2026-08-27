@@ -17,6 +17,15 @@ CACHE_SCHEMA_VERSION = 1
 MANIFEST_NAME = ".tts_manifest.json"
 
 
+def _metadata_int(value: object) -> int:
+    if not isinstance(value, (str, bytes, bytearray, int, float)):
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _canonical_json(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
@@ -137,7 +146,7 @@ class TtsCacheSession:
             output = self.output_path(index)
             entry = dict(self._entries.get(str(index)) or {})
             expected_sha = str(entry.get("sha256") or "")
-            expected_size = int(entry.get("size") or 0)
+            expected_size = _metadata_int(entry.get("size"))
             if entry.get("key") == key and expected_sha and self._valid_file(output, expected_sha, expected_size):
                 hits.append(index)
                 continue

@@ -135,7 +135,8 @@ def _render_canon(report: Mapping[str, Any]) -> None:
         )
         cols[1].metric("Tuổi", selected.get("age_or_range", "—"))
         cols[2].metric("Xuất hiện từ tập", selected.get("introduced_episode", "—"))
-        traits = selected.get("identity_traits") if isinstance(selected.get("identity_traits"), list) else []
+        raw_traits = selected.get("identity_traits")
+        traits = raw_traits if isinstance(raw_traits, list) else []
         st.markdown("\n".join(f"- {trait}" for trait in traits))
     else:
         st.info("Canon chưa có nhân vật.")

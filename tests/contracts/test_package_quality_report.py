@@ -5,7 +5,11 @@ import json
 
 import pytest
 
-from studio.package_quality_report import _format_generated_at, _read_report, _short_digest
+from studio.package_quality_report import (
+    _format_generated_at,
+    _read_report,
+    _short_digest,
+)
 
 
 def test_read_report_accepts_utf8_json_object() -> None:

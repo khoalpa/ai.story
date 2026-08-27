@@ -14,6 +14,15 @@ from audio.render_observers import JobTelemetrySubscriber
 from audio.runtime_binaries import get_ffmpeg_exe, get_ffprobe_exe
 
 
+def _payload_int(value: object) -> int:
+    if not isinstance(value, (str, bytes, bytearray, int, float)):
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Benchmark the complete Audio render pipeline.")
     parser.add_argument("--input", type=Path, required=True, help="Plain-script input file.")
@@ -67,8 +76,8 @@ def main() -> int:
             "wall_seconds": round(wall_seconds, 3),
             "phase_ms": snapshot.render_phase_durations_ms,
             "realtime_factor": snapshot.render_realtime_factor,
-            "cache_hits": int(cache_payload.get("hit_count", 0)),
-            "cache_misses": int(cache_payload.get("miss_count", 0)),
+            "cache_hits": _payload_int(cache_payload.get("hit_count")),
+            "cache_misses": _payload_int(cache_payload.get("miss_count")),
             "segments": len(artifacts.segments) if artifacts else 0,
             "estimated_audio_seconds": artifacts.estimated_duration_seconds if artifacts else 0.0,
             "output_audio": str(artifacts.out_file) if artifacts else None,
