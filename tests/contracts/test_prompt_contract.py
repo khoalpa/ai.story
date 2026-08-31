@@ -28,6 +28,6 @@ def test_runtime_projection_matches_latest_prompt() -> None:
     assert contract.environment_whitelist == CANONICAL_STORY_ENVIRONMENTS
     assert contract.landscape_size == (3840, 2160)
     assert contract.portrait_size == (1080, 1920)
-    assert contract.story_validation_schema_version == "2.2"
+    assert contract.story_validation_schema_version == "2.3"
     assert contract.package_quality_schema_version == "2.0"
     assert contract.series_anchor_schema_version == "3.2.0"

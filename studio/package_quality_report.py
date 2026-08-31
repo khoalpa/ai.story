@@ -173,7 +173,12 @@ def _render_assets(report: Mapping[str, Any]) -> None:
     if sets:
         cols = st.columns(len(sets))
         for col, result in zip(cols, sets):
-            col.metric(str(result.get("orientation", "—")).title(), f"{result.get('count', 0)} ảnh", _status_text(result.get("status")))
+            group = str(result.get("set") or result.get("orientation") or "—").upper()
+            count = result.get("count")
+            if count is None and isinstance(evidence.get("asset_results"), list):
+                count = sum(_asset_group(asset) == group for asset in assets)
+            col.metric(group.title(), f"{count} ảnh" if count is not None else "Chưa có số liệu", _status_text(result.get("status")))
+        st.caption("Số ảnh theo báo cáo chất lượng; xem mục Tài nguyên để kiểm tra tệp thực tế và SHA-256.")
     if not assets:
         st.info("Báo cáo không chứa kết quả kiểm tra ảnh.")
         return
@@ -188,6 +193,16 @@ def _render_assets(report: Mapping[str, Any]) -> None:
         hide_index=True,
         use_container_width=True,
     )
+
+
+def _asset_group(asset: Mapping[str, Any]) -> str:
+    """Directory identity takes precedence over aspect, especially for characters."""
+    path = str(asset.get("path") or "").replace("\\", "/")
+    parts = [part for part in path.split("/") if part not in {"", "."}]
+    for part in parts[:-1]:
+        if part.casefold() in {"landscape", "portrait", "characters"}:
+            return part.upper()
+    return str(asset.get("orientation") or "").upper()
 
 
 def _render_story(report: Mapping[str, Any]) -> None:

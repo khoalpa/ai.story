@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -60,7 +61,7 @@ def format_duration(seconds: float | int | None) -> str:
 def format_bytes(value: Any) -> str:
     try:
         size = max(0, int(value))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return "—"
     units = ("B", "KB", "MB", "GB")
     amount = float(size)
@@ -69,6 +70,23 @@ def format_bytes(value: Any) -> str:
             return f"{amount:.0f} {unit}" if unit == "B" else f"{amount:.1f} {unit}"
         amount /= 1024
     return "—"
+
+
+def _artifact_size_matches(path: Path | None, expected: Any) -> bool:
+    """Malformed size declarations must not crash or pass delivery checks."""
+    if path is None:
+        return False
+    try:
+        if not path.is_file():
+            return False
+        if expected is None or expected == "":
+            return True
+        if isinstance(expected, bool) or not isinstance(expected, (int, str)):
+            return False
+        size = int(expected)
+        return size >= 0 and path.stat().st_size == size
+    except (OSError, ValueError):
+        return False
 
 
 def parse_srt(text: str) -> list[SubtitleCue]:
@@ -124,6 +142,7 @@ def load_audio_delivery(directory: Path) -> tuple[dict[str, Any], dict[str, str]
             statuses[key] = "Thiếu"
             continue
         try:
+            value: dict[str, Any] | list[SubtitleCue]
             if key == "subtitle":
                 value = parse_srt(path.read_text(encoding="utf-8-sig"))
             else:
@@ -153,7 +172,8 @@ def read_audio_delivery_override(source: BinaryIO, key: str) -> Any:
 def inspect_audio_delivery(data: Mapping[str, Any], directory: Path) -> dict[str, Any]:
     handoff = _object(data.get("handoff"))
     quality = _object(data.get("audio_quality"))
-    cues = data.get("subtitle") if isinstance(data.get("subtitle"), list) else []
+    subtitle = data.get("subtitle")
+    cues: list[SubtitleCue] = subtitle if isinstance(subtitle, list) else []
     artifacts = _object(handoff.get("artifacts"))
     checks = _object(quality.get("checks"))
     issues: list[str] = []
@@ -164,7 +184,7 @@ def inspect_audio_delivery(data: Mapping[str, Any], directory: Path) -> dict[str
         path = directory / relative if relative else None
         exists = bool(path and path.is_file())
         expected_size = artifact.get("size_bytes")
-        size_matches = bool(exists and (expected_size in {None, ""} or path.stat().st_size == int(expected_size)))
+        size_matches = _artifact_size_matches(path, expected_size)
         if artifact and not exists:
             issues.append(f"Không tìm thấy {label.lower()} `{relative}`.")
         elif exists and not size_matches:
@@ -225,13 +245,25 @@ def verify_artifact_hashes(rows: Sequence[Mapping[str, Any]]) -> dict[str, bool]
     return results
 
 
+def _loudness_range_status(measured: Any, target: Any) -> str:
+    try:
+        if isinstance(measured, bool) or isinstance(target, bool):
+            return "Chưa xác minh"
+        actual, limit = float(measured), float(target)
+        if not math.isfinite(actual) or not math.isfinite(limit) or min(actual, limit) < 0:
+            return "Chưa xác minh"
+        return "Đạt" if actual <= limit else "Không đạt"
+    except (TypeError, ValueError, OverflowError):
+        return "Chưa xác minh"
+
+
 def _quality_rows(quality: Mapping[str, Any]) -> list[dict[str, Any]]:
     target, measured, stream = (_object(quality.get(key)) for key in ("target", "measured", "stream"))
     checks = _object(quality.get("checks"))
     return [
         {"Chỉ số": "Integrated loudness", "Đo được": f"{measured.get('integrated_lufs', '—')} LUFS", "Mục tiêu": f"{target.get('integrated_lufs', '—')} LUFS", "Kết quả": "Đạt" if checks.get("integrated_loudness") else "Không đạt"},
         {"Chỉ số": "True peak", "Đo được": f"{measured.get('true_peak_dbtp', '—')} dBTP", "Mục tiêu": f"≤ {target.get('true_peak_dbtp', '—')} dBTP", "Kết quả": "Đạt" if checks.get("true_peak") else "Không đạt"},
-        {"Chỉ số": "Loudness range", "Đo được": f"{measured.get('loudness_range_lu', '—')} LU", "Mục tiêu": f"≤ {target.get('loudness_range_lu', '—')} LU", "Kết quả": "Đạt" if checks.get("integrated_loudness") else "Không đạt"},
+        {"Chỉ số": "Loudness range", "Đo được": f"{measured.get('loudness_range_lu', '—')} LU", "Mục tiêu": f"≤ {target.get('loudness_range_lu', '—')} LU", "Kết quả": _loudness_range_status(measured.get("loudness_range_lu"), target.get("loudness_range_lu"))},
         {"Chỉ số": "Sample rate", "Đo được": f"{stream.get('sample_rate', '—')} Hz", "Mục tiêu": "48,000 Hz", "Kết quả": "Đạt" if checks.get("sample_rate") else "Không đạt"},
         {"Chỉ số": "Kênh", "Đo được": str(stream.get("channel_layout") or stream.get("channels") or "—"), "Mục tiêu": "Stereo", "Kết quả": "Đạt" if checks.get("channels") else "Không đạt"},
     ]
@@ -241,7 +273,8 @@ def render_audio_delivery(data: Mapping[str, Any], directory: Path) -> None:
     import streamlit as st
 
     quality = _object(data.get("audio_quality"))
-    cues: list[SubtitleCue] = data.get("subtitle") if isinstance(data.get("subtitle"), list) else []
+    subtitle = data.get("subtitle")
+    cues: list[SubtitleCue] = subtitle if isinstance(subtitle, list) else []
     summary = inspect_audio_delivery(data, directory)
     tab_overview, tab_quality, tab_subtitles, tab_handoff = st.tabs(
         ["Tổng quan", "Chất lượng Audio", "Phụ đề", "Bàn giao Video"]

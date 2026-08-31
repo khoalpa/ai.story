@@ -46,9 +46,9 @@ studio = AppTest.from_string("from studio.gui_entry import main\nmain()\n", defa
 studio.session_state["tts_provider"] = "edge_tts"
 studio.run()
 
-for workspace_name, child_radio_label in (
-    ("Audio Studio", "Audio Studio"),
-    ("Video Studio", "Video Studio"),
+for workspace_name, selector_key in (
+    ("Audio Studio", "audio_embedded_view_selector"),
+    ("Video Studio", "video_embedded_view_selector"),
 ):
     workspace = next(radio for radio in studio.radio if radio.label == "Workspace")
     workspace.set_value(workspace_name).run()
@@ -56,8 +56,9 @@ for workspace_name, child_radio_label in (
         raise AssertionError(
             f"Studio workspace {workspace_name}: {[item.message for item in studio.exception]}"
         )
-    if not any(radio.label == child_radio_label for radio in studio.radio):
-        raise AssertionError(f"Studio workspace {workspace_name} did not render {child_radio_label!r}")
+    selectors = [widget for widget in studio.get("button_group") if widget.key == selector_key]
+    if len(selectors) != 1 or selectors[0].label != "Khu vực":
+        raise AssertionError(f"Studio workspace {workspace_name} did not render {selector_key!r}")
 '''
     env = os.environ.copy()
     existing_pythonpath = env.get("PYTHONPATH", "")

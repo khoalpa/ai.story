@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 from studio.audio_delivery_report import (
+    _artifact_size_matches,
+    _quality_rows,
     inspect_audio_delivery,
     load_audio_delivery,
     parse_srt,
@@ -100,3 +102,46 @@ def test_delivery_cross_check_explains_segment_mismatch(tmp_path: Path) -> None:
 
     assert summary["ready"] is False
     assert any("2 câu" in issue and "3 segment" in issue for issue in summary["issues"])
+
+
+@pytest.mark.parametrize("size", ["invalid", [], {}, True, -1, 10.5, float("inf")])
+def test_invalid_audio_size_is_reported_without_crashing(tmp_path: Path, size: object) -> None:
+    _write_delivery(tmp_path)
+    data, _ = load_audio_delivery(tmp_path)
+    data["handoff"]["artifacts"]["audio"]["size_bytes"] = size
+    summary = inspect_audio_delivery(data, tmp_path)
+    assert summary["ready"] is False
+    assert summary["artifacts"][0]["size_matches"] is False
+    assert summary["issues"]
+
+
+@pytest.mark.parametrize("size", [None, "", 3, "3"])
+def test_optional_and_valid_artifact_sizes(tmp_path: Path, size: object) -> None:
+    path = tmp_path / "audio.wav"
+    path.write_bytes(b"abc")
+    assert _artifact_size_matches(path, size)
+    assert not _artifact_size_matches(None, size)
+    assert not _artifact_size_matches(tmp_path / "missing.wav", size)
+
+
+def test_artifact_size_stat_failure_is_not_a_match(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def inaccessible(*args: object, **kwargs: object) -> None:
+        raise OSError("unreadable")
+
+    monkeypatch.setattr(Path, "stat", inaccessible)
+    assert not _artifact_size_matches(tmp_path / "audio.wav", 3)
+
+
+@pytest.mark.parametrize(("measured", "expected"), [
+    (20, "Không đạt"), (9, "Đạt"), (2, "Đạt"),
+    (None, "Chưa xác minh"), ("invalid", "Chưa xác minh"),
+    (float("nan"), "Chưa xác minh"), (float("inf"), "Chưa xác minh"),
+])
+@pytest.mark.parametrize("integrated_passed", [True, False])
+def test_loudness_range_uses_its_own_measurement(measured: object, expected: str, integrated_passed: bool) -> None:
+    rows = _quality_rows({
+        "target": {"loudness_range_lu": 9},
+        "measured": {"loudness_range_lu": measured},
+        "checks": {"integrated_loudness": integrated_passed},
+    })
+    assert next(row for row in rows if row["Chỉ số"] == "Loudness range")["Kết quả"] == expected

@@ -5,7 +5,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, BinaryIO, Mapping
 
-from studio.audio_delivery_report import format_bytes, format_duration
+from studio.audio_delivery_report import (
+    _artifact_size_matches,
+    format_bytes,
+    format_duration,
+)
 from studio.package_quality_report import _items, _object, _read_report
 from studio.story_images import discover_story_images, render_image_thumbnail
 
@@ -104,7 +108,7 @@ def inspect_video_variant(
     video_path = directory / video_name if video_name else None
     video_exists = bool(video_path and video_path.is_file())
     expected_size = video_artifact.get("size_bytes")
-    size_ok = bool(video_exists and (expected_size in {None, ""} or video_path.stat().st_size == int(expected_size)))
+    size_ok = _artifact_size_matches(video_path, expected_size)
     checks = _object(quality.get("checks"))
     failed_checks = [name for name, passed in checks.items() if passed is not True]
     stream, audio, duration = (_object(quality.get(key)) for key in ("video_stream", "audio_stream", "duration"))

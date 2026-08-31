@@ -4,11 +4,14 @@ import json
 from io import BytesIO
 from pathlib import Path
 
+import pytest
+
 from studio.video_delivery_report import (
     VIDEO_PREVIEW_STYLE,
     apply_video_report_override,
     build_video_delivery_summary,
     discover_video_report_names,
+    inspect_video_variant,
     load_video_deliveries,
     video_report_identity,
 )
@@ -78,3 +81,15 @@ def test_uploaded_report_replaces_matching_variant() -> None:
     variant, kind = apply_video_report_override(variants, payload, "video_portrait.video_quality.json")
     assert (variant, kind) == ("video_portrait", "quality")
     assert variants[variant][kind]["passed"] is False
+
+
+@pytest.mark.parametrize("size", ["invalid", [], {}, True, -1, 5.5, float("inf")])
+def test_invalid_video_size_is_reported_without_crashing(tmp_path: Path, size: object) -> None:
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"video")
+    summary = inspect_video_variant("video", {
+        "result": {"artifacts": {"video": {"path": video.name, "size_bytes": size}}},
+        "quality": _quality(),
+    }, tmp_path)
+    assert summary["ready"] is False
+    assert any("Kích thước" in issue for issue in summary["issues"])
