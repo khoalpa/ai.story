@@ -527,46 +527,46 @@ def get_video_settings() -> dict[str, Any]:
 
     prepare_project_path_defaults()
     with st.sidebar:
-        st.header(SidebarSection.PROVIDER)
-        provider_descriptors = get_video_provider_descriptors()
-        provider_options = list(provider_descriptors)
-        selected_provider = normalize_video_provider(st.session_state.get("video_provider"))
-        if selected_provider not in provider_options:
-            selected_provider = provider_options[0]
-        selected_provider = st.selectbox(
-            "Video Provider",
-            options=provider_options,
-            index=provider_options.index(selected_provider),
-            key="video_provider",
-            format_func=lambda provider_id: provider_descriptors[provider_id].label,
-        )
-        provider_descriptor = provider_descriptors[selected_provider]
-        st.caption(provider_descriptor.description)
-        provider_settings = provider_descriptor.render_sidebar()
-        provider_values = provider_settings.as_dict()
+        with st.expander(SidebarSection.PROVIDER, expanded=False):
+            provider_descriptors = get_video_provider_descriptors()
+            provider_options = list(provider_descriptors)
+            selected_provider = normalize_video_provider(st.session_state.get("video_provider"))
+            if selected_provider not in provider_options:
+                selected_provider = provider_options[0]
+            selected_provider = st.selectbox(
+                "Video Provider",
+                options=provider_options,
+                index=provider_options.index(selected_provider),
+                key="video_provider",
+                format_func=lambda provider_id: provider_descriptors[provider_id].label,
+            )
+            provider_descriptor = provider_descriptors[selected_provider]
+            st.caption(provider_descriptor.description)
+            provider_settings = provider_descriptor.render_sidebar()
+            provider_values = provider_settings.as_dict()
 
-        st.header(SidebarSection.INPUTS_OUTPUTS)
-        input_root = st.text_input("Input root", value="output", key="video_input_root")
-        output_dir = st.text_input("Output directory", value="output", key="video_output_dir")
+        with st.expander(SidebarSection.INPUTS_OUTPUTS, expanded=False):
+            input_root = st.text_input("Input root", value="output", key="video_input_root")
+            output_dir = st.text_input("Output directory", value="output", key="video_output_dir")
 
-        st.header(SidebarSection.RENDER)
-        render_modes = ["static", "slideshow"]
-        mode = st.radio(
-            "Mode",
-            options=render_modes,
-            index=_option_index(render_modes, config.DEFAULT_RENDER_MODE, default=1),
-            horizontal=True,
-        )
-        aspect_options = ["9x16", "16x9"]
-        aspect = st.selectbox(
-            "Aspect",
-            options=aspect_options,
-            index=_option_index(aspect_options, config.DEFAULT_ASPECT, default=1),
-            key="video_aspect",
-        )
-        duration_per_image = st.number_input(
-            "Duration per image (slideshow)", min_value=1.0, value=60.0, step=1.0
-        )
+        with st.expander(SidebarSection.RENDER, expanded=False):
+            render_modes = ["static", "slideshow"]
+            mode = st.radio(
+                "Mode",
+                options=render_modes,
+                index=_option_index(render_modes, config.DEFAULT_RENDER_MODE, default=1),
+                horizontal=True,
+            )
+            aspect_options = ["9x16", "16x9"]
+            aspect = st.selectbox(
+                "Aspect",
+                options=aspect_options,
+                index=_option_index(aspect_options, config.DEFAULT_ASPECT, default=1),
+                key="video_aspect",
+            )
+            duration_per_image = st.number_input(
+                "Duration per image (slideshow)", min_value=1.0, value=60.0, step=1.0
+            )
         advanced_settings = {
             **_render_advanced_encoding_settings(),
             **_render_subtitle_style_settings(mode, aspect),

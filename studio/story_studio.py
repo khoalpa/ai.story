@@ -24,9 +24,9 @@ from studio.project_context import (
     choose_story_directory,
     prepare_story_directory_widget,
 )
-from studio.project_review import review_package
+from studio.project_review import required_report_keys, review_package
 from studio.project_tools import render_project_tools_workspace
-from studio.report_semantics import display_score, gate_summary, series_required
+from studio.report_semantics import display_coverage, display_score, gate_summary
 from studio.series_anchor_report import (
     _validate_series_anchor,
     render_series_anchor_report,
@@ -45,6 +45,13 @@ from studio.video_delivery_report import (
     render_video_deliveries,
     video_report_identity,
 )
+from studio.workflow_package import WORKFLOW_FILES, read_json
+from studio.workflow_views import (
+    render_video_plan,
+    render_visual_bible,
+    render_workflow_summary,
+    render_workflow_workspace,
+)
 
 REPORT_SPECS = {
     "story": ("story.json", "Nội dung", _validate_story),
@@ -55,10 +62,13 @@ REPORT_SPECS = {
 
 STORY_STUDIO_SECTIONS = (
     "Tổng quan",
+    "Gói & quy trình",
     "Nội dung",
     "Kiểm định",
     "Chất lượng",
     "Tài nguyên",
+    "Visual Bible",
+    "Kế hoạch video",
     "Âm thanh & phụ đề",
     "Video đầu ra",
     "Series",
@@ -66,6 +76,9 @@ STORY_STUDIO_SECTIONS = (
 )
 
 STORY_STUDIO_SECTION_INTROS = {
+    "Gói & quy trình": ("Gói truyện & quy trình", "Kiểm tra manifest, ZIP, bytes kế thừa và bằng chứng theo từng stage; không sửa gói nguồn."),
+    "Visual Bible": ("Visual Bible Stage 2", "Tra cứu kế hoạch hình ảnh và khóa continuity; không thuộc gói Stage 3/4."),
+    "Kế hoạch video": ("Kế hoạch video Stage 4", "Xem timeline, script span, tham chiếu và prompt; không phải video đã render."),
     "Tài nguyên": ("Tài nguyên dự án", "Duyệt ảnh nhân vật, so sánh ngang/dọc và đối chiếu kích thước, SHA-256."),
     "Tổng quan": (
         "Tổng quan Story Studio",
@@ -123,6 +136,23 @@ def load_story_package(directory: Path) -> tuple[dict[str, Any], dict[str, str]]
             continue
         reports[key] = report
         statuses[key] = "Có dữ liệu"
+    for key, filename in WORKFLOW_FILES.items():
+        path = directory / filename
+        if not path.is_file():
+            statuses[key] = "Thiếu"
+            continue
+        try:
+            if path.stat().st_size > 5 * 1024 * 1024:
+                raise ValueError("JSON vượt giới hạn 5 MiB")
+            reports[key] = read_json(path.read_bytes())
+            statuses[key] = "Có dữ liệu"
+        except (OSError, ValueError, RecursionError) as exc:
+            statuses[key] = f"Không hợp lệ: {exc}"
+    stage = _object(reports.get("workflow")).get("package_stage")
+    for key, applicable in (("quality", stage in {"STAGE3", "STAGE4"}),
+                            ("visual_bible", stage == "STAGE2"), ("video_prompts", stage == "STAGE4")):
+        if stage in {"STAGE1", "STAGE2", "STAGE3", "STAGE4"} and not applicable and statuses.get(key) == "Thiếu":
+            statuses[key] = "Chưa áp dụng ở stage này"
     production, production_statuses = load_audio_delivery(directory)
     reports.update(production)
     statuses.update(production_statuses)
@@ -357,14 +387,17 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
 
     image_root = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
     review = review_package(image_root, reports, statuses, st.session_state)
+    render_workflow_summary(review["workflow"])
     publish_ready = review["package_ready"]
     production_ready = review["story_ready"]
     missing = [
         label
         for key, (_filename, label, _validator) in REPORT_SPECS.items()
-        if statuses.get(key) == "Thiếu" and (key != "anchor" or series_required(validation))
+        if statuses.get(key) == "Thiếu" and key in required_report_keys(reports)
     ]
-    if blockers or review["issues"] or (validation and not production_ready):
+    if review["workflow"]["stage"]:
+        st.info("Trạng thái gói nằm trong quy trình bên trên. Audio/video render được theo dõi độc lập.")
+    elif blockers or review["issues"] or (validation and not production_ready):
         verdict, message = "Cần xử lý", "Có lỗi hoặc cổng kiểm định cần xem lại trước khi tiếp tục."
         st.error(f"**{verdict}** · {message}")
     elif publish_ready and production_ready:
@@ -407,6 +440,7 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
     columns[0].metric("Điểm truyện", display_score(story_score))
     columns[1].metric("Cuốn hút", display_score(engagement.get("engagement_score")))
     columns[2].metric("Chất lượng gói", f"{quality_summary.get('overall_score', '—')}/100")
+    st.caption("Độ phủ chấm điểm gói: " + display_coverage(quality_summary.get("scoring_coverage_ratio")))
     result = gate_summary(validation)
     columns[3].metric("Cổng đạt", str(result["passed"]))
     st.caption(result["label"])
@@ -483,7 +517,13 @@ def render_story_studio_workspace(
     reports, statuses = _load_source_from_session()
     directory = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
     render_source_provenance(directory, reports, statuses)
-    if section == "Nội dung" and "story" in reports:
+    if section == "Gói & quy trình":
+        render_workflow_workspace(directory, reports, st.session_state)
+    elif section == "Visual Bible":
+        render_visual_bible(reports.get("visual_bible", {}))
+    elif section == "Kế hoạch video":
+        render_video_plan(reports.get("video_prompts", {}), root=directory)
+    elif section == "Nội dung" and "story" in reports:
         directory = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
         render_story_report(reports["story"], include_technical=False, images_root=directory)
     elif section == "Kiểm định" and "validation" in reports:
@@ -501,8 +541,8 @@ def render_story_studio_workspace(
         render_video_deliveries(variants if isinstance(variants, Mapping) else {}, directory)
     elif section == "Series" and "anchor" in reports:
         render_series_anchor_report(reports["anchor"], include_technical=False)
-    elif section == "Series" and not series_required(reports.get("validation", {})):
-        st.info("Báo cáo khai báo truyện độc lập: Series không bắt buộc. Metadata series/tập được giữ để tham khảo.")
+    elif section == "Series" and "anchor" not in required_report_keys(reports):
+        st.info("Series không bắt buộc theo manifest/profile hoặc khai báo standalone hợp lệ. Metadata series/tập được giữ để tham khảo.")
     elif section == "Công cụ":
         _render_technical(reports)
     else:

@@ -61,3 +61,12 @@ def test_multi_page_module_uses_slider() -> None:
     assert _select_prompt_page(
         StreamlitStub(), page_count=3, version="v1.0.0", module="RUNTIME"
     ) == 2
+
+
+def test_prompt_library_exposes_native_directory_picker() -> None:
+    source = Path("studio/prompt_library.py").read_text(encoding="utf-8")
+
+    assert "def choose_prompt_directory" in source
+    assert "filedialog.askdirectory" in source
+    assert 'key="prompt_library_choose_directory"' in source
+    assert "on_click=choose_prompt_directory" in source

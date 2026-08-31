@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -65,7 +66,16 @@ def strict_json_bytes(raw: bytes) -> Mapping[str, Any]:
     def reject_constant(value: str) -> None:
         raise ValueError(f"JSON constant không hữu hạn: {value}")
 
-    value = json.loads(text, object_pairs_hook=_pairs_no_duplicates, parse_constant=reject_constant)
+    def finite_float(value: str) -> float:
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError(f"JSON number không hữu hạn: {value}")
+        return number
+
+    value = json.loads(
+        text, object_pairs_hook=_pairs_no_duplicates,
+        parse_constant=reject_constant, parse_float=finite_float,
+    )
     if not isinstance(value, dict):
         raise ValueError("JSON root phải là object")
     return value
@@ -171,8 +181,10 @@ def validate_package_quality(path: Path, contract: PromptContract | None = None)
     return result
 
 
-def _safe_archive_names(infos: Iterable[zipfile.ZipInfo], result: ValidationResult) -> list[str]:
-    names: list[str] = []
+def _safe_archive_names(
+    infos: Iterable[zipfile.ZipInfo], result: ValidationResult,
+) -> dict[str, zipfile.ZipInfo]:
+    names: dict[str, zipfile.ZipInfo] = {}
     normalized: set[str] = set()
     for info in infos:
         path = PurePosixPath(info.filename.replace("\\", "/"))
@@ -185,8 +197,9 @@ def _safe_archive_names(infos: Iterable[zipfile.ZipInfo], result: ValidationResu
         folded = name.casefold()
         if folded in normalized:
             result.fail(f"Đường dẫn ZIP trùng sau chuẩn hóa: {name}")
+            continue
         normalized.add(folded)
-        names.append(name)
+        names[name] = info
     return names
 
 
@@ -206,8 +219,39 @@ def _validate_png(raw: bytes, name: str, expected_size: tuple[int, int], result:
 
 def validate_archive(path: Path, contract: PromptContract | None = None) -> ValidationResult:
     contract = contract or load_prompt_contract()
+    # CURRENT packages are identified structurally, not merely by filename.
+    # Import locally because workflow_package reuses strict_json_bytes above.
+    from studio.workflow_package import inspect_members, read_archive
+
+    try:
+        with zipfile.ZipFile(path) as probe:
+            is_current = "workflow_manifest.json" in probe.namelist()
+    except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
+        result = _result(path.name, contract)
+        result.fail(f"ZIP không hợp lệ: {exc}")
+        return result
+    if is_current:
+        try:
+            members = read_archive(path)
+        except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as exc:
+            result = _result(path.name, contract)
+            result.fail(f"ZIP không hợp lệ: {exc}")
+            return result
+        inspection = inspect_members(members, archive=True, contract=contract)
+        result = _result(path.name, contract)
+        result.status = inspection["status"]
+        result.compatibility_mode = inspection["compatibility"]
+        for item in inspection["checks"]:
+            result.checks[item["check"]] = item["status"]
+            if item["status"] == "FAIL":
+                result.errors.append(f'{item["check"]}: {item["detail"]}')
+            elif item["status"] == "NOT_VERIFIED":
+                result.warnings.append(f'{item["check"]}: {item["detail"]}')
+        return result
+
     result = _result(path.name, contract)
     checkpoint = path.name.casefold() == "stage2_checkpoint.zip"
+    result.compatibility_mode = "MIGRATION_REQUIRED"
     landscape = tuple(f"landscape/{name}" for name in contract.image_basenames)
     portrait = tuple(f"portrait/{name}" for name in contract.image_basenames)
     try:
@@ -228,19 +272,29 @@ def validate_archive(path: Path, contract: PromptContract | None = None) -> Vali
                 result.fail(f"Thiếu file: {missing}")
             for extra in sorted(actual - expected):
                 result.fail(f"File thừa: {extra}")
+            json_valid = True
+            for name, info in names.items():
+                if PurePosixPath(name).suffix.casefold() == ".json":
+                    try:
+                        strict_json_bytes(archive.read(info))
+                    except (UnicodeError, ValueError) as exc:
+                        json_valid = False
+                        result.fail(f"{name}: JSON không hợp lệ: {exc}")
+            result.checks["archive_json"] = "PASS" if json_valid else "FAIL"
             for name in landscape:
                 if name in actual:
-                    _validate_png(archive.read(name), name, contract.landscape_size, result)
+                    _validate_png(archive.read(names[name]), name, contract.landscape_size, result)
             if not checkpoint:
                 for name in portrait:
                     if name in actual:
-                        _validate_png(archive.read(name), name, contract.portrait_size, result)
+                        _validate_png(archive.read(names[name]), name, contract.portrait_size, result)
             result.checks["archive_file_set"] = "PASS" if actual == expected else "FAIL"
     except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
         result.fail(f"ZIP không hợp lệ: {exc}")
     if not result.errors:
         result.unverified(
-            "File set, CRC, PNG và kích thước đạt; provenance/OCR/semantic/safety cần công cụ ngoài validator deterministic."
+            "Gói không có workflow_manifest.json nên chỉ được đọc như LEGACY_INPUT_COMPATIBILITY; "
+            "cần migrate sang story.zip CURRENT trước khi có thể xác nhận workflow."
         )
     return result
 
@@ -266,7 +320,7 @@ def validate_project(path: Path, contract: PromptContract | None = None) -> list
     quality = path / "package_quality_report.json"
     if quality.is_file():
         results.append(validate_package_quality(quality, contract))
-    for archive_name in ("stage2_checkpoint.zip", "story.zip"):
+    for archive_name in ("stage1_checkpoint.zip", "stage2_checkpoint.zip", "story.zip"):
         archive = path / archive_name
         if archive.is_file():
             results.append(validate_archive(archive, contract))

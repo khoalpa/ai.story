@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any, MutableMapping
+
 import streamlit as st
 
 from audio.gui.user_messages import UserMessage, render_user_message
 from audio.validate_plain_script import LineIssue, validate_script
+from studio.project_context import PROJECT_DIRECTORY_KEY
 
 from .helpers import (
     convert_canonical_to_plain_text,
@@ -16,6 +20,28 @@ from .state import (
     PLAIN_SCRIPT_TEXT_KEY,
     audio_session,
 )
+
+CANONICAL_PROJECT_SOURCE_KEY = "audio_canonical_project_source"
+
+
+def load_project_canonical_default(
+    state: MutableMapping[str, Any],
+) -> Path | None:
+    """Load project story.json once per selected project without clobbering edits."""
+    project_text = str(state.get(PROJECT_DIRECTORY_KEY) or "").strip()
+    if not project_text:
+        return None
+    story_path = (Path(project_text).expanduser() / "story.json").resolve()
+    source = str(story_path)
+    if state.get(CANONICAL_PROJECT_SOURCE_KEY) == source:
+        return story_path if story_path.is_file() else None
+    if not story_path.is_file():
+        return None
+    text = story_path.read_text(encoding="utf-8-sig")
+    state["canonical_json_text"] = text
+    state["canonical_editor"] = text
+    state[CANONICAL_PROJECT_SOURCE_KEY] = source
+    return story_path
 
 
 def _sync_editor_state(state_key: str, editor_key: str) -> None:
@@ -107,7 +133,14 @@ def render_workspace_tab() -> None:
                 width="stretch",
             )
     with tab_canonical:
+        project_story: Path | None = None
+        try:
+            project_story = load_project_canonical_default(st.session_state)
+        except (OSError, UnicodeError) as exc:
+            st.warning(f"Không thể đọc story.json từ Thư mục dữ liệu dự án: {exc}")
         _sync_editor_state("canonical_json_text", "canonical_editor")
+        if project_story is not None:
+            st.caption(f"Mặc định từ Thư mục dữ liệu dự án · `{project_story}`")
         uploaded_canonical = st.file_uploader("Upload canonical JSON", type=["json"], key="canonical_upload")
         _load_uploaded_text(uploaded_canonical, "canonical_json_text", "canonical_editor")
 

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -39,6 +42,66 @@ def main() -> int:
     render_studio_style()
 
     st.title(app_title)
+
+    from studio.prompt_contract import (
+        PROMPT_FILE_ENV,
+        PROMPT_FILENAME,
+        canonical_prompt_path,
+        load_prompt_contract,
+    )
+
+    selected_prompt = str(st.session_state.get("studio_prompt_file") or "").strip()
+    if selected_prompt:
+        os.environ[PROMPT_FILE_ENV] = selected_prompt
+
+    try:
+        active_prompt = canonical_prompt_path()
+        load_prompt_contract(active_prompt)
+    except (FileNotFoundError, OSError, UnicodeError, ValueError) as exc:
+        os.environ.pop(PROMPT_FILE_ENV, None)
+        st.warning("Không tìm thấy hoặc không thể đọc prompt chuẩn của dự án.")
+        st.caption(str(exc))
+        st.markdown("Chọn một tệp `ChatGPT_prompt_vX.Y.Z.txt` để tiếp tục.")
+
+        prompt_path = st.text_input(
+            "Đường dẫn tệp prompt",
+            key="studio_prompt_path_input",
+            placeholder=r"D:\prompts\ChatGPT_prompt_v3.11.14.txt",
+        )
+        uploaded_prompt = st.file_uploader(
+            "Hoặc tải tệp prompt lên",
+            type=["txt"],
+            key="studio_prompt_upload",
+        )
+
+        candidate: Path | None = None
+        if uploaded_prompt is not None:
+            if not PROMPT_FILENAME.match(uploaded_prompt.name):
+                st.error("Tên tệp phải có dạng ChatGPT_prompt_vX.Y.Z.txt (có thể có tiền tố số).")
+            else:
+                raw = uploaded_prompt.getvalue()
+                digest = hashlib.sha256(raw).hexdigest()
+                upload_dir = Path(tempfile.gettempdir()) / "ai-story-prompts" / digest
+                upload_dir.mkdir(parents=True, exist_ok=True)
+                candidate = upload_dir / uploaded_prompt.name
+                if not candidate.is_file() or candidate.read_bytes() != raw:
+                    candidate.write_bytes(raw)
+        elif prompt_path.strip():
+            candidate = Path(prompt_path.strip().strip('"')).expanduser()
+
+        if candidate is not None and st.button("Dùng tệp prompt này", type="primary"):
+            try:
+                resolved = candidate.resolve()
+                load_prompt_contract(resolved)
+            except (FileNotFoundError, OSError, UnicodeError, ValueError) as select_exc:
+                st.error(f"Không thể dùng tệp đã chọn: {select_exc}")
+            else:
+                st.session_state["studio_prompt_file"] = str(resolved)
+                os.environ[PROMPT_FILE_ENV] = str(resolved)
+                st.rerun()
+        return 0
+
+    st.sidebar.caption(f"Prompt · `{active_prompt.name}`")
 
     selected = st.sidebar.radio(
         "Workspace",

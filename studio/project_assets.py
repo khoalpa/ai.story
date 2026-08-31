@@ -48,6 +48,9 @@ def inspect_project_assets(root: Path, reports: Mapping[str, Any]) -> list[dict[
     contract = load_prompt_contract()
     expected: dict[str, dict[str, Any]] = {}
     for group, expected_size in (("landscape", contract.landscape_size), ("portrait", contract.portrait_size)):
+        stage = _object(reports.get("workflow")).get("package_stage")
+        if stage == "STAGE1" or (stage == "STAGE2" and group == "portrait"):
+            continue
         for stem in EXPECTED_IMAGE_STEMS:
             expected[f"{group}/{stem}.png"] = {"dimensions": {"width": expected_size[0], "height": expected_size[1]}}
     for character in _items(_object(reports.get("story")).get("characters")):
@@ -122,6 +125,7 @@ def render_project_assets(root: Path, reports: Mapping[str, Any]) -> None:
 
     rows = inspect_project_assets(root, reports)
     st.caption("Kiểm tra tại máy: tệp, kích thước và SHA-256. Không thay thế đánh giá nội dung/mỹ thuật.")
+    st.caption("Đủ file không đồng nghĩa đủ COMMITTED_ASSET. GENERATION_CALL (kể cả retry) khác ASSET_TRANSACTION; thiếu evidence thì chưa xác minh số commit.")
     group = st.selectbox("Nhóm tài nguyên", ["Tất cả", "characters", "landscape", "portrait"])
     only_issues = st.checkbox("Chỉ ảnh cần xem lại")
     visible = [r for r in rows if (group == "Tất cả" or r["group"] == group) and (not only_issues or r["issues"] or not r["hash_verified"])]
@@ -145,3 +149,16 @@ def render_project_assets(root: Path, reports: Mapping[str, Any]) -> None:
         other = next((r for r in rows if r["name"] == counterpart), None)
         with right:
             render_image_thumbnail(other["path"] if other else None, caption=counterpart, key="asset_counterpart", frame_ratio=frame_ratio)
+    with st.expander("Metadata / provenance nguồn"):
+        st.caption("Metadata là khai báo gắn với ảnh, không tự chứng minh gate PASS. Giữ nguyên dữ liệu gốc để đối chiếu transaction/evidence.")
+        try:
+            if row["path"] is not None and row["path"].is_file():
+                with Image.open(row["path"]) as picture:
+                    metadata = {str(key): value if isinstance(value, (str, int, float, bool)) else f"<{type(value).__name__}>"
+                                for key, value in picture.info.items()}
+                if metadata:
+                    st.json(metadata, expanded=False)
+                else:
+                    st.info("Không có metadata provenance để xem; không suy từ tên file hoặc kích thước.")
+        except (OSError, ValueError, UnidentifiedImageError) as exc:
+            st.warning(f"Không đọc được metadata: {exc}")

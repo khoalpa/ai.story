@@ -22,6 +22,12 @@ def display_score(value: Any, maximum: int = 10) -> str:
     return f"{score:.1f}/{maximum}"
 
 
+def display_coverage(value: Any) -> str:
+    if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value) or not 0 <= value <= 1:
+        return "—"
+    return f"{value:.0%}"
+
+
 def gate_is_not_applicable(gate: Mapping[str, Any], report: Mapping[str, Any]) -> bool:
     """Only continuity can be waived here, with explicit standalone evidence."""
     return (

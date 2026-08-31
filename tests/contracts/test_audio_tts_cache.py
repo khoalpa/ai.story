@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from audio.pipeline.segment_planner import Segment
 from audio.services.tts_cache import TtsCacheSession, build_segment_cache_key
 
@@ -82,3 +84,44 @@ def test_cache_miss_unlinks_old_hardlink_without_mutating_cached_audio(tmp_path)
     restored_old = TtsCacheSession(wav_dir=tmp_path / "job-c", cache_dir=cache_dir, keys=[old_key])
     assert restored_old.restore().hits == (0,)
     assert restored_old.output_path(0).read_bytes() == b"immutable-cache-audio"
+
+
+@pytest.mark.parametrize("payload", [
+    "null", "[]", "42", '"invalid"',
+    '{"schema_version": 1e999, "segments": {}}',
+    '{"schema_version": 1, "segments": 42}',
+    '{"schema_version": 1, "segments": {"0": 42}}',
+])
+def test_invalid_manifest_does_not_block_render(tmp_path, payload) -> None:
+    wav_dir = tmp_path / "job"
+    wav_dir.mkdir()
+    (wav_dir / ".tts_manifest.json").write_text(payload, encoding="utf-8")
+    session = TtsCacheSession(wav_dir=wav_dir, cache_dir=tmp_path / "cache", keys=[_key(_segment())])
+    assert session.restore().misses == (0,)
+    session.output_path(0).write_bytes(b"regenerated-audio")
+    session.commit(0)
+    assert session.restore().hits == (0,)
+
+
+@pytest.mark.parametrize("location", ["manifest", "cache"])
+@pytest.mark.parametrize("bad_value", [None, [], 42, {"size": float("inf")}, {"size": "bad"}])
+def test_invalid_cache_entry_is_regenerated(tmp_path, location, bad_value) -> None:
+    key = _key(_segment())
+    cache_dir = tmp_path / "cache"
+    session = TtsCacheSession(wav_dir=tmp_path / "job", cache_dir=cache_dir, keys=[key])
+    session.output_path(0).write_bytes(b"original-audio")
+    session.commit(0)
+    metadata_path = cache_dir / key[:2] / f"{key}.json"
+    original = json.loads(metadata_path.read_text(encoding="utf-8"))
+    damaged = {**original, **bad_value} if isinstance(bad_value, dict) else bad_value
+    if location == "manifest":
+        session.manifest_path.write_text(json.dumps({"schema_version": 1, "segments": {"0": damaged}}), encoding="utf-8")
+        metadata_path.unlink()
+    else:
+        metadata_path.write_text(json.dumps(damaged), encoding="utf-8")
+        session.manifest_path.unlink()
+    restored = TtsCacheSession(wav_dir=session.wav_dir, cache_dir=cache_dir, keys=[key])
+    assert restored.restore().misses == (0,)
+    restored.output_path(0).write_bytes(b"replacement-audio")
+    restored.commit(0)
+    assert restored.restore().hits == (0,)

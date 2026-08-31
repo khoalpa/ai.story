@@ -5,13 +5,51 @@ import difflib
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, MutableMapping
 
-PROMPT_PATTERN = re.compile(r"^ChatGPT_prompt_v(\d+)\.(\d+)\.(\d+)\.txt$", re.IGNORECASE)
+from studio.project_context import existing_picker_directory
+from studio.prompt_contract import PROMPT_FILENAME as PROMPT_PATTERN
+
 MODULE_BEGIN = re.compile(r"^===== MODULE:([^ ]+) BEGIN =====$")
 MODULE_END = re.compile(r"^===== MODULE:([^ ]+) END =====$")
 MAX_PROMPT_BYTES = 5 * 1024 * 1024
 PAGE_SIZE = 200
+PROMPT_LIBRARY_DIRECTORY_KEY = "prompt_library_directory"
+PROMPT_LIBRARY_DIRECTORY_ERROR_KEY = "prompt_library_directory_error"
+
+
+def choose_prompt_directory(state: MutableMapping[str, Any]) -> str | None:
+    """Open the native folder picker for the prompt library directory."""
+    root = None
+    try:
+        from tkinter import Tk, filedialog
+
+        root = Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askdirectory(
+            parent=root,
+            initialdir=existing_picker_directory(
+                str(state.get(PROMPT_LIBRARY_DIRECTORY_KEY) or "")
+            ),
+            mustexist=True,
+            title="Chọn thư mục prompt",
+        )
+        if selected:
+            value = str(Path(selected).expanduser().resolve())
+            state[PROMPT_LIBRARY_DIRECTORY_KEY] = value
+            state.pop(PROMPT_LIBRARY_DIRECTORY_ERROR_KEY, None)
+            return value
+        state.pop(PROMPT_LIBRARY_DIRECTORY_ERROR_KEY, None)
+        return None
+    except Exception as exc:
+        state[PROMPT_LIBRARY_DIRECTORY_ERROR_KEY] = (
+            f"Không thể mở hộp thoại chọn thư mục: {exc}"
+        )
+        return None
+    finally:
+        if root is not None:
+            root.destroy()
 
 
 @dataclass(frozen=True)
@@ -216,11 +254,22 @@ def render_prompt_library_workspace(*, embedded: bool = False) -> None:
     st.header("Prompts")
     st.caption("Duyệt, tìm kiếm và so sánh các tệp ChatGPT_prompt_v*.*.*.txt theo module.")
     default_directory = str((Path.cwd() / "prompts").resolve())
-    directory_text = st.text_input(
-        "Thư mục prompt",
-        value=st.session_state.get("prompt_library_directory", default_directory),
-        key="prompt_library_directory",
+    if PROMPT_LIBRARY_DIRECTORY_KEY not in st.session_state:
+        st.session_state[PROMPT_LIBRARY_DIRECTORY_KEY] = default_directory
+    directory_col, picker_col = st.columns([6, 1])
+    directory_text = directory_col.text_input(
+        "Thư mục prompt", key=PROMPT_LIBRARY_DIRECTORY_KEY,
     )
+    picker_col.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
+    picker_col.button(
+        "Chọn thư mục",
+        key="prompt_library_choose_directory",
+        width="stretch",
+        on_click=choose_prompt_directory,
+        args=(st.session_state,),
+    )
+    if st.session_state.get(PROMPT_LIBRARY_DIRECTORY_ERROR_KEY):
+        st.error(st.session_state[PROMPT_LIBRARY_DIRECTORY_ERROR_KEY])
     directory = Path(directory_text.strip()).expanduser()
     paths = discover_prompt_files(directory)
     if not paths:
@@ -257,6 +306,7 @@ __all__ = [
     "PromptDocument",
     "PromptModule",
     "_select_prompt_page",
+    "choose_prompt_directory",
     "discover_prompt_files",
     "load_prompt",
     "render_prompt_library_workspace",

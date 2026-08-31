@@ -37,7 +37,7 @@ def render_project_tools_workspace(*, embedded: bool = False) -> None:
         "Artifact cần audit",
         value=str((Path.cwd() / "output").resolve()),
         key="studio_prompt_audit_path",
-        help="Thư mục output, stage2_checkpoint.zip hoặc story.zip.",
+        help="Thư mục output hoặc story.zip CURRENT; checkpoint cũ chỉ được chẩn đoán legacy.",
     )
     if st.button("Prompt conformance audit", key="studio_tool_prompt_audit"):
         results = validate_project(Path(audit_path).expanduser(), contract)

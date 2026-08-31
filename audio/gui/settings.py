@@ -453,94 +453,94 @@ def render_settings_sidebar() -> GuiConfigBundle:
     profile_defaults = ProfileConfig.defaults()
 
     with st.sidebar:
-        st.header(SidebarSection.PROFILES)
-        profile_root = st.text_input("Profile root", value=str(DEFAULT_PROFILE_ROOT))
-        discovered_profiles = list_asset_profiles(profile_root)
-        profile_options = ["", *discovered_profiles]
-        default_profile = profile_defaults.get("asset_profile") or ""
-        if default_profile not in profile_options:
-            default_profile = "demo" if "demo" in profile_options else ""
-        asset_profile = st.selectbox(
-            "Profile preset",
-            options=profile_options,
-            index=profile_options.index(default_profile) if default_profile in profile_options else 0,
-            help="Leave empty if you do not want to use a profile",
-        )
+        with _expander(SidebarSection.PROFILES, expanded=False):
+            profile_root = st.text_input("Profile root", value=str(DEFAULT_PROFILE_ROOT))
+            discovered_profiles = list_asset_profiles(profile_root)
+            profile_options = ["", *discovered_profiles]
+            default_profile = profile_defaults.get("asset_profile") or ""
+            if default_profile not in profile_options:
+                default_profile = "demo" if "demo" in profile_options else ""
+            asset_profile = st.selectbox(
+                "Profile preset",
+                options=profile_options,
+                index=profile_options.index(default_profile) if default_profile in profile_options else 0,
+                help="Leave empty if you do not want to use a profile",
+            )
 
-        manifest = read_profile_manifest(profile_root, asset_profile)
-        if manifest:
-            st.caption(f"Profile manifest: {manifest.get('profile_id', asset_profile)}")
-            manifest_voices = manifest.get("voices")
-            if isinstance(manifest_voices, dict):
-                for key in (
-                    "voice_narrator",
-                    "voice_female",
-                    "voice_male",
-                    "voice_en_narrator",
-                    "voice_en_female",
-                    "voice_en_male",
-                    "vi_narrator",
-                    "vi_female",
-                    "vi_male",
-                    "en_narrator",
-                    "en_female",
-                    "en_male",
-                ):
-                    value = manifest_voices.get(key)
-                    if isinstance(value, str) and value.strip():
-                        canonical_key = {
-                            "vi_narrator": "voice_narrator",
-                            "vi_female": "voice_female",
-                            "vi_male": "voice_male",
-                            "en_narrator": "voice_en_narrator",
-                            "en_female": "voice_en_female",
-                            "en_male": "voice_en_male",
-                        }.get(key, key)
-                        profile_defaults[canonical_key] = value.strip()
+            manifest = read_profile_manifest(profile_root, asset_profile)
+            if manifest:
+                st.caption(f"Profile manifest: {manifest.get('profile_id', asset_profile)}")
+                manifest_voices = manifest.get("voices")
+                if isinstance(manifest_voices, dict):
+                    for key in (
+                        "voice_narrator",
+                        "voice_female",
+                        "voice_male",
+                        "voice_en_narrator",
+                        "voice_en_female",
+                        "voice_en_male",
+                        "vi_narrator",
+                        "vi_female",
+                        "vi_male",
+                        "en_narrator",
+                        "en_female",
+                        "en_male",
+                    ):
+                        value = manifest_voices.get(key)
+                        if isinstance(value, str) and value.strip():
+                            canonical_key = {
+                                "vi_narrator": "voice_narrator",
+                                "vi_female": "voice_female",
+                                "vi_male": "voice_male",
+                                "en_narrator": "voice_en_narrator",
+                                "en_female": "voice_en_female",
+                                "en_male": "voice_en_male",
+                            }.get(key, key)
+                            profile_defaults[canonical_key] = value.strip()
 
-        bgm_files = list_profile_bgm_files(profile_root, asset_profile) if asset_profile else []
-        bgm_options = ["", *bgm_files] if bgm_files else [""]
-        bgm_default = profile_defaults.get("bgm") or ("bgm_lofi.mp3" if "bgm_lofi.mp3" in bgm_options else "")
-        bgm = (
-            st.selectbox("BGM fallback", bgm_options, index=bgm_options.index(bgm_default) if bgm_default in bgm_options else 0)
-            if bgm_files else st.text_input("BGM fallback", value=bgm_default)
-        )
-        bgmdir = st.text_input("BGM dir", value=str(profile_defaults["bgmdir"]))
-        bgm_config = st.text_input(
-            "BGM config",
-            value="bgm_config.json" if asset_profile and read_profile_bgm_config(profile_root, asset_profile) else (profile_defaults.get("bgm_config") or ""),
-        )
-        abbr_map = st.text_input("Abbreviation map", value=str(profile_defaults["abbr_map"]))
+            bgm_files = list_profile_bgm_files(profile_root, asset_profile) if asset_profile else []
+            bgm_options = ["", *bgm_files] if bgm_files else [""]
+            bgm_default = profile_defaults.get("bgm") or ("bgm_lofi.mp3" if "bgm_lofi.mp3" in bgm_options else "")
+            bgm = (
+                st.selectbox("BGM fallback", bgm_options, index=bgm_options.index(bgm_default) if bgm_default in bgm_options else 0)
+                if bgm_files else st.text_input("BGM fallback", value=bgm_default)
+            )
+            bgmdir = st.text_input("BGM dir", value=str(profile_defaults["bgmdir"]))
+            bgm_config = st.text_input(
+                "BGM config",
+                value="bgm_config.json" if asset_profile and read_profile_bgm_config(profile_root, asset_profile) else (profile_defaults.get("bgm_config") or ""),
+            )
+            abbr_map = st.text_input("Abbreviation map", value=str(profile_defaults["abbr_map"]))
 
-        st.header(SidebarSection.PROVIDER)
-        st.session_state.setdefault(
-            "vieneu_device",
-            _normalize_vieneu_device_choice(profile_defaults.get("vieneu_device") or app_defaults.get("vieneu_device") or "auto"),
-        )
-        st.session_state.setdefault(
-            "vieneu_backend",
-            _normalize_vieneu_backend_choice(profile_defaults.get("vieneu_backend") or app_defaults.get("vieneu_backend") or "auto"),
-        )
-        tts_provider_options = get_tts_provider_choices()
-        default_tts = str(profile_defaults.get("tts_provider") or app_defaults["tts_provider"])
-        tts_provider = st.selectbox(
-            "TTS provider",
-            tts_provider_options,
-            index=tts_provider_options.index(default_tts) if default_tts in tts_provider_options else 0,
-            help="Provider list is discovered from audio/providers.",
-        )
-        st.caption(get_tts_provider_descriptor(tts_provider).description)
-        local_vi_notice = find_local_voice_notice(tts_provider=tts_provider, lang="vi")
-        if local_vi_notice:
-            render_user_message(UserMessage(level="warning", title="Local voice notice", body=local_vi_notice))
-        st.session_state["vieneu_device"] = _normalize_vieneu_device_choice(st.session_state.get("vieneu_device"))
-        st.selectbox(
-            "Render audio",
-            list(VIENEU_RENDER_AUDIO_OPTIONS),
-            index=0 if _normalize_vieneu_device_choice(st.session_state.get("vieneu_device")) == "auto" else 1,
-            key="vieneu_device",
-            help="Choose the device used by VieNeu rendering and preview. auto prefers GPU when available, otherwise CPU.",
-        )
+        with _expander(SidebarSection.PROVIDER, expanded=False):
+            st.session_state.setdefault(
+                "vieneu_device",
+                _normalize_vieneu_device_choice(profile_defaults.get("vieneu_device") or app_defaults.get("vieneu_device") or "auto"),
+            )
+            st.session_state.setdefault(
+                "vieneu_backend",
+                _normalize_vieneu_backend_choice(profile_defaults.get("vieneu_backend") or app_defaults.get("vieneu_backend") or "auto"),
+            )
+            tts_provider_options = get_tts_provider_choices()
+            default_tts = str(profile_defaults.get("tts_provider") or app_defaults["tts_provider"])
+            tts_provider = st.selectbox(
+                "TTS provider",
+                tts_provider_options,
+                index=tts_provider_options.index(default_tts) if default_tts in tts_provider_options else 0,
+                help="Provider list is discovered from audio/providers.",
+            )
+            st.caption(get_tts_provider_descriptor(tts_provider).description)
+            local_vi_notice = find_local_voice_notice(tts_provider=tts_provider, lang="vi")
+            if local_vi_notice:
+                render_user_message(UserMessage(level="warning", title="Local voice notice", body=local_vi_notice))
+            st.session_state["vieneu_device"] = _normalize_vieneu_device_choice(st.session_state.get("vieneu_device"))
+            st.selectbox(
+                "Render audio",
+                list(VIENEU_RENDER_AUDIO_OPTIONS),
+                index=0 if _normalize_vieneu_device_choice(st.session_state.get("vieneu_device")) == "auto" else 1,
+                key="vieneu_device",
+                help="Choose the device used by VieNeu rendering and preview. auto prefers GPU when available, otherwise CPU.",
+            )
         st.session_state.setdefault("vieneu_core", "local")
         st.session_state.setdefault(
             "vieneu_mode",
@@ -600,305 +600,305 @@ def render_settings_sidebar() -> GuiConfigBundle:
         vieneu_render_use_batch = bool(st.session_state.get("vieneu_render_use_batch") or False)
         vieneu_render_max_batch_size_run = int(st.session_state.get("vieneu_render_max_batch_size_run") or 1)
         if tts_provider == "vieneu":
-            st.subheader("VieNeu TTS core")
-            previous_vieneu_mode = str(st.session_state.get("_vieneu_mode_last") or vieneu_mode or "standard")
-            previous_vieneu_model_name = str(st.session_state.get("vieneu_model_name") or "").strip()
-            if str(st.session_state.get("vieneu_core") or "") not in set(VIENEU_CORE_OPTIONS):
-                st.session_state["vieneu_core"] = vieneu_core if vieneu_core in set(VIENEU_CORE_OPTIONS) else "local"
-            vieneu_core = st.selectbox(
-                "VieNeu core",
-                list(VIENEU_CORE_OPTIONS),
-                key="vieneu_core",
-                format_func=lambda value: "headless/local" if value == "local" else "remote API",
-                help="Choose how the engine is called: local/headless in this machine or through a remote API.",
-            )
-            if str(st.session_state.get("vieneu_mode") or "") not in set(VIENEU_MODE_OPTIONS):
-                st.session_state["vieneu_mode"] = vieneu_mode if vieneu_mode in set(VIENEU_MODE_OPTIONS) else "standard"
-            vieneu_mode = st.selectbox(
-                "VieNeu mode",
-                list(VIENEU_MODE_OPTIONS),
-                key="vieneu_mode",
-                help="turbo = 4 presets; standard = 6 presets. Voice defaults change with the selected mode.",
-            )
-            previous_default_model = _resolve_vieneu_mode_default_model(
-                core=str(st.session_state.get("vieneu_core") or vieneu_core or "local"),
-                mode=previous_vieneu_mode,
-                current_model=previous_vieneu_model_name,
-            )
-            current_default_model = _resolve_vieneu_mode_default_model(
-                core=str(st.session_state.get("vieneu_core") or vieneu_core or "local"),
-                mode=vieneu_mode,
-                current_model=previous_vieneu_model_name,
-            )
-            if not previous_vieneu_model_name or previous_vieneu_model_name == previous_default_model:
-                st.session_state["vieneu_model_name"] = current_default_model
-            st.session_state["_vieneu_mode_last"] = vieneu_mode
-            vieneu_model_name, audio_update_target = _render_audio_local_model_picker(
-                provider_id="vieneu",
-                current_model=str(st.session_state.get("vieneu_model_name") or "").strip(),
-                mode=vieneu_mode,
-            )
-            if str(st.session_state.get("vieneu_backend") or "") not in set(VIENEU_BACKEND_OPTIONS):
-                st.session_state["vieneu_backend"] = "auto"
-            st.selectbox(
-                "Backend",
-                list(VIENEU_BACKEND_OPTIONS),
-                key="vieneu_backend",
-                help="auto chooses the best backend; native forces the built-in path; lmdeploy forces LMDeploy when supported by the selected model.",
-            )
-            vieneu_runtime_settings = _build_vieneu_runtime_settings(
-                core=vieneu_core,
-                mode=vieneu_mode,
-                api_base=vieneu_api_base,
-                model_name=vieneu_model_name,
-                local_update_target=audio_update_target,
-            )
-            runtime_details = get_vieneu_runtime_model_details(vieneu_runtime_settings, allow_network=False)
-            st.caption(f"Runtime model: {runtime_details.get('runtime_model') or '-'}")
-            st.caption(f"Runtime backend: {runtime_details.get('backend') or '-'} (requested: {runtime_details.get('backend_requested') or 'auto'})")
-            if str(runtime_details.get("warning") or "").strip():
-                render_user_message(UserMessage(level="warning", title="VieNeu runtime model", body=str(runtime_details.get("warning") or "")))
-            if vieneu_core == "local" and vieneu_mode == "standard":
-                cached_codec_snapshot = get_vieneu_cached_codec_snapshot()
-                st.caption(f"Cached codec snapshot: {cached_codec_snapshot or '-'}")
-                st.caption(f"Codec adopt target: {provider_target_dir('audio', 'vieneu_codec', __file__)}")
-                if st.button(
-                    "Adopt cached codec",
-                    width="stretch",
-                    key="audio_adopt_cached_codec",
-                    disabled=not bool(cached_codec_snapshot),
-                    help="Copy the cached codec from Hugging Face into audio/models/vieneu_codec/ for easier local or offline runs.",
-                ):
-                    try:
-                        adopted_path = adopt_vieneu_cached_codec()
-                        st.session_state["audio_provider_action_status"] = ("success", f"Adopted cached codec into {adopted_path}")
-                        rerun = getattr(st, "rerun", None)
-                        if callable(rerun):
-                            rerun()
-                    except Exception as exc:
-                        st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
-
-                cached_distilhubert_snapshot = get_vieneu_cached_distilhubert_snapshot()
-                st.caption(f"Cached distilhubert snapshot: {cached_distilhubert_snapshot or '-'}")
-                st.caption(f"Distilhubert adopt target: {provider_target_dir('audio', 'vieneu_distilhubert', __file__)}")
-                if st.button(
-                    "Adopt cached distilhubert",
-                    width="stretch",
-                    key="audio_adopt_cached_distilhubert",
-                    disabled=not bool(cached_distilhubert_snapshot),
-                    help="Copy the cached ntu-spml/distilhubert dependency from Hugging Face into audio/models/vieneu_distilhubert/ to keep a local snapshot in the project.",
-                ):
-                    try:
-                        adopted_path = adopt_vieneu_cached_distilhubert()
-                        st.session_state["audio_provider_action_status"] = ("success", f"Adopted cached distilhubert into {adopted_path}")
-                        rerun = getattr(st, "rerun", None)
-                        if callable(rerun):
-                            rerun()
-                    except Exception as exc:
-                        st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
-            if vieneu_core == "remote_api":
-                if not str(st.session_state.get("vieneu_api_base") or "").strip():
-                    st.session_state["vieneu_api_base"] = vieneu_api_base or DEFAULT_VIENEU_API_BASE
-                st.text_input(
-                    "VieNeu API base",
-                    help="Example: http://127.0.0.1:23333/v1",
-                    key="vieneu_api_base",
+            with _expander("VieNeu TTS core", expanded=False):
+                previous_vieneu_mode = str(st.session_state.get("_vieneu_mode_last") or vieneu_mode or "standard")
+                previous_vieneu_model_name = str(st.session_state.get("vieneu_model_name") or "").strip()
+                if str(st.session_state.get("vieneu_core") or "") not in set(VIENEU_CORE_OPTIONS):
+                    st.session_state["vieneu_core"] = vieneu_core if vieneu_core in set(VIENEU_CORE_OPTIONS) else "local"
+                vieneu_core = st.selectbox(
+                    "VieNeu core",
+                    list(VIENEU_CORE_OPTIONS),
+                    key="vieneu_core",
+                    format_func=lambda value: "headless/local" if value == "local" else "remote API",
+                    help="Choose how the engine is called: local/headless in this machine or through a remote API.",
                 )
-                vieneu_api_base = str(st.session_state.get("vieneu_api_base") or "").strip()
-            else:
-                vieneu_api_base = str(vieneu_api_base or "")
-                st.caption("The local/headless core does not use an API base; the engine is called directly in-process.")
+                if str(st.session_state.get("vieneu_mode") or "") not in set(VIENEU_MODE_OPTIONS):
+                    st.session_state["vieneu_mode"] = vieneu_mode if vieneu_mode in set(VIENEU_MODE_OPTIONS) else "standard"
+                vieneu_mode = st.selectbox(
+                    "VieNeu mode",
+                    list(VIENEU_MODE_OPTIONS),
+                    key="vieneu_mode",
+                    help="turbo = 4 presets; standard = 6 presets. Voice defaults change with the selected mode.",
+                )
+                previous_default_model = _resolve_vieneu_mode_default_model(
+                    core=str(st.session_state.get("vieneu_core") or vieneu_core or "local"),
+                    mode=previous_vieneu_mode,
+                    current_model=previous_vieneu_model_name,
+                )
+                current_default_model = _resolve_vieneu_mode_default_model(
+                    core=str(st.session_state.get("vieneu_core") or vieneu_core or "local"),
+                    mode=vieneu_mode,
+                    current_model=previous_vieneu_model_name,
+                )
+                if not previous_vieneu_model_name or previous_vieneu_model_name == previous_default_model:
+                    st.session_state["vieneu_model_name"] = current_default_model
+                st.session_state["_vieneu_mode_last"] = vieneu_mode
+                vieneu_model_name, audio_update_target = _render_audio_local_model_picker(
+                    provider_id="vieneu",
+                    current_model=str(st.session_state.get("vieneu_model_name") or "").strip(),
+                    mode=vieneu_mode,
+                )
+                if str(st.session_state.get("vieneu_backend") or "") not in set(VIENEU_BACKEND_OPTIONS):
+                    st.session_state["vieneu_backend"] = "auto"
+                st.selectbox(
+                    "Backend",
+                    list(VIENEU_BACKEND_OPTIONS),
+                    key="vieneu_backend",
+                    help="auto chooses the best backend; native forces the built-in path; lmdeploy forces LMDeploy when supported by the selected model.",
+                )
+                vieneu_runtime_settings = _build_vieneu_runtime_settings(
+                    core=vieneu_core,
+                    mode=vieneu_mode,
+                    api_base=vieneu_api_base,
+                    model_name=vieneu_model_name,
+                    local_update_target=audio_update_target,
+                )
+                runtime_details = get_vieneu_runtime_model_details(vieneu_runtime_settings, allow_network=False)
+                st.caption(f"Runtime model: {runtime_details.get('runtime_model') or '-'}")
+                st.caption(f"Runtime backend: {runtime_details.get('backend') or '-'} (requested: {runtime_details.get('backend_requested') or 'auto'})")
+                if str(runtime_details.get("warning") or "").strip():
+                    render_user_message(UserMessage(level="warning", title="VieNeu runtime model", body=str(runtime_details.get("warning") or "")))
+                if vieneu_core == "local" and vieneu_mode == "standard":
+                    cached_codec_snapshot = get_vieneu_cached_codec_snapshot()
+                    st.caption(f"Cached codec snapshot: {cached_codec_snapshot or '-'}")
+                    st.caption(f"Codec adopt target: {provider_target_dir('audio', 'vieneu_codec', __file__)}")
+                    if st.button(
+                        "Adopt cached codec",
+                        width="stretch",
+                        key="audio_adopt_cached_codec",
+                        disabled=not bool(cached_codec_snapshot),
+                        help="Copy the cached codec from Hugging Face into audio/models/vieneu_codec/ for easier local or offline runs.",
+                    ):
+                        try:
+                            adopted_path = adopt_vieneu_cached_codec()
+                            st.session_state["audio_provider_action_status"] = ("success", f"Adopted cached codec into {adopted_path}")
+                            rerun = getattr(st, "rerun", None)
+                            if callable(rerun):
+                                rerun()
+                        except Exception as exc:
+                            st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
 
-            with _expander("VieNeu generation tuning", expanded=False):
-                st.caption("These controls are passed to the VieNeu adapter for preview and full render calls.")
-                preview_col, render_col = st.columns(2)
-                with preview_col:
-                    st.markdown("#### Preview")
-                    vieneu_preview_temperature = float(
-                        st.number_input(
-                            "Preview temperature",
-                            min_value=0.0,
-                            max_value=2.0,
-                            value=float(vieneu_preview_temperature),
-                            step=0.05,
-                            key="vieneu_preview_temperature",
-                        )
+                    cached_distilhubert_snapshot = get_vieneu_cached_distilhubert_snapshot()
+                    st.caption(f"Cached distilhubert snapshot: {cached_distilhubert_snapshot or '-'}")
+                    st.caption(f"Distilhubert adopt target: {provider_target_dir('audio', 'vieneu_distilhubert', __file__)}")
+                    if st.button(
+                        "Adopt cached distilhubert",
+                        width="stretch",
+                        key="audio_adopt_cached_distilhubert",
+                        disabled=not bool(cached_distilhubert_snapshot),
+                        help="Copy the cached ntu-spml/distilhubert dependency from Hugging Face into audio/models/vieneu_distilhubert/ to keep a local snapshot in the project.",
+                    ):
+                        try:
+                            adopted_path = adopt_vieneu_cached_distilhubert()
+                            st.session_state["audio_provider_action_status"] = ("success", f"Adopted cached distilhubert into {adopted_path}")
+                            rerun = getattr(st, "rerun", None)
+                            if callable(rerun):
+                                rerun()
+                        except Exception as exc:
+                            st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
+                if vieneu_core == "remote_api":
+                    if not str(st.session_state.get("vieneu_api_base") or "").strip():
+                        st.session_state["vieneu_api_base"] = vieneu_api_base or DEFAULT_VIENEU_API_BASE
+                    st.text_input(
+                        "VieNeu API base",
+                        help="Example: http://127.0.0.1:23333/v1",
+                        key="vieneu_api_base",
                     )
-                    vieneu_preview_max_chars_chunk = int(
-                        st.number_input(
-                            "Preview max chars/chunk",
-                            min_value=1,
-                            max_value=2000,
-                            value=int(vieneu_preview_max_chars_chunk),
-                            step=10,
-                            key="vieneu_preview_max_chars_chunk",
-                        )
-                    )
-                    vieneu_preview_text_max_len = int(
-                        st.number_input(
-                            "Preview text max length",
-                            min_value=1,
-                            max_value=2000,
-                            value=int(vieneu_preview_text_max_len),
-                            step=10,
-                            key="vieneu_preview_text_max_len",
-                        )
-                    )
-                    vieneu_preview_use_batch = bool(
-                        st.checkbox("Preview batch generation", value=bool(vieneu_preview_use_batch), key="vieneu_preview_use_batch")
-                    )
-                    vieneu_preview_max_batch_size_run = int(
-                        st.number_input(
-                            "Preview batch size",
-                            min_value=1,
-                            max_value=64,
-                            value=int(vieneu_preview_max_batch_size_run),
-                            step=1,
-                            key="vieneu_preview_max_batch_size_run",
-                            disabled=not bool(vieneu_preview_use_batch),
-                        )
-                    )
-                with render_col:
-                    st.markdown("#### Full render")
-                    vieneu_render_temperature = float(
-                        st.number_input(
-                            "Render temperature",
-                            min_value=0.0,
-                            max_value=2.0,
-                            value=float(vieneu_render_temperature),
-                            step=0.05,
-                            key="vieneu_render_temperature",
-                        )
-                    )
-                    vieneu_render_max_chars_chunk = int(
-                        st.number_input(
-                            "Render max chars/chunk",
-                            min_value=1,
-                            max_value=4000,
-                            value=int(vieneu_render_max_chars_chunk),
-                            step=10,
-                            key="vieneu_render_max_chars_chunk",
-                        )
-                    )
-                    vieneu_render_use_batch = bool(
-                        st.checkbox("Render batch generation", value=bool(vieneu_render_use_batch), key="vieneu_render_use_batch")
-                    )
-                    vieneu_render_max_batch_size_run = int(
-                        st.number_input(
-                            "Render batch size",
-                            min_value=1,
-                            max_value=64,
-                            value=int(vieneu_render_max_batch_size_run),
-                            step=1,
-                            key="vieneu_render_max_batch_size_run",
-                            disabled=not bool(vieneu_render_use_batch),
-                        )
-                    )
+                    vieneu_api_base = str(st.session_state.get("vieneu_api_base") or "").strip()
+                else:
+                    vieneu_api_base = str(vieneu_api_base or "")
+                    st.caption("The local/headless core does not use an API base; the engine is called directly in-process.")
 
-            col_test, col_refresh, col_update = st.columns([1, 1, 1])
-            with col_test:
-                if st.button("Test", width="stretch"):
-                    try:
-                        if tts_provider == "vieneu":
-                            message = probe_vieneu_core_connection_from_settings(vieneu_runtime_settings, allow_network=False)
-                        else:
-                            message = "Audio: edge_tts test OK - local/system provider, no model download is required."
-                        st.session_state["audio_provider_action_status"] = ("success", message)
-                    except Exception as exc:
-                        st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
-            with col_refresh:
-                if st.button("Refresh", width="stretch"):
-                    try:
-                        if tts_provider == "vieneu":
-                            message = refresh_vieneu_voices_from_settings(vieneu_runtime_settings, allow_network=False)
-                        else:
-                            local_models = list_local_models("audio", __file__)
-                            message = f"Audio: refreshed edge_tts - models dir={provider_models_dir('audio', __file__)} - local assets={len(local_models)}"
-                        st.session_state["audio_provider_action_status"] = ("success", message)
-                        rerun = getattr(st, "rerun", None)
-                        if callable(rerun):
-                            rerun()
-                    except Exception as exc:
-                        st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
-            with col_update:
-                if st.button("Update", width="stretch"):
-                    try:
-                        if tts_provider == "vieneu":
-                            message = refresh_vieneu_voices_from_settings(
-                                vieneu_runtime_settings,
-                                allow_network=True,
-                                force_reload=True,
+                with _expander("VieNeu generation tuning", expanded=False):
+                    st.caption("These controls are passed to the VieNeu adapter for preview and full render calls.")
+                    preview_col, render_col = st.columns(2)
+                    with preview_col:
+                        st.markdown("#### Preview")
+                        vieneu_preview_temperature = float(
+                            st.number_input(
+                                "Preview temperature",
+                                min_value=0.0,
+                                max_value=2.0,
+                                value=float(vieneu_preview_temperature),
+                                step=0.05,
+                                key="vieneu_preview_temperature",
                             )
-                            message = f"{message} | Update target={audio_update_target} | Online mode was enabled temporarily to refresh cache/model assets under models/."
-                        else:
-                            edge_target = provider_target_dir("audio", "edge_tts", __file__)
-                            message = f"Audio: edge_tts has no Update model step. Update target={edge_target}. The app only refreshes local/system voices and does not download anything from the internet."
-                        st.session_state["audio_provider_action_status"] = ("success", message)
-                        rerun = getattr(st, "rerun", None)
-                        if callable(rerun):
-                            rerun()
-                    except Exception as exc:
-                        st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
+                        )
+                        vieneu_preview_max_chars_chunk = int(
+                            st.number_input(
+                                "Preview max chars/chunk",
+                                min_value=1,
+                                max_value=2000,
+                                value=int(vieneu_preview_max_chars_chunk),
+                                step=10,
+                                key="vieneu_preview_max_chars_chunk",
+                            )
+                        )
+                        vieneu_preview_text_max_len = int(
+                            st.number_input(
+                                "Preview text max length",
+                                min_value=1,
+                                max_value=2000,
+                                value=int(vieneu_preview_text_max_len),
+                                step=10,
+                                key="vieneu_preview_text_max_len",
+                            )
+                        )
+                        vieneu_preview_use_batch = bool(
+                            st.checkbox("Preview batch generation", value=bool(vieneu_preview_use_batch), key="vieneu_preview_use_batch")
+                        )
+                        vieneu_preview_max_batch_size_run = int(
+                            st.number_input(
+                                "Preview batch size",
+                                min_value=1,
+                                max_value=64,
+                                value=int(vieneu_preview_max_batch_size_run),
+                                step=1,
+                                key="vieneu_preview_max_batch_size_run",
+                                disabled=not bool(vieneu_preview_use_batch),
+                            )
+                        )
+                    with render_col:
+                        st.markdown("#### Full render")
+                        vieneu_render_temperature = float(
+                            st.number_input(
+                                "Render temperature",
+                                min_value=0.0,
+                                max_value=2.0,
+                                value=float(vieneu_render_temperature),
+                                step=0.05,
+                                key="vieneu_render_temperature",
+                            )
+                        )
+                        vieneu_render_max_chars_chunk = int(
+                            st.number_input(
+                                "Render max chars/chunk",
+                                min_value=1,
+                                max_value=4000,
+                                value=int(vieneu_render_max_chars_chunk),
+                                step=10,
+                                key="vieneu_render_max_chars_chunk",
+                            )
+                        )
+                        vieneu_render_use_batch = bool(
+                            st.checkbox("Render batch generation", value=bool(vieneu_render_use_batch), key="vieneu_render_use_batch")
+                        )
+                        vieneu_render_max_batch_size_run = int(
+                            st.number_input(
+                                "Render batch size",
+                                min_value=1,
+                                max_value=64,
+                                value=int(vieneu_render_max_batch_size_run),
+                                step=1,
+                                key="vieneu_render_max_batch_size_run",
+                                disabled=not bool(vieneu_render_use_batch),
+                            )
+                        )
 
-            _render_audio_provider_status()
-            render_user_message(UserMessage(level="info", title="VieNeu runtime", body="AI-Studio calls VieNeu through the TTS core adapter. The core decides local vs. remote API, and the mode decides which preset/model family is used."))
-        st.header(SidebarSection.INPUTS_OUTPUTS)
-        output_dir = st.text_input(
-            "Output directory", value=str(app_defaults["output_dir"]), key="audio_output_dir"
-        )
-        audio_format = st.selectbox(
-            "Audio format",
-            ["wav", "mp3"],
-            index=0 if app_defaults["audio_format"] == "wav" else 1,
-            help="wav = higher-quality master output, mp3 = lighter release file",
-        )
-        loudness_profiles = ["narration", "social_video", "broadcast"]
-        current_loudness_profile = str(app_defaults.get("loudness_profile") or "narration")
-        loudness_profile = st.selectbox(
-            "Loudness profile",
-            loudness_profiles,
-            index=loudness_profiles.index(current_loudness_profile) if current_loudness_profile in loudness_profiles else 0,
-            help="narration = -16 LUFS, social_video = -14 LUFS, broadcast = -23 LUFS",
-        )
-        output_channels = st.selectbox(
-            "Output channels",
-            [2, 1],
-            index=0 if int(app_defaults.get("output_channels", 2)) == 2 else 1,
-            format_func=lambda value: "Stereo" if value == 2 else "Mono",
-            help="Stereo preserves BGM and ambience imaging; mono creates smaller voice-focused files.",
-        )
-        mp3_bitrate_kbps = st.selectbox(
-            "MP3 bitrate",
-            [128, 160, 192, 256, 320],
-            index=[128, 160, 192, 256, 320].index(int(app_defaults.get("mp3_bitrate_kbps", 192))),
-            disabled=audio_format != "mp3",
-        )
-        quality_gate = st.checkbox(
-            "Audio quality gate",
-            value=bool(app_defaults.get("quality_gate", True)),
-            help="Measure loudness, true peak, duration, sample rate, and channel count after export.",
-        )
-        pacing_presets = ["off", "compact", "natural", "dramatic"]
-        current_pacing_preset = str(app_defaults.get("pacing_preset") or "natural")
-        pacing_preset = st.selectbox(
-            "Narration pacing",
-            pacing_presets,
-            index=pacing_presets.index(current_pacing_preset) if current_pacing_preset in pacing_presets else 2,
-            help="Adaptive total gap between sentences: compact=350 ms, natural=550 ms, dramatic=750 ms.",
-        )
-        st.header(SidebarSection.RENDER)
-        validate_only = st.checkbox("Validate only", value=bool(app_defaults["validate_only"]))
-        debug_mode = st.checkbox("Debug only (save segments JSON)", value=bool(app_defaults["debug"]))
-        max_concurrent_tts = st.slider(
-            "Max concurrent TTS",
-            1,
-            32,
-            int(app_defaults["max_concurrent_tts"]),
-            help="Higher values can speed up VieNeu and Edge renders, but may use more CPU/RAM/VRAM.",
-        )
-        st.caption("Batch Size (Generation) only affects VieNeu Standard/PyTorch; Turbo/GGUF will fall back to single render.")
+                col_test, col_refresh, col_update = st.columns([1, 1, 1])
+                with col_test:
+                    if st.button("Test", width="stretch"):
+                        try:
+                            if tts_provider == "vieneu":
+                                message = probe_vieneu_core_connection_from_settings(vieneu_runtime_settings, allow_network=False)
+                            else:
+                                message = "Audio: edge_tts test OK - local/system provider, no model download is required."
+                            st.session_state["audio_provider_action_status"] = ("success", message)
+                        except Exception as exc:
+                            st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
+                with col_refresh:
+                    if st.button("Refresh", width="stretch"):
+                        try:
+                            if tts_provider == "vieneu":
+                                message = refresh_vieneu_voices_from_settings(vieneu_runtime_settings, allow_network=False)
+                            else:
+                                local_models = list_local_models("audio", __file__)
+                                message = f"Audio: refreshed edge_tts - models dir={provider_models_dir('audio', __file__)} - local assets={len(local_models)}"
+                            st.session_state["audio_provider_action_status"] = ("success", message)
+                            rerun = getattr(st, "rerun", None)
+                            if callable(rerun):
+                                rerun()
+                        except Exception as exc:
+                            st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
+                with col_update:
+                    if st.button("Update", width="stretch"):
+                        try:
+                            if tts_provider == "vieneu":
+                                message = refresh_vieneu_voices_from_settings(
+                                    vieneu_runtime_settings,
+                                    allow_network=True,
+                                    force_reload=True,
+                                )
+                                message = f"{message} | Update target={audio_update_target} | Online mode was enabled temporarily to refresh cache/model assets under models/."
+                            else:
+                                edge_target = provider_target_dir("audio", "edge_tts", __file__)
+                                message = f"Audio: edge_tts has no Update model step. Update target={edge_target}. The app only refreshes local/system voices and does not download anything from the internet."
+                            st.session_state["audio_provider_action_status"] = ("success", message)
+                            rerun = getattr(st, "rerun", None)
+                            if callable(rerun):
+                                rerun()
+                        except Exception as exc:
+                            st.session_state["audio_provider_action_status"] = ("error", format_runtime_error(exc))
 
-        with _expander("Render parameters", expanded=True):
+                _render_audio_provider_status()
+                render_user_message(UserMessage(level="info", title="VieNeu runtime", body="AI-Studio calls VieNeu through the TTS core adapter. The core decides local vs. remote API, and the mode decides which preset/model family is used."))
+        with _expander(SidebarSection.INPUTS_OUTPUTS, expanded=False):
+            output_dir = st.text_input(
+                "Output directory", value=str(app_defaults["output_dir"]), key="audio_output_dir"
+            )
+            audio_format = st.selectbox(
+                "Audio format",
+                ["wav", "mp3"],
+                index=0 if app_defaults["audio_format"] == "wav" else 1,
+                help="wav = higher-quality master output, mp3 = lighter release file",
+            )
+            loudness_profiles = ["narration", "social_video", "broadcast"]
+            current_loudness_profile = str(app_defaults.get("loudness_profile") or "narration")
+            loudness_profile = st.selectbox(
+                "Loudness profile",
+                loudness_profiles,
+                index=loudness_profiles.index(current_loudness_profile) if current_loudness_profile in loudness_profiles else 0,
+                help="narration = -16 LUFS, social_video = -14 LUFS, broadcast = -23 LUFS",
+            )
+            output_channels = st.selectbox(
+                "Output channels",
+                [2, 1],
+                index=0 if int(app_defaults.get("output_channels", 2)) == 2 else 1,
+                format_func=lambda value: "Stereo" if value == 2 else "Mono",
+                help="Stereo preserves BGM and ambience imaging; mono creates smaller voice-focused files.",
+            )
+            mp3_bitrate_kbps = st.selectbox(
+                "MP3 bitrate",
+                [128, 160, 192, 256, 320],
+                index=[128, 160, 192, 256, 320].index(int(app_defaults.get("mp3_bitrate_kbps", 192))),
+                disabled=audio_format != "mp3",
+            )
+            quality_gate = st.checkbox(
+                "Audio quality gate",
+                value=bool(app_defaults.get("quality_gate", True)),
+                help="Measure loudness, true peak, duration, sample rate, and channel count after export.",
+            )
+            pacing_presets = ["off", "compact", "natural", "dramatic"]
+            current_pacing_preset = str(app_defaults.get("pacing_preset") or "natural")
+            pacing_preset = st.selectbox(
+                "Narration pacing",
+                pacing_presets,
+                index=pacing_presets.index(current_pacing_preset) if current_pacing_preset in pacing_presets else 2,
+                help="Adaptive total gap between sentences: compact=350 ms, natural=550 ms, dramatic=750 ms.",
+            )
+        with _expander(SidebarSection.RENDER, expanded=False):
+            validate_only = st.checkbox("Validate only", value=bool(app_defaults["validate_only"]))
+            debug_mode = st.checkbox("Debug only (save segments JSON)", value=bool(app_defaults["debug"]))
+            max_concurrent_tts = st.slider(
+                "Max concurrent TTS",
+                1,
+                32,
+                int(app_defaults["max_concurrent_tts"]),
+                help="Higher values can speed up VieNeu and Edge renders, but may use more CPU/RAM/VRAM.",
+            )
+            st.caption("Batch Size (Generation) only affects VieNeu Standard/PyTorch; Turbo/GGUF will fall back to single render.")
+
+        with _expander("Render parameters", expanded=False):
             (
                 voice_narrator,
                 voice_female,

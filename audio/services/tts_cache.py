@@ -22,7 +22,7 @@ def _metadata_int(value: object) -> int:
         return 0
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0
 
 
@@ -98,8 +98,13 @@ class TtsCacheSession:
     def _load_manifest(self) -> None:
         try:
             raw = json.loads(self.manifest_path.read_text(encoding="utf-8"))
-            if int(raw.get("schema_version", 0)) == CACHE_SCHEMA_VERSION:
-                self._entries = dict(raw.get("segments") or {})
+            if not isinstance(raw, dict) or _metadata_int(raw.get("schema_version")) != CACHE_SCHEMA_VERSION:
+                return
+            segments = raw.get("segments")
+            if isinstance(segments, dict):
+                self._entries = {
+                    key: entry for key, entry in segments.items() if isinstance(entry, dict)
+                }
         except (OSError, ValueError, TypeError):
             self._entries = {}
 
@@ -117,8 +122,10 @@ class TtsCacheSession:
         cache_wav, metadata_path = self._cache_paths(key)
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if not isinstance(metadata, dict):
+                return None
             sha256 = str(metadata.get("sha256") or "")
-            size = int(metadata.get("size") or 0)
+            size = _metadata_int(metadata.get("size"))
         except (OSError, ValueError, TypeError):
             return None
         if metadata.get("key") != key or not sha256 or not self._valid_file(cache_wav, sha256, size):

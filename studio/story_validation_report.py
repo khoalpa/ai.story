@@ -164,6 +164,8 @@ def _render_scenes(report: Mapping[str, Any]) -> None:
 def _render_gates(report: Mapping[str, Any]) -> None:
     import streamlit as st
 
+    st.caption("Các kết quả dưới đây do báo cáo khai báo. ASSESSED_PASS/FAIL là đánh giá của mô hình; không phải xác minh độc lập. Thiếu detector/evidence không được suy thành PASS.")
+
     gates = _items(report.get("gates"))
     if not gates:
         st.info("Báo cáo không chứa cổng kiểm định.")
@@ -190,6 +192,8 @@ def _render_gates(report: Mapping[str, Any]) -> None:
             "Cổng kiểm định": gate.get("gate_id", "—"),
             "Mức độ": SEVERITY_LABELS.get(str(gate.get("severity")), str(gate.get("severity", "—"))),
             "Kết quả": _status_text(gate.get("status")),
+            "Detector (khai báo)": gate.get("detector_class", gate.get("detector_method", "Chưa cung cấp")),
+            "Evidence ID": gate.get("evidence_id", "—"),
             "Vị trí bằng chứng": len(gate.get("evidence_locators", gate.get("locators", []))),
         } for gate in visible],
         hide_index=True,

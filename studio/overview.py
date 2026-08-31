@@ -12,8 +12,12 @@ from studio.project_context import (
     apply_project_directory,
     choose_project_directory,
 )
-from studio.project_review import review_package
-from studio.report_semantics import display_score, gate_summary, series_required
+from studio.project_review import required_report_keys, review_package
+from studio.report_semantics import (
+    display_coverage,
+    display_score,
+    gate_summary,
+)
 from studio.story_images import (
     EXPECTED_IMAGE_STEMS,
     inspect_story_images,
@@ -26,6 +30,7 @@ from studio.story_studio import (
     render_source_provenance,
 )
 from studio.video_delivery_report import build_video_delivery_summary
+from studio.workflow_views import render_workflow_summary
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
@@ -140,15 +145,19 @@ def build_overview_model(
     expected_scenes = int(metrics.get("narrative_scene_count") or 0)
 
     review = review_package(output_dir, reports, statuses, state)
+    workflow = review["workflow"]
+    stage = workflow["stage"]
     production_ready = review["story_ready"]
-    publish_ready = review["package_ready"]
-    completed = bool(publish_ready and review["locally_verified"] and delivery["ready"] and delivery["passed"] and video_deliveries and ready_videos == len(video_deliveries))
-    if blockers or review["issues"] or (validation and not production_ready):
+    completed = bool(delivery["ready"] and delivery["passed"] and video_deliveries and ready_videos == len(video_deliveries))
+    if stage or workflow["status"] == "FAIL":
+        verdict = "Gói có lỗi cần xử lý" if workflow["status"] == "FAIL" else "Gói chưa được xác minh đầy đủ"
+        verdict_kind = "error" if workflow["status"] == "FAIL" else "warning"
+    elif blockers or review["issues"] or (validation and not production_ready):
         verdict = "Cần xử lý"
         verdict_kind = "error"
     elif completed:
-        verdict = "Sẵn sàng xuất bản"
-        verdict_kind = "success"
+        verdict = "Media đạt kiểm định · gói truyện chưa xác minh"
+        verdict_kind = "info"
     elif production_ready:
         verdict = "Sẵn sàng sản xuất"
         verdict_kind = "info"
@@ -163,13 +172,15 @@ def build_overview_model(
     missing = [
         label
         for key, (_filename, label, _validator) in REPORT_SPECS.items()
-        if statuses.get(key) == "Thiếu" and (key != "anchor" or series_required(validation))
+        if statuses.get(key) == "Thiếu" and key in required_report_keys(reports)
     ]
 
     actions: list[dict[str, str]] = [
         {"workspace": "Story Studio", "section": issue["section"], "text": issue["text"]}
         for issue in review["issues"]
     ]
+    if story and not stage:
+        actions.insert(0, {"workspace": "Story Studio", "section": "Gói & quy trình", "text": "Mở story.zip để kiểm tra manifest; không suy stage từ thư mục hoặc tên file."})
     asset_problems = review["asset_issues"] if story else []
     if asset_problems:
         examples = "; ".join(f"{row['name']}: {row['status']}" for row in asset_problems[:3])
@@ -185,7 +196,9 @@ def build_overview_model(
             "workspace": "Story Studio",
             "text": f"Xem lại {repetition_pairs} cặp câu lặp hoặc gần trùng trong Nội dung → Lặp câu.",
         })
-    if not audio_path:
+    if stage in {"STAGE1", "STAGE2"}:
+        actions.append({"workspace": "Story Studio", "section": "Gói & quy trình", "text": "Hoàn tất kiểm định gói hiện tại trước khi chuyển stage thủ công; chưa yêu cầu render audio/video."})
+    elif not audio_path:
         actions.append({"workspace": "Audio Studio", "text": "Render audio và phụ đề từ kịch bản."})
     elif reports.get("audio_quality") and not delivery["passed"]:
         actions.append({"workspace": "Story Studio", "text": "Mở Âm thanh & phụ đề và xử lý các phép kiểm tra audio chưa đạt."})
@@ -210,6 +223,7 @@ def build_overview_model(
 
     return {
         "review": review,
+        "workflow": workflow,
         "gate_summary": gate_summary(validation)["label"],
         "has_audio_quality": bool(reports.get("audio_quality")),
         "has_handoff": bool(reports.get("handoff")),
@@ -225,6 +239,7 @@ def build_overview_model(
             ("Số cảnh", str(expected_scenes) if expected_scenes else "—"),
             ("Chất lượng truyện", _display_score(committed_quality.get("final_story_quality_score", validation_quality.get("final_story_quality_score")), 10)),
             ("Chất lượng gói", _display_score(quality_summary.get("overall_score"), 100)),
+            ("Độ phủ chấm điểm", display_coverage(quality_summary.get("scoring_coverage_ratio"))),
             ("Vấn đề cần xử lý", str(defects + len(blockers) + len(review["issues"]) + len(asset_problems))),
             ("Câu lặp cần xem", str(repeated_sentences)),
         ],
@@ -233,7 +248,7 @@ def build_overview_model(
             ("Audio", "Đạt" if delivery["passed"] else ("Đã render" if audio_path else "Chưa render")),
             ("Handoff", "Sẵn sàng" if delivery["ready"] else ("Cần xử lý" if reports.get("handoff") else "Chưa có")),
             ("Video", f"{ready_videos}/{len(video_deliveries)} đạt" if video_deliveries else ("Đã render" if video_path else ("Chờ asset" if audio_path else "Chưa sẵn sàng"))),
-            ("Publish", "Sẵn sàng" if completed else "Chưa sẵn sàng"),
+            ("Media đầu ra", "Đạt kiểm định" if completed else "Chưa đủ kiểm định"),
         ],
         "audio_delivery": {
             "ready": delivery["ready"],
@@ -268,7 +283,8 @@ def build_overview_model(
             ("Audio", "Đạt" if delivery["passed"] else ("Hoàn tất" if audio_path else "Chưa render"), format_duration(delivery["duration_seconds"]) if delivery["duration_seconds"] else str(audio_summary.get("estimated_duration") or audio_summary.get("audio_format") or "—"), str(audio_path or "")),
             ("Phụ đề", "Hoàn tất" if subtitle_path else "Chưa có", f"{delivery['cue_count']:,} câu" if delivery["cue_count"] else str(audio_summary.get("segment_count") or "—"), str(subtitle_path or "")),
             ("Handoff", "Sẵn sàng" if delivery["ready"] else ("Cần kiểm tra" if reports.get("handoff") else "Chưa có"), f"{sum(row['exists'] and row['size_matches'] for row in delivery['artifacts'])}/3 tài nguyên", str(output_dir / "audio_video_handoff.json") if reports.get("handoff") else ""),
-            *[(f"Ảnh · {aspect.title()}", "Đủ" if item["count"] == item["expected"] else "Thiếu", f"{item['count']}/{item['expected']} ảnh", str(item["directory"])) for aspect, item in image_assets.items()],
+            *[(f"Ảnh · {aspect.title()}", "Đủ file" if item["count"] == item["expected"] else "Thiếu", f"{item['count']}/{item['expected']} ảnh", str(item["directory"])) for aspect, item in image_assets.items()
+              if stage != "STAGE1" and not (stage == "STAGE2" and aspect == "portrait")],
             *[(f"Video · {item['label']}", "Đạt" if item["ready"] else "Cần kiểm tra", f"{item['resolution']} · {format_duration(item['duration'])}", str(item["video_path"] or "")) for item in video_deliveries],
             *([] if video_deliveries else [("Video", "Hoàn tất" if video_path else "Chưa render", str(video_summary.get("aspect") or "—"), str(video_path or ""))]),
         ],
@@ -319,6 +335,7 @@ def render_overview() -> None:
     if subtitle:
         st.caption(subtitle)
     getattr(st, model["verdict_kind"])(f"**{model['verdict']}** · Dữ liệu tại `{model['output_dir']}`")
+    render_workflow_summary(model["workflow"])
 
     st.subheader("Hành động ưu tiên")
 
@@ -354,7 +371,7 @@ def render_overview() -> None:
         column.metric(label, value)
 
     st.caption(model["gate_summary"] + " · Số cảnh do báo cáo khai báo; không phải số ảnh sản xuất.")
-    st.subheader("Tiến độ pipeline")
+    st.subheader("Sản xuất audio/video · độc lập với stage gói truyện")
     pipeline_columns = st.columns(len(model["pipeline"]))
     for index, (column, (label, status)) in enumerate(zip(pipeline_columns, model["pipeline"]), start=1):
         icon = "✓" if status in {"Đạt", "Đã render", "Sẵn sàng"} else ("!" if status in {"Cần xử lý", "Chờ asset"} else "○")

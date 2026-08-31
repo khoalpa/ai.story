@@ -8,10 +8,13 @@ from studio.story_studio import STORY_STUDIO_SECTION_INTROS, STORY_STUDIO_SECTIO
 def test_story_studio_section_order_is_stable() -> None:
     assert STORY_STUDIO_SECTIONS == (
         "Tổng quan",
+        "Gói & quy trình",
         "Nội dung",
         "Kiểm định",
         "Chất lượng",
         "Tài nguyên",
+        "Visual Bible",
+        "Kế hoạch video",
         "Âm thanh & phụ đề",
         "Video đầu ra",
         "Series",

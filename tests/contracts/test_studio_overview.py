@@ -120,7 +120,7 @@ def test_overview_uses_current_scenes_directory_and_canonical_image_count(tmp_pa
     assert model["video"]["Ảnh · Landscape"] == "10/10"
     assert not any(row[0] == "Ảnh cảnh" for row in model["resources"])
     landscape_row = next(row for row in model["resources"] if row[0] == "Ảnh · Landscape")
-    assert landscape_row[1:3] == ("Đủ", "10/10 ảnh")
+    assert landscape_row[1:3] == ("Đủ file", "10/10 ảnh")
     assert landscape_row[3] == str(landscape)
 
 

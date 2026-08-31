@@ -7,7 +7,8 @@ AI Audio & Video Studio is a pair of standalone Python applications plus a unifi
 
 Story generation and image generation are intentionally outside this repository. Scripts and visual assets can come from any authoring or image-generation tool.
 
-Canonical authoring references live in `prompts/ChatGPT_prompt_v*.*.*.txt`. Runtime
+Canonical authoring references live in `prompts/`, named `ChatGPT_prompt_vX.Y.Z.txt`
+with an optional numeric prefix such as `01-`. Runtime
 tooling selects the newest semantic version, projects its deterministic constants,
 and reports the selected version plus SHA-256. Older prompt files remain available
 for comparison but are not authoritative while a newer version is present.
@@ -89,7 +90,6 @@ Run a deterministic audit against the newest prompt in `prompts/`:
 
 ```bash
 ai-story-audit output
-ai-story-audit output/stage2_checkpoint.zip
 ai-story-audit output/story.zip
 ```
 

@@ -112,7 +112,7 @@ def test_overview_standalone_not_blocked_and_cannot_publish_without_verified_vid
     reports = {"story": {"meta": {}}, "validation": standalone_validation(), "quality": {"summary": {"publish_verdict": "PASS"}}}
     model = build_overview_model(reports, {"anchor": "Thiếu"}, {}, output_dir=tmp_path)
     assert model["pipeline"][0] == ("Story", "Đạt")
-    assert model["pipeline"][-1] == ("Publish", "Chưa sẵn sàng")
+    assert model["pipeline"][-1] == ("Media đầu ra", "Chưa đủ kiểm định")
     assert not any("Bổ sung dữ liệu: Series" in action["text"] for action in model["actions"])
     video = tmp_path / "video.mp4"
     video.write_bytes(b"unverified")

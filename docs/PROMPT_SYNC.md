@@ -1,6 +1,7 @@
 # Prompt–runtime synchronization
 
-`prompts/ChatGPT_prompt_v*.*.*.txt` is the normative authoring contract. The
+Versioned `ChatGPT_prompt_vX.Y.Z.txt` files in `prompts/` are the normative authoring contract.
+An optional numeric prefix such as `01-` is supported; version selection ignores that prefix. The
 repository automatically selects the highest semantic version. Older prompts may
 remain beside it for comparison.
 
@@ -11,6 +12,8 @@ The runtime intentionally projects only deterministic rules it can verify:
 - current story-validation, package-quality, series-anchor, and story-quality
   commitment schema versions;
 - strict JSON, hashes, archive membership, CRC, and image format.
+- resolved immutable public-schema/enum/config registries;
+- workflow package stages, operations, ownership, parent binding, and video prompt controls.
 
 OCR, safety adapters, generator provenance, and semantic or visual judgement are
 outside this deterministic projection. The audit reports these as `NOT_VERIFIED`
