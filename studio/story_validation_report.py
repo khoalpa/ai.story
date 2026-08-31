@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, BinaryIO, Mapping
 
 from studio.package_quality_report import _items, _object, _read_report, _short_digest
+from studio.report_semantics import display_score, gate_is_not_applicable, gate_summary
 
 QUALITY_LABELS = {
     "causality": "Quan hệ nhân quả",
@@ -47,14 +48,15 @@ def _validate_story_report(report: Mapping[str, Any]) -> None:
 
 
 def _all_gates_pass(report: Mapping[str, Any]) -> bool:
-    gates = _items(report.get("gates"))
-    return bool(gates) and all(gate.get("status") == "PASS" for gate in gates)
+    return bool(gate_summary(report)["ready"])
 
 
 def _status_text(value: Any) -> str:
     return {
         "PASS": "Đạt",
         "FAIL": "Không đạt",
+        "NOT_APPLICABLE": "Không áp dụng",
+        "NOT_VERIFIED": "Chưa xác minh",
         "ASSESSED_PASS": "Đánh giá đạt",
         "REFINEMENT_ACCEPTED": "Đã chấp nhận",
     }.get(str(value), str(value or "Không rõ").replace("_", " ").title())
@@ -67,7 +69,7 @@ def _render_header(report: Mapping[str, Any]) -> None:
     profile = escape(str(report.get("active_profile") or "—"))
     ready = _all_gates_pass(report) and int(summary.get("material_defect_remaining_count") or 0) == 0
     status_class = "sv-pass" if ready else "sv-fail"
-    status_text = "Sẵn sàng sản xuất" if ready else "Cần xem lại trước sản xuất"
+    status_text = "Đạt theo báo cáo" if ready else "Cần xem lại trước sản xuất"
     st.markdown(
         f"""
         <div class="sv-heading">
@@ -90,28 +92,39 @@ def _render_overview(report: Mapping[str, Any]) -> None:
     engagement = _object(report.get("engagement"))
     dialogue = _object(report.get("dialogue_audio"))
     gates = _items(report.get("gates"))
-    passed = sum(gate.get("status") == "PASS" for gate in gates)
+    result = gate_summary(report)
+    passed = result["passed"]
 
     cols = st.columns(6)
-    cols[0].metric("Chất lượng", f"{float(quality.get('final_story_quality_score') or 0):.2f}/10")
-    cols[1].metric("Cuốn hút", f"{float(engagement.get('engagement_score') or 0):.1f}/10")
-    cols[2].metric("Cổng đạt", f"{passed}/{len(gates)}")
+    cols[0].metric("Chất lượng", display_score(quality.get("final_story_quality_score")))
+    cols[1].metric("Cuốn hút", display_score(engagement.get("engagement_score")))
+    cols[2].metric("Cổng đạt", f"{passed}/{len(gates) - result['skipped']}")
     cols[3].metric("Lỗi còn lại", int(summary.get("material_defect_remaining_count") or 0))
     cols[4].metric("Cảnh", int(summary.get("narrative_scene_count") or 0))
     cols[5].metric("Hội thoại", f"{float(dialogue.get('actual_direct_dialogue_ratio') or 0):.1%}")
 
     if _all_gates_pass(report):
-        st.success("Tất cả cổng kiểm định đều đạt.")
+        st.success(result["label"])
     else:
-        st.error(f"Có {len(gates) - passed} cổng kiểm định chưa đạt.")
+        st.error(f"Có {len(result['unresolved'])} cổng chưa đạt hoặc chưa xác minh.")
 
     st.subheader("Điểm theo tiêu chí")
-    for key, label in QUALITY_LABELS.items():
-        score = float(quality.get(key) or 0)
+    dimensions = _object(quality.get("dimension_scores"))
+    labels = {
+        "story_intent": "Ý đồ truyện", "causal_progression": "Tiến triển nhân quả",
+        "character_agency": "Chủ động nhân vật", "dialogue_realization": "Thể hiện hội thoại",
+        "climax_cost": "Cái giá cao trào", "consequence_persistence": "Hệ quả kéo dài",
+        "audio_readability": "Khả năng đọc audio", "profile_fidelity": "Đúng hồ sơ",
+    } if dimensions else QUALITY_LABELS
+    values = dimensions or quality
+    for key in dict.fromkeys([*labels, *dimensions]):
+        value = values.get(key)
         label_col, score_col = st.columns([5, 1])
-        label_col.write(label)
-        score_col.markdown(f"<div class='sv-score'>{score:.1f}/2</div>", unsafe_allow_html=True)
-        st.progress(max(0.0, min(score / 2.0, 1.0)))
+        label_col.write(labels.get(key, key))
+        score_col.write("Chưa có dữ liệu" if value is None else f"{value}/2")
+        if isinstance(value, (int, float)) and 0 <= value <= 2:
+            st.progress(value / 2.0)
+    st.caption("Điểm do báo cáo khai báo; giá trị trên 10 được quy đổi từ thang 100. Chưa chấm lại độc lập.")
 
     st.subheader("Chỉ báo mức độ cuốn hút")
     engagement_cols = st.columns(4)
@@ -135,6 +148,7 @@ def _render_scenes(report: Mapping[str, Any]) -> None:
         "Điểm": scene.get("scene_quality_score", "—"),
         "Thay đổi vật chất": len(scene.get("material_delta_ids", [])),
     } for scene in scenes]
+    st.caption("Bản đồ vùng/cảnh theo báo cáo; số bản ghi không phải số ảnh sản xuất hoặc số cảnh tự tính lại.")
     st.dataframe(rows, hide_index=True, use_container_width=True)
 
     scene_ids = [str(scene.get("scene_id") or "—") for scene in scenes]
@@ -158,7 +172,10 @@ def _render_gates(report: Mapping[str, Any]) -> None:
     cols = st.columns(max(1, len(severity_counts)))
     for col, (severity, count) in zip(cols, sorted(severity_counts.items())):
         passed = sum(gate.get("status") == "PASS" and gate.get("severity") == severity for gate in gates)
-        col.metric(SEVERITY_LABELS.get(severity, severity.replace("_", " ").title()), f"{passed}/{count}")
+        skipped = sum(gate_is_not_applicable(gate, report) and gate.get("severity") == severity for gate in gates)
+        col.metric(SEVERITY_LABELS.get(severity, severity.replace("_", " ").title()), f"{passed}/{count - skipped}")
+        if skipped:
+            col.caption(f"{skipped} không áp dụng")
 
     severity_options = ["Tất cả"] + sorted(severity_counts, key=lambda item: SEVERITY_LABELS.get(item, item))
     severity = st.selectbox(
@@ -173,11 +190,25 @@ def _render_gates(report: Mapping[str, Any]) -> None:
             "Cổng kiểm định": gate.get("gate_id", "—"),
             "Mức độ": SEVERITY_LABELS.get(str(gate.get("severity")), str(gate.get("severity", "—"))),
             "Kết quả": _status_text(gate.get("status")),
-            "Vị trí bằng chứng": len(gate.get("locators", [])),
+            "Vị trí bằng chứng": len(gate.get("evidence_locators", gate.get("locators", []))),
         } for gate in visible],
         hide_index=True,
         use_container_width=True,
     )
+
+    for index, gate in enumerate(visible):
+        with st.expander(str(gate.get("gate_id") or "Cổng kiểm định")):
+            st.write(str(gate.get("failure_reason") or _object(gate.get("metrics")).get("applicability_reason") or _status_text(gate.get("status"))))
+            for locator_index, locator in enumerate(gate.get("evidence_locators", gate.get("locators", []))):
+                st.code(str(locator), language=None)
+                import re
+                match = re.fullmatch(r"script:(\d+)(?:-(\d+))?", str(locator))
+                if match:
+                    def open_evidence(start: int, end: int) -> None:
+                        st.session_state["story_evidence_range"] = (start, end)
+                        st.session_state["story_studio_section"] = "Nội dung"
+                    st.button("Mở đoạn kịch bản", key=f"gate_evidence_{index}_{locator_index}",
+                              on_click=open_evidence, args=(int(match[1]), int(match[2] or match[1])))
 
 
 def _render_refinement(report: Mapping[str, Any]) -> None:

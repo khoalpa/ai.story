@@ -2,6 +2,7 @@ import json
 import re
 from pathlib import Path
 
+from studio.prompt_contract import load_prompt_contract
 from studio.story_environments import CANONICAL_STORY_ENVIRONMENTS
 from video.environment_overlays import (
     ENVIRONMENT_WHITELIST,
@@ -21,7 +22,7 @@ def test_all_canonical_environments_have_overlay_profiles() -> None:
 
 
 def test_prompt_environment_whitelist_matches_runtime_contract() -> None:
-    prompt = Path("ChatGPT_prompt_v3.11.11.txt").read_text(encoding="utf-8")
+    prompt = load_prompt_contract().path.read_text(encoding="utf-8")
     match = re.search(
         r"SHARED ENVIRONMENT WHITELIST:\s*\n- (?P<values>[^\n]+)",
         prompt,

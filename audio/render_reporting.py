@@ -132,8 +132,11 @@ class RenderReporter:
         print(f"[OK] {phase} phase completed")
 
     def report_render_success(self, artifacts: RenderJobArtifacts) -> None:
-        self.used_files.add("Intermediate WAV directory", artifacts.wav_dir)
-        print(f"[PATH] Intermediate WAV directory: {artifacts.wav_dir}")
+        if artifacts.wav_dir:
+            self.used_files.add("Intermediate WAV directory", artifacts.wav_dir)
+            print(f"[PATH] Intermediate WAV directory: {artifacts.wav_dir}")
+        else:
+            print("[OK] Removed intermediate WAV directory")
         print(f"[PATH] Final audio file: {artifacts.out_file}")
         print(f"[PATH] Subtitle file: {artifacts.srt_path}")
         print(f"[OK] Created audio file: {artifacts.out_file}")

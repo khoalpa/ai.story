@@ -59,6 +59,8 @@ def test_main_panels_render_standalone_and_embedded_from_registry() -> None:
         content = path.read_text(encoding="utf-8")
         assert f"st.tabs([spec.label for spec in {specs_name}])" in content
         assert "format_func=lambda view_id:" in content
+        assert 'st.segmented_control(\n        "Khu vực",' in content
+        assert "st.radio(" not in content
 
 
 def test_audio_history_and_story_studio_have_separate_owners() -> None:
@@ -71,7 +73,8 @@ def test_audio_history_and_story_studio_have_separate_owners() -> None:
     assert "render_run_history(repository)" not in audio_tabs
     assert "Project Tools" not in audio_panel
     assert '"Story Studio": lambda: render_story_studio_workspace' in studio_shell
-    assert '["Overview", "Story Studio", "Audio Studio", "Video Studio"]' in studio_shell
+    assert '["Overview", "Story Studio", "Prompts", "Audio Studio", "Video Studio"]' in studio_shell
+    assert '"Prompts": lambda: render_prompt_library_workspace' in studio_shell
     for legacy_workspace in ('"Story":', '"Validation":', '"Quality":', '"Anchor":', '"Tools":'):
         assert legacy_workspace not in studio_shell
 

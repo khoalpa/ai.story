@@ -99,7 +99,7 @@ def run_single_job(plain_text: str, settings: dict, repository: JobRepository) -
         st.session_state["last_event_log"] = collector.events
         return
 
-    summary = summarize_audio_job(result)
+    summary = {**build_audio_run_summary(settings), **summarize_audio_job(result)}
     st.session_state["last_result_summary"] = summary
     st.session_state["last_preview_segments"] = list(result.preview.segments) if result.preview else []
     st.session_state["last_event_log"] = collector.events

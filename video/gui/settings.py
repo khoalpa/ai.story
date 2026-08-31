@@ -523,6 +523,9 @@ def _render_persistent_history_settings() -> dict[str, Any]:
 
 
 def get_video_settings() -> dict[str, Any]:
+    from video.gui.state import prepare_project_path_defaults
+
+    prepare_project_path_defaults()
     with st.sidebar:
         st.header(SidebarSection.PROVIDER)
         provider_descriptors = get_video_provider_descriptors()
@@ -543,8 +546,8 @@ def get_video_settings() -> dict[str, Any]:
         provider_values = provider_settings.as_dict()
 
         st.header(SidebarSection.INPUTS_OUTPUTS)
-        input_root = st.text_input("Input root", value="output")
-        output_dir = st.text_input("Output directory", value="output")
+        input_root = st.text_input("Input root", value="output", key="video_input_root")
+        output_dir = st.text_input("Output directory", value="output", key="video_output_dir")
 
         st.header(SidebarSection.RENDER)
         render_modes = ["static", "slideshow"]
@@ -559,6 +562,7 @@ def get_video_settings() -> dict[str, Any]:
             "Aspect",
             options=aspect_options,
             index=_option_index(aspect_options, config.DEFAULT_ASPECT, default=1),
+            key="video_aspect",
         )
         duration_per_image = st.number_input(
             "Duration per image (slideshow)", min_value=1.0, value=60.0, step=1.0

@@ -39,3 +39,22 @@ def test_multi_page_reader_renders_page_slider() -> None:
             return 2
 
     assert _select_reader_page(StreamlitStub(), page_count=3, zone="GREETING") == 2
+
+
+def test_story_reader_includes_repetition_tab() -> None:
+    source = __import__("pathlib").Path("studio/story_report.py").read_text(encoding="utf-8")
+    assert '"Lặp câu"' in source
+    assert "render_repetition_report(report," in source
+
+
+def test_story_reader_centers_zone_thumbnail_at_half_content_width() -> None:
+    source = __import__("pathlib").Path("studio/story_report.py").read_text(encoding="utf-8")
+    assert "_left_space, image_column, _right_space = st.columns([1, 2, 1])" in source
+    assert "with image_column:" in source
+
+
+def test_story_content_images_share_landscape_display_frame() -> None:
+    source = __import__("pathlib").Path("studio/story_report.py").read_text(encoding="utf-8")
+    assert source.count("frame_ratio=(16, 9)") >= 2
+    repetition = __import__("pathlib").Path("studio/story_repetition.py").read_text(encoding="utf-8")
+    assert "frame_ratio=(16, 9)" in repetition

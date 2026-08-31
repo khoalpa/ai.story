@@ -57,6 +57,7 @@ render-audio-gui = "audio.gui_entry:main"
 render-video = "video.cli:main"
 render-video-gui = "video.gui_entry:main"
 ai-studio-gui = "studio.gui_entry:main"
+ai-story-audit = "studio.prompt_audit:main"
 
 
 [tool.setuptools]

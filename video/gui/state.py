@@ -40,6 +40,23 @@ VIDEO_INPUT_SCENES_DIR_KEY = "video_input_scenes_dir"
 VIDEO_AUTO_COVER_PATH_KEY = "video_auto_cover_path"
 VIDEO_AUTO_SCENES_DIR_KEY = "video_auto_scenes_dir"
 VIDEO_AUTO_OUTPUT_PATH_KEY = "video_auto_output_path"
+VIDEO_PROJECT_PATH_DEFAULTS_KEY = "video_project_path_defaults"
+VIDEO_PROJECT_PATH_SYNC_KEY = "video_project_path_sync_seen"
+
+VIDEO_PROJECT_PATH_KEYS = (
+    "video_input_root",
+    "video_output_dir",
+    VIDEO_AUDIO_INPUT_KEY,
+    VIDEO_SUBTITLE_INPUT_KEY,
+    "video_story_json_input",
+    "video_audio_handoff_manifest",
+    VIDEO_INPUT_COVER_PATH_KEY,
+    VIDEO_INPUT_SCENES_DIR_KEY,
+    VIDEO_OUTPUT_INPUT_KEY,
+    VIDEO_AUTO_COVER_PATH_KEY,
+    VIDEO_AUTO_SCENES_DIR_KEY,
+    VIDEO_AUTO_OUTPUT_PATH_KEY,
+)
 
 VIDEO_INPUT_DEFAULTS: dict[str, object] = {
     VIDEO_AUDIO_INPUT_KEY: "output/story.wav",
@@ -108,6 +125,43 @@ def ensure_session_defaults(state: SessionState | None = None) -> None:
     for legacy_key, new_key in LEGACY_AUTO_INPUT_PAIRS:
         if new_key in session:
             session[legacy_key] = session[new_key]
+
+
+def prepare_project_path_defaults(state: SessionState | None = None) -> None:
+    """Restore Video path widgets from durable Studio project state.
+
+    Widget keys may be removed while the Video workspace is inactive. The payload
+    itself is not widget-owned and therefore survives workspace navigation.
+    """
+    session = _get_session_state(state)
+    payload = session.get(VIDEO_PROJECT_PATH_DEFAULTS_KEY)
+    if not isinstance(payload, dict):
+        return
+    project_directory = str(payload.get("project_directory") or "")
+    values = payload.get("values")
+    if not isinstance(values, dict):
+        return
+    project_changed = project_directory != str(session.get(VIDEO_PROJECT_PATH_SYNC_KEY) or "")
+    for key in VIDEO_PROJECT_PATH_KEYS:
+        if key in values and (project_changed or key not in session):
+            session[key] = values[key]
+    if project_changed:
+        session[VIDEO_PROJECT_PATH_SYNC_KEY] = project_directory
+
+
+def capture_project_path_defaults(state: SessionState | None = None) -> None:
+    """Persist current Video path edits outside widget-owned session keys."""
+    session = _get_session_state(state)
+    payload = session.get(VIDEO_PROJECT_PATH_DEFAULTS_KEY)
+    if not isinstance(payload, dict):
+        return
+    values = payload.get("values")
+    if not isinstance(values, dict):
+        values = {}
+        payload["values"] = values
+    for key in VIDEO_PROJECT_PATH_KEYS:
+        if key in session:
+            values[key] = session[key]
 
 
 @dataclass

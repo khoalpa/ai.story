@@ -9,6 +9,7 @@ import pytest
 
 from audio.adapters import ffmpeg_audio_mixer as mixer
 from audio.pipeline.segment_planner import Segment
+from audio.services import render_orchestration
 
 
 def _make_mix_config() -> mixer.FfmpegMixConfig:
@@ -92,6 +93,24 @@ def test_ffmpeg_mix_audio_removes_temp_dir_after_failure(monkeypatch, tmp_path: 
         )
 
     assert not (tmp_path / "story_mix_tmp").exists()
+
+
+def test_render_job_removes_wav_dir_only_after_success(monkeypatch, tmp_path: Path) -> None:
+    wav_dir = tmp_path / "story_wav"
+    wav_dir.mkdir()
+    (wav_dir / "seg_000.wav").write_bytes(b"voice")
+
+    assert render_orchestration._cleanup_wav_dir_after_success(wav_dir) is True
+    assert not wav_dir.exists()
+
+
+def test_render_job_keeps_wav_dir_when_cleanup_fails(monkeypatch, tmp_path: Path) -> None:
+    wav_dir = tmp_path / "story_wav"
+    wav_dir.mkdir()
+    monkeypatch.setattr(render_orchestration.shutil, "rmtree", lambda _path: (_ for _ in ()).throw(OSError("locked")))
+
+    assert render_orchestration._cleanup_wav_dir_after_success(wav_dir) is False
+    assert wav_dir.exists()
 
 
 def test_get_audio_duration_seconds_falls_back_to_wave_when_ffprobe_fails(

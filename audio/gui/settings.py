@@ -843,7 +843,9 @@ def render_settings_sidebar() -> GuiConfigBundle:
             _render_audio_provider_status()
             render_user_message(UserMessage(level="info", title="VieNeu runtime", body="AI-Studio calls VieNeu through the TTS core adapter. The core decides local vs. remote API, and the mode decides which preset/model family is used."))
         st.header(SidebarSection.INPUTS_OUTPUTS)
-        output_dir = st.text_input("Output directory", value=str(app_defaults["output_dir"]))
+        output_dir = st.text_input(
+            "Output directory", value=str(app_defaults["output_dir"]), key="audio_output_dir"
+        )
         audio_format = st.selectbox(
             "Audio format",
             ["wav", "mp3"],

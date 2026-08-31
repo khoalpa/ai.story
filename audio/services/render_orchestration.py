@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import shutil
 from time import perf_counter
 
 from audio.adapters.ffmpeg_audio_mixer import FfmpegMixConfig, format_hms
 from audio.adapters.tts_core import resolve_vieneu_model_name
 from audio.adapters.wav_analysis import get_wav_duration_seconds
+from audio.logging_utils import get_logger
 from audio.pipeline.segment_planner import Segment
 from audio.render_events import (
     RenderEventSink,
@@ -26,6 +28,19 @@ from audio.services.tts_render import TtsRenderConfig, render_tts_segments
 
 BGM_FADE_IN_DEFAULT = 0.6
 BGM_FADE_OUT_DEFAULT = 0.6
+logger = get_logger(__name__)
+
+
+def _cleanup_wav_dir_after_success(wav_dir) -> bool:
+    """Remove generated segment WAVs after a completed render job."""
+    try:
+        shutil.rmtree(wav_dir)
+    except FileNotFoundError:
+        return True
+    except OSError as exc:
+        logger.warning("Unable to remove intermediate WAV directory %s: %s", wav_dir, exc)
+        return False
+    return True
 
 
 class _GeneratedWavDurationTracker:
@@ -244,11 +259,12 @@ def run_render_job(
         realtime_factor=round(total_elapsed_seconds / max(estimated_audio_seconds, 1e-9), 4),
         segment_count=len(segments),
     )
+    wav_dir = None if _cleanup_wav_dir_after_success(paths.wav_dir) else paths.wav_dir
     return RenderJobArtifacts(
         segments=segments,
         estimated_duration_seconds=estimated_audio_seconds,
         estimated_duration_hms=format_hms(estimated_audio_seconds),
-        wav_dir=paths.wav_dir,
+        wav_dir=wav_dir,
         out_file=final_out_file,
         srt_path=paths.srt_path,
         quality_report=(

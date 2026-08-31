@@ -1,25 +1,49 @@
 """Unified authoring, validation, quality, continuity, and tools workspace."""
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 from typing import Any, BinaryIO, Mapping
 
+from studio.audio_delivery_report import (
+    PRODUCTION_FILES,
+    load_audio_delivery,
+    read_audio_delivery_override,
+    render_audio_delivery,
+)
 from studio.package_quality_report import (
     _items,
     _object,
     _read_report,
     render_package_quality_report,
 )
+from studio.project_assets import inspect_report_bindings, render_project_assets
+from studio.project_context import (
+    STORY_DIRECTORY_KEY,
+    STORY_DIRECTORY_WIDGET_KEY,
+    choose_story_directory,
+    prepare_story_directory_widget,
+)
+from studio.project_review import review_package
 from studio.project_tools import render_project_tools_workspace
+from studio.report_semantics import display_score, gate_summary, series_required
 from studio.series_anchor_report import (
     _validate_series_anchor,
     render_series_anchor_report,
 )
+from studio.story_images import render_aspect_cover_gallery
+from studio.story_repetition import analyze_story_repetition
 from studio.story_report import _validate_story, render_story_report
 from studio.story_validation_report import (
-    _all_gates_pass,
     _validate_story_report,
     render_story_validation_report,
+)
+from studio.video_delivery_report import (
+    apply_video_report_override,
+    discover_video_report_names,
+    load_video_deliveries,
+    render_video_deliveries,
+    video_report_identity,
 )
 
 REPORT_SPECS = {
@@ -29,13 +53,62 @@ REPORT_SPECS = {
     "anchor": ("series_anchor.json", "Series", _validate_series_anchor),
 }
 
+STORY_STUDIO_SECTIONS = (
+    "Tổng quan",
+    "Nội dung",
+    "Kiểm định",
+    "Chất lượng",
+    "Tài nguyên",
+    "Âm thanh & phụ đề",
+    "Video đầu ra",
+    "Series",
+    "Công cụ",
+)
 
-def load_story_package(directory: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+STORY_STUDIO_SECTION_INTROS = {
+    "Tài nguyên": ("Tài nguyên dự án", "Duyệt ảnh nhân vật, so sánh ngang/dọc và đối chiếu kích thước, SHA-256."),
+    "Tổng quan": (
+        "Tổng quan Story Studio",
+        "Theo dõi mức độ sẵn sàng, chỉ số chính và hành động ưu tiên của gói nội dung.",
+    ),
+    "Nội dung": (
+        "Nội dung truyện",
+        "Đọc kịch bản theo vùng truyện và tra cứu dàn ý, nhân vật, giọng đọc, môi trường.",
+    ),
+    "Kiểm định": (
+        "Kiểm định truyện",
+        "Xem cổng kiểm định, chất lượng cảnh, lỗi đã tinh chỉnh và bằng chứng kỹ thuật.",
+    ),
+    "Chất lượng": (
+        "Chất lượng gói",
+        "Đánh giá kết luận xuất bản, điểm theo tiêu chí, tài nguyên ảnh và lỗi chặn.",
+    ),
+    "Âm thanh & phụ đề": (
+        "Âm thanh & phụ đề",
+        "Nghe audio, kiểm tra loudness, đọc timeline phụ đề và xác minh gói bàn giao video.",
+    ),
+    "Video đầu ra": (
+        "Video đầu ra",
+        "Xem từng phiên bản video, kết quả kiểm định hình ảnh, phụ đề và mức độ sẵn sàng xuất bản.",
+    ),
+    "Series": (
+        "Series & Continuity",
+        "Theo dõi canon, đầu mối, hệ quả và yêu cầu bắt buộc cho tập tiếp theo.",
+    ),
+    "Công cụ": (
+        "Công cụ dự án",
+        "Kiểm tra dữ liệu kỹ thuật, JSON nguồn và các lệnh QA cấp repository.",
+    ),
+}
+
+
+def load_story_package(directory: Path) -> tuple[dict[str, Any], dict[str, str]]:
     """Load all recognized reports from a directory and return per-file diagnostics."""
-    reports: dict[str, dict[str, Any]] = {}
+    reports: dict[str, Any] = {}
     statuses: dict[str, str] = {}
     if not directory.is_dir():
-        return reports, {key: "Không tìm thấy thư mục" for key in REPORT_SPECS}
+        keys = (*REPORT_SPECS, *PRODUCTION_FILES)
+        return reports, {key: "Không tìm thấy thư mục" for key in keys}
     for key, (filename, _label, validator) in REPORT_SPECS.items():
         path = directory / filename
         if not path.is_file():
@@ -50,7 +123,62 @@ def load_story_package(directory: Path) -> tuple[dict[str, dict[str, Any]], dict
             continue
         reports[key] = report
         statuses[key] = "Có dữ liệu"
+    production, production_statuses = load_audio_delivery(directory)
+    reports.update(production)
+    statuses.update(production_statuses)
+    video_variants, video_statuses = load_video_deliveries(directory)
+    if video_variants:
+        reports["video_deliveries"] = video_variants
+    statuses.update(video_statuses)
     return reports, statuses
+
+
+def _prepare_overrides(state: Any, directory: Path) -> dict[str, bytes]:
+    root = str(directory.resolve())
+    if state.get("story_override_root") != root:
+        for key in list(state):
+            if key.startswith("story_studio_upload_") or key == "story_evidence_range":
+                state.pop(key, None)
+        state["story_overrides"] = {}
+        state["story_override_root"] = root
+    return state.setdefault("story_overrides", {})
+
+
+def load_effective_package(directory: Path, state: Any) -> tuple[dict[str, Any], dict[str, str]]:
+    """Re-read disk files, then apply durable project-scoped uploaded bytes."""
+    reports, statuses = load_story_package(directory)
+    overrides = state.get("story_overrides", {}) if state.get("story_override_root") == str(directory.resolve()) else {}
+    for key, raw in overrides.items():
+        try:
+            source = BytesIO(raw)
+            if key in REPORT_SPECS:
+                reports[key] = _read_override(source, key)
+            elif key in PRODUCTION_FILES:
+                reports[key] = read_audio_delivery_override(source, key)
+            else:
+                apply_video_report_override(reports.setdefault("video_deliveries", {}), source, key)
+            statuses[key] = "Có dữ liệu · tệp thay thế"
+        except (OSError, UnicodeError, ValueError) as exc:
+            if key in REPORT_SPECS or key in PRODUCTION_FILES:
+                reports.pop(key, None)
+            else:
+                variant, kind = video_report_identity(key)
+                reports.get("video_deliveries", {}).get(variant, {}).pop(kind, None)
+            statuses[key] = f"Không hợp lệ: {exc}"
+    return reports, statuses
+
+
+def render_source_provenance(directory: Path, reports: Mapping[str, Any], statuses: Mapping[str, str]) -> None:
+    import streamlit as st
+
+    overrides = st.session_state.get("story_overrides", {}) if st.session_state.get("story_override_root") == str(directory.resolve()) else {}
+    st.caption(f"Nguồn: {directory.resolve()}" + (f" · {len(overrides)} tệp thay thế đang dùng" if overrides else " · Từ thư mục"))
+    with st.expander("Nguồn dữ liệu và độ mới báo cáo"):
+        st.caption("Điểm là khai báo của báo cáo; kiểm tra tại máy chỉ đối chiếu bytes và tài nguyên, không chấm lại truyện.")
+        st.dataframe([{"Thành phần": key, "Nguồn / trạng thái": value} for key, value in statuses.items()], hide_index=True, width="stretch")
+        for row in inspect_report_bindings(directory, reports, story_bytes=overrides.get("story")):
+            message = f"{row['report']}: {row['status']}"
+            (st.warning if "đã cũ" in row["status"] else st.caption)(message)
 
 
 def _read_override(source: BinaryIO, key: str) -> dict[str, Any]:
@@ -61,19 +189,58 @@ def _read_override(source: BinaryIO, key: str) -> dict[str, Any]:
     return report
 
 
-def _render_source_selector() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+def _load_source_from_session() -> tuple[dict[str, Any], dict[str, str]]:
+    """Load the active package without rendering the overview-only source controls."""
     import streamlit as st
 
     default_directory = str((Path.cwd() / "output").resolve())
-    directory_text = st.text_input(
+    prepare_story_directory_widget(st.session_state, default_directory)
+    directory_text = str(st.session_state.get(STORY_DIRECTORY_KEY) or default_directory)
+    directory = Path(directory_text.strip()).expanduser()
+    _prepare_overrides(st.session_state, directory)
+    return load_effective_package(directory, st.session_state)
+
+
+def _render_source_selector() -> tuple[dict[str, Any], dict[str, str]]:
+    import streamlit as st
+
+    default_directory = str((Path.cwd() / "output").resolve())
+    prepare_story_directory_widget(st.session_state, default_directory)
+    directory_col, picker_col = st.columns([6, 1])
+    directory_text = directory_col.text_input(
         "Thư mục gói nội dung",
-        value=st.session_state.get("story_studio_directory", default_directory),
-        key="story_studio_directory",
-        help="Tự phát hiện story.json, story_validation.json, package_quality_report.json và series_anchor.json.",
+        key=STORY_DIRECTORY_WIDGET_KEY,
+        disabled=True,
+        help=(
+            "Mặc định theo Thư mục dữ liệu dự án. Dùng nút Chọn thư mục để chọn "
+            "một thư mục gói nội dung khác."
+        ),
     )
-    reports, statuses = load_story_package(Path(directory_text.strip()).expanduser())
+    picker_col.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
+    picker_col.button(
+        "Chọn thư mục",
+        key="story_choose_package_directory",
+        width="stretch",
+        on_click=choose_story_directory,
+        args=(st.session_state,),
+    )
+    st.session_state[STORY_DIRECTORY_KEY] = directory_text
+    if st.session_state.get("story_studio_directory_error"):
+        st.error(st.session_state["story_studio_directory_error"])
+    else:
+        st.caption("Mặc định đồng bộ theo Thư mục dữ liệu dự án; lựa chọn riêng chỉ áp dụng cho Story Studio.")
+    directory = Path(directory_text.strip()).expanduser()
+    overrides = _prepare_overrides(st.session_state, directory)
+    reports, statuses = load_effective_package(directory, st.session_state)
 
     with st.expander("Chọn tệp riêng để thay thế dữ liệu trong thư mục"):
+        st.caption("Tệp thay thế dùng chung giữa các mục và Overview của cùng dự án. Không ghi đè tệp trên đĩa; dùng nút bên dưới để trở lại dữ liệu thư mục.")
+        def clear_overrides() -> None:
+            st.session_state["story_overrides"] = {}
+            for key in list(st.session_state):
+                if key.startswith("story_studio_upload_"):
+                    st.session_state.pop(key, None)
+        st.button("Bỏ tất cả tệp thay thế", on_click=clear_overrides)
         columns = st.columns(2)
         for index, (key, (filename, label, _validator)) in enumerate(REPORT_SPECS.items()):
             uploaded = columns[index % 2].file_uploader(
@@ -81,18 +248,83 @@ def _render_source_selector() -> tuple[dict[str, dict[str, Any]], dict[str, str]
             )
             if uploaded is None:
                 continue
+            overrides[key] = uploaded.getvalue()
             try:
                 reports[key] = _read_override(uploaded, key)
                 statuses[key] = "Có dữ liệu · tệp thay thế"
             except (OSError, ValueError) as exc:
                 reports.pop(key, None)
                 statuses[key] = f"Không hợp lệ: {exc}"
+        production_uploads = (
+            ("audio_quality", "Chất lượng audio", ["json"]),
+            ("subtitle", "Phụ đề", ["srt"]),
+            ("handoff", "Bàn giao video", ["json"]),
+        )
+        for index, (key, label, file_types) in enumerate(production_uploads, start=len(REPORT_SPECS)):
+            filename = PRODUCTION_FILES[key]
+            uploaded = columns[index % 2].file_uploader(
+                f"{label} · {filename}",
+                type=file_types,
+                key=f"story_studio_upload_{key}",
+            )
+            if uploaded is None:
+                continue
+            overrides[key] = uploaded.getvalue()
+            try:
+                reports[key] = read_audio_delivery_override(uploaded, key)
+                statuses[key] = "Có dữ liệu · tệp thay thế"
+            except (OSError, UnicodeError, ValueError) as exc:
+                reports.pop(key, None)
+                statuses[key] = f"Không hợp lệ: {exc}"
+        video_variants = reports.setdefault("video_deliveries", {})
+        video_names = discover_video_report_names(directory)
+        offset = len(REPORT_SPECS) + len(production_uploads)
+        for index, filename in enumerate(video_names, start=offset):
+            variant, kind = video_report_identity(filename)
+            label = "Kết quả video" if kind == "result" else "Chất lượng video"
+            uploaded = columns[index % 2].file_uploader(
+                f"{label} · {filename}",
+                type=["json"],
+                key=f"story_studio_upload_video_{filename}",
+            )
+            if uploaded is None:
+                continue
+            overrides[filename] = uploaded.getvalue()
+            try:
+                apply_video_report_override(video_variants, uploaded, filename)
+                statuses[filename] = "Có dữ liệu · tệp thay thế"
+            except (OSError, ValueError) as exc:
+                video_variants.setdefault(variant, {}).pop(kind, None)
+                statuses[filename] = f"Không hợp lệ: {exc}"
 
+    render_source_provenance(directory, reports, statuses)
     status_columns = st.columns(4)
     for column, (key, (_filename, label, _validator)) in zip(status_columns, REPORT_SPECS.items()):
         status = statuses.get(key, "Thiếu")
         icon = "✓" if status.startswith("Có dữ liệu") else ("—" if status == "Thiếu" else "!")
         column.metric(label, f"{icon} {status}")
+    st.caption("ĐẦU RA SẢN XUẤT")
+    production_columns = st.columns(3)
+    for column, (key, label) in zip(
+        production_columns,
+        (("audio_quality", "Audio"), ("subtitle", "Phụ đề"), ("handoff", "Handoff")),
+    ):
+        status = statuses.get(key, "Thiếu")
+        icon = "✓" if status.startswith("Có dữ liệu") else ("—" if status == "Thiếu" else "!")
+        column.metric(label, f"{icon} {status}")
+    video_variants = reports.get("video_deliveries", {})
+    st.caption("ĐẦU RA VIDEO")
+    if isinstance(video_variants, Mapping) and video_variants:
+        video_columns = st.columns(min(4, len(video_variants)))
+        for column, (variant, variant_reports) in zip(video_columns, sorted(video_variants.items())):
+            result_ok = isinstance(variant_reports, Mapping) and "result" in variant_reports
+            quality_ok = isinstance(variant_reports, Mapping) and "quality" in variant_reports
+            column.metric(
+                variant.replace("video_", "").replace("_", " ").title(),
+                f"{'✓' if result_ok and quality_ok else '!'} {int(result_ok) + int(quality_ok)}/2 báo cáo",
+            )
+    else:
+        st.info("Chưa phát hiện báo cáo video.")
     return reports, statuses
 
 
@@ -117,46 +349,75 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
     quality_summary = _object(quality.get("summary"))
     continuity = _object(anchor.get("continuity"))
     blockers = _items(quality.get("blockers"))
-    gates = _items(validation.get("gates"))
     material_defects = int(_object(validation.get("summary")).get("material_defect_remaining_count") or 0)
+    repetition = analyze_story_repetition(story) if story else {"summary": {}}
+    repetition_summary = _object(repetition.get("summary"))
+    repetition_pairs = int(repetition_summary.get("pair_count") or 0)
+    repeated_sentences = int(repetition_summary.get("affected_sentence_count") or 0)
 
-    publish_ready = bool(quality) and quality_summary.get("publish_verdict") == "PASS"
-    production_ready = bool(validation) and _all_gates_pass(validation) and material_defects == 0
-    missing = [REPORT_SPECS[key][1] for key, value in statuses.items() if value == "Thiếu"]
-    if blockers or (validation and not production_ready):
+    image_root = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
+    review = review_package(image_root, reports, statuses, st.session_state)
+    publish_ready = review["package_ready"]
+    production_ready = review["story_ready"]
+    missing = [
+        label
+        for key, (_filename, label, _validator) in REPORT_SPECS.items()
+        if statuses.get(key) == "Thiếu" and (key != "anchor" or series_required(validation))
+    ]
+    if blockers or review["issues"] or (validation and not production_ready):
         verdict, message = "Cần xử lý", "Có lỗi hoặc cổng kiểm định cần xem lại trước khi tiếp tục."
         st.error(f"**{verdict}** · {message}")
     elif publish_ready and production_ready:
-        st.success("**Sẵn sàng xuất bản** · Kiểm định truyện và chất lượng gói đều đạt.")
+        st.success("**Gói nội dung đạt** · Theo báo cáo truyện và chất lượng gói; chưa phải kết luận xuất bản audio/video.")
     elif production_ready:
-        st.info("**Sẵn sàng sản xuất** · Truyện đã đạt kiểm định; cần hoàn tất báo cáo chất lượng gói.")
+        st.info("**Truyện đạt theo báo cáo** · Cần hoàn tất các kiểm tra chất lượng gói và tài nguyên bên dưới.")
     else:
         st.warning("**Chưa đủ dữ liệu kết luận** · Bổ sung các báo cáo còn thiếu.")
 
-    st.subheader(_story_title(reports))
-    columns = st.columns(6)
-    story_score = story_quality.get("final_story_quality_score", validation_quality.get("final_story_quality_score", "—"))
-    columns[0].metric("Điểm truyện", f"{story_score}/10" if story_score != "—" else "—")
-    columns[1].metric("Cuốn hút", f"{engagement.get('engagement_score', '—')}/10")
-    columns[2].metric("Chất lượng gói", f"{quality_summary.get('overall_score', '—')}/100")
-    columns[3].metric("Cổng đạt", f"{sum(g.get('status') == 'PASS' for g in gates)}/{len(gates)}")
-    columns[4].metric("Lỗi chặn", len(blockers))
-    columns[5].metric("Tập mới nhất", continuity.get("latest_episode", "—"))
-
     st.subheader("Hành động ưu tiên")
-    actions: list[str] = []
+    actions: list[str] = [f"Mở **{issue['section']}**: {issue['text']}" for issue in review["issues"]]
+    if review["asset_issues"]:
+        actions.append(f"Mở **Tài nguyên**: {len(review['asset_issues'])} ảnh cần kiểm tra.")
     if missing:
         actions.append("Bổ sung dữ liệu: " + ", ".join(missing) + ".")
     if material_defects:
         actions.append(f"Mở **Kiểm định** và xử lý {material_defects} lỗi nội dung còn lại.")
     if blockers:
         actions.append(f"Mở **Chất lượng** và xử lý {len(blockers)} lỗi chặn xuất bản.")
+    if repetition_pairs:
+        actions.append(f"Mở **Nội dung → Lặp câu** để xem lại {repetition_pairs} cặp câu lặp hoặc gần trùng.")
     open_threads = sum(item.get("status") == "open" for item in _items(continuity.get("open_threads")))
     if open_threads:
         actions.append(f"Mở **Series** để theo dõi {open_threads} luồng truyện đang mở.")
     if not actions:
-        actions.append("Không có hành động bắt buộc; gói nội dung đã sẵn sàng.")
-    st.markdown("\n".join(f"- {item}" for item in actions))
+        actions.append("Không có hành động bắt buộc cho gói nội dung." if publish_ready else "Chưa đủ dữ liệu kết luận; kiểm tra nguồn báo cáo.")
+    def open_section(section: str) -> None:
+        st.session_state["story_studio_section"] = section
+    for index, item in enumerate(actions):
+        text_col, button_col = st.columns([4, 1])
+        text_col.markdown(f"- {item}")
+        section = next((name for name in STORY_STUDIO_SECTIONS if f"**{name}" in item), None)
+        if section:
+            button_col.button(f"Mở {section}", key=f"story_priority_{index}", on_click=open_section, args=(section,))
+
+
+    st.subheader(_story_title(reports))
+    columns = [*st.columns(4), *st.columns(3)]
+    story_score = story_quality.get("final_story_quality_score", validation_quality.get("final_story_quality_score", "—"))
+    columns[0].metric("Điểm truyện", display_score(story_score))
+    columns[1].metric("Cuốn hút", display_score(engagement.get("engagement_score")))
+    columns[2].metric("Chất lượng gói", f"{quality_summary.get('overall_score', '—')}/100")
+    result = gate_summary(validation)
+    columns[3].metric("Cổng đạt", str(result["passed"]))
+    st.caption(result["label"])
+    columns[4].metric("Lỗi chặn", len(blockers))
+    columns[5].metric("Tập mới nhất", continuity.get("latest_episode", "—"))
+    columns[6].metric("Câu lặp cần xem", repeated_sentences)
+
+    image_root = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
+    st.subheader("Hình ảnh truyện")
+    render_aspect_cover_gallery(image_root, key_prefix="story_overview_cover")
+
 
 
 def _render_missing(label: str, filename: str, status: str) -> None:
@@ -174,6 +435,8 @@ def _render_technical(reports: Mapping[str, Mapping[str, Any]]) -> None:
     if not reports:
         st.info("Chưa có báo cáo để kiểm tra.")
     for key, report in reports.items():
+        if key not in REPORT_SPECS:
+            continue
         filename, label, _validator = REPORT_SPECS[key]
         with st.expander(f"{label} · {filename}"):
             st.caption(f"{len(report):,} trường cấp cao")
@@ -182,44 +445,64 @@ def _render_technical(reports: Mapping[str, Mapping[str, Any]]) -> None:
     render_project_tools_workspace(embedded=True)
 
 
-def render_story_studio_workspace(*, embedded: bool = False) -> None:
+def render_story_studio_navigation() -> str:
+    """Render the shared Story Studio section selector."""
+    import streamlit as st
+
+    selected = st.segmented_control(
+        "Khu vực",
+        STORY_STUDIO_SECTIONS,
+        default="Tổng quan" if "story_studio_section" not in st.session_state else None,
+        key="story_studio_section",
+    ) or "Tổng quan"
+    return selected if selected in STORY_STUDIO_SECTIONS else "Tổng quan"
+
+
+def render_story_studio_workspace(
+    *, embedded: bool = False, show_navigation: bool = True
+) -> None:
     import streamlit as st
 
     if not embedded:
         st.set_page_config(page_title="Story Studio", page_icon=":material/auto_stories:", layout="wide")
-    st.header("Story Studio")
-    st.caption("Một workspace cho nội dung, kiểm định, chất lượng, canon và công cụ dự án.")
-    st.html(
-        """<style>
-        .story-heading,.sv-heading,.pqr-heading,.sa-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:1.1rem 1.2rem;border:1px solid color-mix(in srgb,currentColor 14%,transparent);border-radius:.8rem;margin:.25rem 0 1rem}
-        .story-heading h2,.sv-heading h2,.pqr-heading h2,.sa-heading h2{margin:.1rem 0 .2rem;font-size:1.55rem}
-        .story-eyebrow,.sv-eyebrow,.pqr-eyebrow,.sa-eyebrow{font-size:.75rem;opacity:.65;text-transform:uppercase;letter-spacing:.08em}
-        .story-muted,.story-cue,.sv-muted,.pqr-muted,.sa-muted{font-size:.82rem;opacity:.68}
-        .story-duration,.sv-verdict,.pqr-verdict,.sa-verdict{white-space:nowrap;padding:.45rem .7rem;border-radius:999px;font-weight:600}
-        .story-duration{color:#725024;background:rgba(180,130,60,.14)}.sv-pass,.pqr-pass{color:#19733a;background:rgba(50,180,90,.12)}.sv-fail,.pqr-fail{color:#b42318;background:rgba(220,50,40,.12)}.sa-verdict{color:#1f5d9a;background:rgba(45,125,205,.12)}
-        .sv-score,.pqr-score{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
-        .story-line{display:grid;grid-template-columns:7rem 1fr;gap:.8rem;padding:.7rem .2rem;border-bottom:1px solid color-mix(in srgb,currentColor 10%,transparent)}
-        .story-line-meta{display:flex;gap:.5rem;align-items:flex-start;font-size:.75rem;opacity:.68}.story-text{white-space:pre-wrap}.story-dialogue .story-text{padding:.65rem .8rem;border-radius:.65rem;background:rgba(180,130,60,.12)}.story-cue{margin-top:.3rem}
-        @media(max-width:640px){.story-heading,.sv-heading,.pqr-heading,.sa-heading{flex-direction:column}.story-line{grid-template-columns:1fr;gap:.25rem}}
-        </style>"""
-    )
-    reports, statuses = _render_source_selector()
-    section = st.segmented_control(
-        "Khu vực",
-        ["Tổng quan", "Nội dung", "Kiểm định", "Chất lượng", "Series", "Công cụ"],
-        default="Tổng quan",
-        key="story_studio_section",
-    ) or "Tổng quan"
+        st.header("Story Studio")
+    if show_navigation:
+        section = render_story_studio_navigation()
+    else:
+        section = str(st.session_state.get("story_studio_section") or "Tổng quan")
+        if section not in STORY_STUDIO_SECTIONS:
+            section = "Tổng quan"
+    heading, caption = STORY_STUDIO_SECTION_INTROS[section]
+    st.header(heading)
+    st.caption(caption)
     if section == "Tổng quan":
+        reports, statuses = _render_source_selector()
         _render_overview(reports, statuses)
-    elif section == "Nội dung" and "story" in reports:
-        render_story_report(reports["story"], include_technical=False)
+        return
+
+    reports, statuses = _load_source_from_session()
+    directory = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
+    render_source_provenance(directory, reports, statuses)
+    if section == "Nội dung" and "story" in reports:
+        directory = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
+        render_story_report(reports["story"], include_technical=False, images_root=directory)
     elif section == "Kiểm định" and "validation" in reports:
         render_story_validation_report(reports["validation"], include_technical=False)
     elif section == "Chất lượng" and "quality" in reports:
         render_package_quality_report(reports["quality"], include_technical=False)
+    elif section == "Tài nguyên":
+        render_project_assets(directory, reports)
+    elif section == "Âm thanh & phụ đề":
+        directory = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
+        render_audio_delivery(reports, directory)
+    elif section == "Video đầu ra":
+        directory = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
+        variants = reports.get("video_deliveries", {})
+        render_video_deliveries(variants if isinstance(variants, Mapping) else {}, directory)
     elif section == "Series" and "anchor" in reports:
         render_series_anchor_report(reports["anchor"], include_technical=False)
+    elif section == "Series" and not series_required(reports.get("validation", {})):
+        st.info("Báo cáo khai báo truyện độc lập: Series không bắt buộc. Metadata series/tập được giữ để tham khảo.")
     elif section == "Công cụ":
         _render_technical(reports)
     else:
@@ -228,4 +511,11 @@ def render_story_studio_workspace(*, embedded: bool = False) -> None:
         _render_missing(label, filename, statuses.get(key, "Thiếu"))
 
 
-__all__ = ["REPORT_SPECS", "load_story_package", "render_story_studio_workspace"]
+__all__ = [
+    "REPORT_SPECS",
+    "STORY_STUDIO_SECTION_INTROS",
+    "STORY_STUDIO_SECTIONS",
+    "load_story_package",
+    "render_story_studio_navigation",
+    "render_story_studio_workspace",
+]

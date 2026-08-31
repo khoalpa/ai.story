@@ -10,6 +10,8 @@ from video.gui.settings import (
     subtitle_alignment_value,
 )
 from video.gui.tabs import (
+    VIDEO_RUN_PREVIEW_STYLE,
+    _preview_image_for_progress,
     default_cover_path,
     default_scenes_directory,
     default_video_output,
@@ -33,6 +35,23 @@ def test_video_render_sidebar_defaults_to_youtube_slideshow() -> None:
     assert config.DEFAULT_SUBTITLE_FONT == "Playwrite VN"
     assert config.DEFAULT_SUBTITLE_FONT_SIZE == 12
     assert config.ENVIRONMENT_OVERLAY_INTENSITY == "normal"
+
+
+def test_render_preview_tracks_the_current_scene() -> None:
+    images = [Path("cover.png"), Path("opening.png"), Path("ending.png")]
+
+    assert _preview_image_for_progress(images, 0) == (0, images[0])
+    assert _preview_image_for_progress(images, 40) == (1, images[1])
+    assert _preview_image_for_progress(images, 100) == (2, images[2])
+    assert _preview_image_for_progress([], 50) is None
+
+
+def test_run_preview_uses_landscape_height_for_both_aspects() -> None:
+    assert '[data-testid="stImage"] img' in VIDEO_RUN_PREVIEW_STYLE
+    assert "aspect-ratio: 16 / 9" in VIDEO_RUN_PREVIEW_STYLE
+    assert "object-fit: contain" in VIDEO_RUN_PREVIEW_STYLE
+    tabs = Path("video/gui/tabs.py").read_text(encoding="utf-8")
+    assert 'st.container(key="video_run_preview")' in tabs
 
 
 def test_video_assets_use_direct_input_only() -> None:
@@ -78,8 +97,8 @@ def test_video_direct_input_path_defaults() -> None:
 
     assert 'VIDEO_AUDIO_INPUT_KEY: "output/story.wav"' in state
     assert 'VIDEO_INPUT_COVER_PATH_KEY: "output/landscape/cover.png"' in state
-    assert 'st.text_input("Input root", value="output")' in settings
-    assert 'st.text_input("Output directory", value="output")' in settings
+    assert 'st.text_input("Input root", value="output", key="video_input_root")' in settings
+    assert 'st.text_input("Output directory", value="output", key="video_output_dir")' in settings
 
 
 def test_slideshow_scenes_default_follows_aspect() -> None:

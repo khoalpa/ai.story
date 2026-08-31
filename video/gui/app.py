@@ -4,6 +4,8 @@ import streamlit as st
 
 from .main_panel import render_video_main_panel
 from .settings import get_video_settings
+from .state import capture_project_path_defaults
+from .view_models import _VIDEO_SETTINGS_FIELDS
 
 APP_TITLE = "Render Video Workspace"
 
@@ -16,7 +18,13 @@ def render_video_workspace(*, embedded: bool = False) -> None:
 
 
     settings = get_video_settings()
+    # Preserve non-widget configuration for the project Overview. Streamlit
+    # removes widget keys while the Video workspace is not being rendered.
+    st.session_state["video_production_settings"] = {
+        key: settings.get(key) for key in _VIDEO_SETTINGS_FIELDS
+    }
     render_video_main_panel(settings, embedded=embedded)
+    capture_project_path_defaults()
 
 
 def render_video_studio(*args, **kwargs):

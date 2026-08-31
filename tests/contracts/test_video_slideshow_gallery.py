@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from video.gui.tabs import _build_slideshow_gallery_items
+from video.gui.tabs import _build_slideshow_gallery_items, _format_timeline_timestamp
 from video.zone_timeline import ZoneSegment
 
 
@@ -48,3 +48,10 @@ def test_gallery_respects_disabled_endpoints(tmp_path: Path) -> None:
     )
 
     assert [image.name for image, _ in items] == ["greeting.png"]
+
+
+def test_timeline_timestamp_uses_fixed_hours_minutes_seconds() -> None:
+    assert _format_timeline_timestamp(0.0) == "00:00:00"
+    assert _format_timeline_timestamp(9.0) == "00:00:09"
+    assert _format_timeline_timestamp(180.0) == "00:03:00"
+    assert _format_timeline_timestamp(3661.0) == "01:01:01"

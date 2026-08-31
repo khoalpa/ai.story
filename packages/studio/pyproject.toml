@@ -13,6 +13,7 @@ dependencies = ["ai-audio>=0.1,<0.2", "ai-video>=0.1,<0.2", "streamlit>=1.49,<2"
 
 [project.scripts]
 ai-studio-gui = "studio.gui_entry:main"
+ai-story-audit = "studio.prompt_audit:main"
 
 [tool.setuptools]
 package-dir = {"" = "../.."}

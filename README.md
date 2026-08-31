@@ -7,8 +7,10 @@ AI Audio & Video Studio is a pair of standalone Python applications plus a unifi
 
 Story generation and image generation are intentionally outside this repository. Scripts and visual assets can come from any authoring or image-generation tool.
 
-The current canonical authoring reference is `ChatGPT_prompt_v3.11.11.txt`. Runtime
-contract tests use this version; superseded prompt files are not authoritative.
+Canonical authoring references live in `prompts/ChatGPT_prompt_v*.*.*.txt`. Runtime
+tooling selects the newest semantic version, projects its deterministic constants,
+and reports the selected version plus SHA-256. Older prompt files remain available
+for comparison but are not authoritative while a newer version is present.
 
 ## Requirements
 
@@ -36,6 +38,7 @@ render-audio-gui
 render-video --help
 render-video-gui
 ai-studio-gui
+ai-story-audit --help
 ```
 
 The unified Studio contains `Overview`, `Audio`, `Video`, and `Story Studio` workspaces.
@@ -74,6 +77,23 @@ python scripts/release_smoke.py
 
 See [Troubleshooting](docs/TROUBLESHOOTING.md),
 [standalone-package migration](docs/MIGRATION_STANDALONE_PACKAGES.md), and
-[deprecations](docs/DEPRECATIONS.md) for operational details.
+[deprecations](docs/DEPRECATIONS.md) for operational details. The maintenance
+workflow for future prompt versions is documented in
+[Prompt–runtime synchronization](docs/PROMPT_SYNC.md).
 
 Independent wheels are defined under `packages/audio`, `packages/video`, and `packages/studio`.
+
+## Prompt conformance
+
+Run a deterministic audit against the newest prompt in `prompts/`:
+
+```bash
+ai-story-audit output
+ai-story-audit output/stage2_checkpoint.zip
+ai-story-audit output/story.zip
+```
+
+The audit checks strict JSON parsing, current schema projections, artifact bindings,
+archive file sets, CRC, PNG format, and canonical image dimensions. Gates that need
+OCR, generator provenance, semantic review, or an external safety adapter are reported
+as `NOT_VERIFIED`; deterministic checks never promote those gates to `PASS`.

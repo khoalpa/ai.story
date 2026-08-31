@@ -7,6 +7,15 @@ from pathlib import Path
 from typing import Any, BinaryIO, Mapping
 
 from studio.package_quality_report import _items, _object, _read_report, _short_digest
+from studio.project_assets import file_facts, project_asset_path
+from studio.report_semantics import display_score
+from studio.story_images import (
+    ASPECTS,
+    discover_story_images,
+    image_for_zone,
+    render_image_thumbnail,
+)
+from studio.story_repetition import render_repetition_report
 
 ZONE_ORDER = (
     "GREETING",
@@ -103,7 +112,10 @@ def _render_header(report: Mapping[str, Any]) -> None:
     )
 
 
-def _render_reader(report: Mapping[str, Any]) -> None:
+def _render_reader(
+    report: Mapping[str, Any], *, image_catalog: Mapping[str, Mapping[str, Path]] | None = None,
+    image_aspect: str = "landscape",
+) -> None:
     import streamlit as st
 
     script = _script_items(report)
@@ -128,6 +140,15 @@ def _render_reader(report: Mapping[str, Any]) -> None:
         f"{ZONE_LABELS.get(zone, zone)} · {len(indexed)} mục · "
         f"đang hiển thị {start + 1}–{min(start + page_size, len(indexed))}"
     )
+    if image_catalog is not None:
+        image = image_for_zone(image_catalog, image_aspect, zone)
+        _left_space, image_column, _right_space = st.columns([1, 2, 1])
+        with image_column:
+            render_image_thumbnail(
+                image, caption=f"{ZONE_LABELS.get(zone, zone)} · {image_aspect.title()}",
+                key=f"story_reader_{image_aspect}_{zone}",
+                frame_ratio=(16, 9),
+            )
 
     for index, item in visible:
         voice = str(item.get("voice") or "NARRATOR")
@@ -147,7 +168,10 @@ def _render_reader(report: Mapping[str, Any]) -> None:
         )
 
 
-def _render_outline(report: Mapping[str, Any]) -> None:
+def _render_outline(
+    report: Mapping[str, Any], *, image_catalog: Mapping[str, Mapping[str, Path]] | None = None,
+    image_aspect: str = "landscape",
+) -> None:
     import streamlit as st
 
     outline = _object(report.get("outline"))
@@ -156,12 +180,23 @@ def _render_outline(report: Mapping[str, Any]) -> None:
         return
     for key, label in OUTLINE_KEYS.items():
         if key in outline:
-            st.markdown(f"**{label}**")
-            st.write(str(outline[key]))
+            text_col, image_col = st.columns([2, 1]) if image_catalog is not None else (st.container(), st.container())
+            with text_col:
+                st.markdown(f"**{label}**")
+                st.write(str(outline[key]))
+            if image_catalog is not None:
+                with image_col:
+                    zone = key.upper()
+                    render_image_thumbnail(
+                        image_for_zone(image_catalog, image_aspect, zone),
+                        caption=f"{label} · {image_aspect.title()}",
+                        key=f"story_outline_{image_aspect}_{key}",
+                        frame_ratio=(16, 9),
+                    )
             st.divider()
 
 
-def _render_characters(report: Mapping[str, Any]) -> None:
+def _render_characters(report: Mapping[str, Any], *, images_root: Path | None = None) -> None:
     import streamlit as st
 
     characters = _items(report.get("characters"))
@@ -187,6 +222,19 @@ def _render_characters(report: Mapping[str, Any]) -> None:
         """,
         unsafe_allow_html=True,
     )
+    if images_root is not None:
+        asset = _object(selected.get("reference_asset"))
+        relative = str(asset.get("reference_image") or "")
+        path = project_asset_path(images_root, relative) if relative else None
+        _space, preview, _space_right = st.columns([1, 2, 1])
+        with preview:
+            render_image_thumbnail(path, caption=str(selected.get("name") or selected_id), key="character_reference")
+        if path is not None and path.is_file():
+            try:
+                digest, dimensions = file_facts(path)
+                st.caption(f"{relative} · {dimensions} · " + ("SHA-256 khớp hồ sơ" if digest == asset.get("file_sha256") else "SHA-256 chưa khớp hoặc chưa có giá trị đối chiếu"))
+            except (OSError, ValueError):
+                st.warning("Không đọc được ảnh tham chiếu.")
     age_min = selected.get("canonical_age_min")
     age_max = selected.get("canonical_age_max")
     age = age_min if age_min == age_max else f"{age_min}–{age_max}"
@@ -233,7 +281,7 @@ def _render_statistics(report: Mapping[str, Any]) -> None:
     cols[2].metric("Nhân vật", len(_items(report.get("characters"))))
     cols[3].metric("Hội thoại", int(metrics.get("direct_dialogue_item_count") or 0))
     cols[4].metric("Tỷ lệ hội thoại", f"{float(metrics.get('direct_dialogue_ratio') or 0):.1%}")
-    cols[5].metric("Chất lượng", f"{float(quality.get('final_story_quality_score') or 0):.2f}/10")
+    cols[5].metric("Chất lượng", display_score(quality.get("final_story_quality_score")))
 
     voice_counts = Counter(str(item.get("voice") or "UNKNOWN") for item in script)
     environment_counts = Counter(str(item.get("environment") or "none") for item in script)
@@ -278,26 +326,54 @@ def _render_technical(report: Mapping[str, Any]) -> None:
         st.json(report, expanded=False)
 
 
-def render_story_report(report: Mapping[str, Any], *, include_technical: bool = True) -> None:
+def render_story_report(
+    report: Mapping[str, Any], *, include_technical: bool = True,
+    images_root: Path | None = None,
+) -> None:
     import streamlit as st
 
     _validate_story(report)
     _render_header(report)
-    labels = ["Đọc truyện", "Dàn ý", "Nhân vật", "Thống kê"]
+    evidence = st.session_state.get("story_evidence_range")
+    if evidence:
+        start, end = evidence
+        script = _script_items(report)
+        st.subheader("Đoạn kịch bản từ bằng chứng kiểm định")
+        if 0 <= start <= end < len(script):
+            st.caption(f"Chỉ số JSON {start}–{end} · mục hiển thị {start + 1}–{end + 1}")
+            with st.container(height=360):
+                for index in range(start, end + 1):
+                    st.write(f"{index + 1}. {script[index].get('text', '')}")
+        else:
+            st.warning("Vị trí bằng chứng nằm ngoài kịch bản hiện tại; kiểm tra lại nguồn báo cáo.")
+        if st.button("Đóng đoạn bằng chứng"):
+            st.session_state.pop("story_evidence_range", None)
+            st.rerun()
+    image_catalog = discover_story_images(images_root) if images_root is not None else None
+    image_aspect = "landscape"
+    if image_catalog is not None:
+        available = [aspect for aspect in ASPECTS if image_catalog.get(aspect)] or list(ASPECTS)
+        image_aspect = st.segmented_control(
+            "Tỷ lệ hình ảnh", available, default=available[0],
+            format_func=str.title, key="story_content_image_aspect",
+        ) or available[0]
+    labels = ["Đọc truyện", "Dàn ý", "Nhân vật", "Lặp câu", "Thống kê"]
     if include_technical:
         labels.append("Kỹ thuật")
     tabs = st.tabs(labels)
-    reader, outline, characters, statistics = tabs[:4]
+    reader, outline, characters, repetition, statistics = tabs[:5]
     with reader:
-        _render_reader(report)
+        _render_reader(report, image_catalog=image_catalog, image_aspect=image_aspect)
     with outline:
-        _render_outline(report)
+        _render_outline(report, image_catalog=image_catalog, image_aspect=image_aspect)
     with characters:
-        _render_characters(report)
+        _render_characters(report, images_root=images_root)
+    with repetition:
+        render_repetition_report(report, image_catalog=image_catalog, image_aspect=image_aspect)
     with statistics:
         _render_statistics(report)
     if include_technical:
-        with tabs[4]:
+        with tabs[5]:
             _render_technical(report)
 
 
@@ -333,7 +409,8 @@ def render_story_workspace(*, embedded: bool = False) -> None:
     except (OSError, ValueError) as exc:
         st.error(str(exc))
         return
-    render_story_report(report)
+    images_root = source.parent if isinstance(source, Path) else None
+    render_story_report(report, images_root=images_root)
 
 
 __all__ = ["render_story_report", "render_story_workspace"]

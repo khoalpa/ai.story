@@ -19,6 +19,18 @@ from video.runtime_tools import is_available_tool
 logger = get_logger(__name__)
 
 
+def _stop_process(proc: subprocess.Popen, *, timeout: float = 5.0) -> None:
+    """Stop an FFmpeg child when Streamlit cancels its script thread."""
+    if proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=timeout)
+
+
 def ensure_tools() -> None:
     ensure_runtime_tools(
         config.get_ffmpeg_exe(),
@@ -83,7 +95,11 @@ def run_ffmpeg(
         if progress_callback is not None:
             progress_callback(0.0, "Starting render...")
         proc = subprocess.Popen(cmd, stdout=None, stderr=None)
-        rc = proc.wait()
+        try:
+            rc = proc.wait()
+        except BaseException:
+            _stop_process(proc)
+            raise
         if rc != 0:
             raise FfmpegExecutionError(f"ffmpeg failed, return code={rc}")
         if progress_callback is not None:
@@ -125,59 +141,63 @@ def run_ffmpeg(
     if proc.stdout is None:
         raise FfmpegExecutionError("Could not read ffmpeg progress from stdout.")
 
-    for line in proc.stdout:
-        line = line.strip()
-        if not line:
-            continue
-        m = out_time_re.match(line)
-        if m:
-            current_out_s = int(m.group(1)) / 1_000_000.0
-            continue
-        m = out_time_us_re.match(line)
-        if m:
-            current_out_s = int(m.group(1)) / 1_000_000.0
-            continue
-        m = out_time_re2.match(line)
-        if m:
-            parts = m.group(1).split(":")
-            if len(parts) == 3:
-                h, mm, ss = int(parts[0]), int(parts[1]), float(parts[2])
-                current_out_s = h * 3600 + mm * 60 + ss
-            continue
-        m = progress_re.match(line)
-        if not m:
-            continue
-        status = m.group(1)
-        now = time.time()
-        if expected_duration_s and expected_duration_s > 0:
-            pct = min(100.0, (current_out_s / expected_duration_s) * 100.0)
-            if now - last_print >= 0.5 or status != "continue":
-                last_print = now
-                elapsed = max(0.0, now - started_at)
-                eta = None
-                if pct > 0.1:
-                    eta = max(0.0, elapsed * (100.0 - pct) / pct)
-                eta_text = f" eta {format_hms(eta)}" if eta is not None else ""
-                msg = f"[MP4] {int(round(pct)):3d}% ({format_hms(current_out_s)}/{format_hms(expected_duration_s)}{eta_text})"
-                print(
-                    f"\r{msg}",
-                    file=sys.stderr,
-                    end="" if status == "continue" else "\n",
-                    flush=True,
-                )
-                if progress_callback is not None:
-                    progress_callback(pct, msg)
-                line_ended = status != "continue"
-        else:
-            if now - last_print >= 0.5 or status != "continue":
+    try:
+        for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            m = out_time_re.match(line)
+            if m:
+                current_out_s = int(m.group(1)) / 1_000_000.0
+                continue
+            m = out_time_us_re.match(line)
+            if m:
+                current_out_s = int(m.group(1)) / 1_000_000.0
+                continue
+            m = out_time_re2.match(line)
+            if m:
+                parts = m.group(1).split(":")
+                if len(parts) == 3:
+                    h, mm, ss = int(parts[0]), int(parts[1]), float(parts[2])
+                    current_out_s = h * 3600 + mm * 60 + ss
+                continue
+            m = progress_re.match(line)
+            if not m:
+                continue
+            status = m.group(1)
+            now = time.time()
+            if expected_duration_s and expected_duration_s > 0:
+                pct = min(100.0, (current_out_s / expected_duration_s) * 100.0)
+                if now - last_print >= 0.5 or status != "continue":
+                    last_print = now
+                    elapsed = max(0.0, now - started_at)
+                    eta = None
+                    if pct > 0.1:
+                        eta = max(0.0, elapsed * (100.0 - pct) / pct)
+                    eta_text = f" eta {format_hms(eta)}" if eta is not None else ""
+                    msg = f"[MP4] {int(round(pct)):3d}% ({format_hms(current_out_s)}/{format_hms(expected_duration_s)}{eta_text})"
+                    print(
+                        f"\r{msg}",
+                        file=sys.stderr,
+                        end="" if status == "continue" else "\n",
+                        flush=True,
+                    )
+                    if progress_callback is not None:
+                        progress_callback(pct, msg)
+                    line_ended = status != "continue"
+            elif now - last_print >= 0.5 or status != "continue":
                 last_print = now
                 msg = f"[TIME] {format_hms(current_out_s)}"
                 print(msg, file=sys.stderr, end="\r" if status == "continue" else "\n")
                 if progress_callback is not None:
                     progress_callback(0.0, msg)
 
-    rc = proc.wait()
-    t.join(timeout=1.0)
+        rc = proc.wait()
+    except BaseException:
+        _stop_process(proc)
+        raise
+    finally:
+        t.join(timeout=1.0)
     if rc != 0:
         raise FfmpegExecutionError(
             f"ffmpeg failed, return code={rc}\n--- ffmpeg stderr tail ---\n"

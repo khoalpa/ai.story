@@ -54,13 +54,12 @@ def _render_embedded_audio_panel(settings: dict) -> None:
         normalize=normalize_audio_view_id,
     )
 
-    selected_view = st.radio(
-        "Audio Studio",
+    selected_view = st.segmented_control(
+        "Khu vực",
         options=AUDIO_VIEW_IDS,
         key="audio_embedded_view_selector",
-        horizontal=True,
         format_func=lambda view_id: AUDIO_VIEW_BY_ID[view_id].label,
-    )
+    ) or "inputs"
     sync_embedded_view_selection(app_name="Audio", widget_value=selected_view)
 
     _AUDIO_RENDERERS[selected_view](settings)

@@ -360,6 +360,8 @@ def _execute_render_request_unlocked(
     try:
         with _runtime_tool_env(request.ffmpeg_exe, request.ffprobe_exe), _render_runtime_overrides(request):
             with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
+                if progress_callback is not None:
+                    progress_callback(0.0, "Checking images and runtime...")
                 image_readiness = inspect_video_image_readiness(
                     mode=request.mode,
                     aspect=request.aspect,
@@ -388,6 +390,8 @@ def _execute_render_request_unlocked(
                 )
                 ensure_tools()
                 with tempfile.TemporaryDirectory(prefix="render_video_audio_") as temp_dir:
+                    if progress_callback is not None:
+                        progress_callback(1.0, "Preparing audio...")
                     prepared_audio, audio_preflight = prepare_audio_for_video(
                         request.audio,
                         Path(temp_dir) / "normalized_audio.flac",

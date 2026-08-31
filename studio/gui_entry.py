@@ -15,7 +15,12 @@ def main() -> int:
 
         from audio.app_api import render_audio_workspace
         from studio.overview import render_overview
-        from studio.story_studio import render_story_studio_workspace
+        from studio.prompt_library import render_prompt_library_workspace
+        from studio.story_studio import (
+            render_story_studio_navigation,
+            render_story_studio_workspace,
+        )
+        from studio.ui_style import render_studio_style
         from video.app_api import render_video_workspace
     except ModuleNotFoundError as exc:
         if exc.name == "streamlit":
@@ -31,33 +36,23 @@ def main() -> int:
 
     st.set_page_config(page_title=app_title, page_icon=":material/movie:", layout="wide")
 
-    # Streamlit keeps elements from the previous rerun in the DOM with the
-    # ``data-stale="true"`` attribute until their replacements arrive.  That transition is
-    # useful for small widget updates, but it leaves a faded copy of a taller
-    # workspace visible when the user navigates to a shorter one.
-    st.html(
-        """
-        <style>
-        [data-testid="stElementContainer"][data-stale="true"] {
-            display: none !important;
-        }
-
-        </style>
-        """
-    )
+    render_studio_style()
 
     st.title(app_title)
 
     selected = st.sidebar.radio(
         "Workspace",
-        ["Overview", "Story Studio", "Audio Studio", "Video Studio"],
+        ["Overview", "Story Studio", "Audio Studio", "Video Studio", "Prompt Info"],
         key="studio_workspace",
     )
+    if selected == "Story Studio":
+        render_story_studio_navigation()
     renderers = {
         "Overview": render_overview,
-        "Story Studio": lambda: render_story_studio_workspace(embedded=True),
+        "Story Studio": lambda: render_story_studio_workspace(embedded=True, show_navigation=False),
         "Audio Studio": lambda: render_audio_workspace(embedded=True),
         "Video Studio": lambda: render_video_workspace(embedded=True),
+        "Prompt Info": lambda: render_prompt_library_workspace(embedded=True),
     }
     renderers[selected]()
     return 0

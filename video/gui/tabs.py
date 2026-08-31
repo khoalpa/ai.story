@@ -22,7 +22,7 @@ from video.gui.panel_utils import (
     render_json_summary_expander,
     render_session_history,
 )
-from video.gui.progress_details import format_progress_text
+from video.gui.progress_details import format_duration, format_progress_text
 from video.gui.runtime_usage import render_runtime_usage_compact
 from video.gui.service import run_video_job
 from video.gui.shared_state import (
@@ -53,6 +53,18 @@ from video.validation import (
     resolve_slideshow_outro,
 )
 from video.zone_timeline import ZoneSegment, build_zone_segments
+
+VIDEO_RUN_PREVIEW_STYLE = """
+<style>
+.st-key-video_run_preview [data-testid="stImage"] img,
+.st-key-video_run_preview img[data-testid="stImage"] {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    background: #000;
+}
+</style>
+"""
 
 
 def _existing_picker_directory(path_value: str) -> str:
@@ -486,6 +498,28 @@ def _append_history(summary: dict[str, Any]) -> None:
     )
 
 
+def _render_preview_images(inputs: dict[str, Any]) -> list[Path]:
+    report = inputs.get("image_readiness")
+    assets = list(getattr(report, "assets", []) or [])
+    images = [
+        Path(asset.path)
+        for asset in assets
+        if asset.level != "error" and Path(asset.path).is_file()
+    ]
+    if images:
+        return images
+    cover = inputs.get("cover")
+    return [Path(cover)] if cover is not None and Path(cover).is_file() else []
+
+
+def _preview_image_for_progress(images: list[Path], percent: float) -> tuple[int, Path] | None:
+    if not images:
+        return None
+    fraction = max(0.0, min(1.0, float(percent) / 100.0))
+    index = min(len(images) - 1, int(fraction * len(images)))
+    return index, images[index]
+
+
 
 def render_doctor_tab(settings: dict[str, Any]) -> None:
     ensure_session_defaults()
@@ -644,7 +678,23 @@ def render_run_tab(settings: dict[str, Any]) -> None:
 
     progress = st.progress(0.0, text=format_progress_text(0, "Not started", [f"mode={settings.get('mode')}", f"aspect={settings.get('aspect')}"]))
     status = st.empty()
+    st.html(VIDEO_RUN_PREVIEW_STYLE)
+    with st.container(key="video_run_preview"):
+        preview_slot = st.empty()
+    duration_slot = st.empty()
     if st.button("Render video", type="primary", width="stretch", disabled=bool(errors)):
+        total_duration = get_media_duration_seconds(inputs["audio"]) if inputs.get("audio") else None
+        preview_images = _render_preview_images(inputs)
+        preview_state: dict[str, Optional[int]] = {"index": None}
+
+        if total_duration:
+            duration_slot.metric("Rendered duration", f"0:00 / {format_duration(total_duration)}")
+        if preview_images:
+            preview_slot.image(
+                str(preview_images[0]),
+                caption=f"Render preview · {preview_images[0].name}",
+                width="stretch",
+            )
         update_global_run_monitor(
             app="Video",
             stage="Render",
@@ -671,6 +721,22 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                 progress.progress(
                     frac, text=detail_text
                 )
+                if total_duration:
+                    duration_slot.metric(
+                        "Rendered duration",
+                        f"{format_duration(total_duration * frac)} / {format_duration(total_duration)}",
+                    )
+                preview = _preview_image_for_progress(preview_images, percent)
+                if preview is not None and preview[0] != preview_state["index"]:
+                    preview_state["index"] = preview[0]
+                    preview_slot.image(
+                        str(preview[1]),
+                        caption=(
+                            f"Render preview · {preview[1].name} · "
+                            f"{format_duration((total_duration or 0) * frac)}"
+                        ),
+                        width="stretch",
+                    )
                 render_runtime_usage_compact()
                 update_global_run_monitor(
                     app="Video",
@@ -976,12 +1042,24 @@ def _render_slideshow_order_gallery(
             columns[offset].image(str(image_path), width=160)
             if image_segments:
                 timing = ", ".join(
-                    f"{segment.zone} · {segment.start:.1f}s–{segment.end:.1f}s"
+                    f"{segment.zone} · {_format_timeline_timestamp(segment.start)}"
+                    f"–{_format_timeline_timestamp(segment.end)}"
                     for segment in image_segments
                 )
             else:
                 timing = "not visible with current timing"
             columns[offset].caption(f"#{index:02d} {image_path.name}\n{timing}")
+
+
+def _format_timeline_timestamp(seconds: float | int) -> str:
+    """Format a slideshow timeline position as a fixed-width HH:MM:SS value."""
+    try:
+        total_seconds = max(0, int(round(float(seconds))))
+    except (TypeError, ValueError, OverflowError):
+        total_seconds = 0
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 def _build_slideshow_gallery_items(

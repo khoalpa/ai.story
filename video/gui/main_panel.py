@@ -52,13 +52,12 @@ def _render_embedded_video_panel(settings: dict[str, object]) -> None:
         normalize=normalize_video_view_id,
     )
 
-    selected_view = st.radio(
-        "Video Studio",
+    selected_view = st.segmented_control(
+        "Khu vực",
         options=VIDEO_VIEW_IDS,
         key="video_embedded_view_selector",
-        horizontal=True,
         format_func=lambda view_id: VIDEO_VIEW_BY_ID[view_id].label,
-    )
+    ) or "inputs"
     sync_embedded_view_selection(app_name="Video", widget_value=selected_view)
 
     _VIDEO_RENDERERS[selected_view](settings)
