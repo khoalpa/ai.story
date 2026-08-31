@@ -52,10 +52,30 @@ def format_timestamp(milliseconds: int) -> str:
 
 
 def format_duration(seconds: float | int | None) -> str:
-    total = max(0, round(float(seconds or 0)))
+    issues: list[str] = []
+    duration = _report_duration(seconds, "duration", issues)
+    if issues:
+        return "—"
+    total = round(duration)
     hours, remainder = divmod(total, 3600)
     minutes, secs = divmod(remainder, 60)
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
+
+
+def _report_duration(value: Any, field: str, issues: list[str]) -> float:
+    """Keep malformed measurements visible without breaking the report view."""
+    if value is None:
+        return 0.0
+    try:
+        if isinstance(value, bool):
+            raise ValueError
+        duration = float(value)
+        if not math.isfinite(duration) or duration < 0:
+            raise ValueError
+        return duration
+    except (TypeError, ValueError, OverflowError):
+        issues.append(f"Thời lượng {field} không hợp lệ.")
+        return 0.0
 
 
 def format_bytes(value: Any) -> str:
@@ -207,16 +227,21 @@ def inspect_audio_delivery(data: Mapping[str, Any], directory: Path) -> dict[str
     overlaps = sum(current.start_ms < previous.end_ms for previous, current in zip(cues, cues[1:]))
     if overlaps:
         issues.append(f"Có {overlaps} mốc phụ đề chồng lấn.")
-    duration_seconds = float(_object(quality.get("duration")).get("output_seconds") or 0)
+    duration_seconds = _report_duration(_object(quality.get("duration")).get("output_seconds"), "duration.output_seconds", issues)
     subtitle_seconds = cues[-1].end_ms / 1000 if cues else 0
     if duration_seconds and subtitle_seconds > duration_seconds + 1:
         issues.append("Phụ đề kết thúc sau audio.")
     checks_passed = sum(value is True for value in checks.values())
     checks_total = len(checks)
-    ready = bool(handoff and quality and cues and quality.get("passed") is True and not issues and all(row["exists"] and row["size_matches"] for row in artifact_rows))
+    if checks_passed != checks_total:
+        issues.append(f"{checks_total - checks_passed} phép kiểm tra chất lượng chưa đạt.")
+    elif quality and not checks:
+        issues.append("Chưa có dữ liệu kiểm tra chất lượng.")
+    passed = quality.get("passed") is True and bool(checks) and checks_passed == checks_total
+    ready = bool(handoff and quality and cues and passed and not issues and all(row["exists"] and row["size_matches"] for row in artifact_rows))
     return {
         "ready": ready,
-        "passed": quality.get("passed") is True,
+        "passed": passed,
         "cue_count": len(cues),
         "segment_count": measured_count,
         "duration_seconds": duration_seconds or subtitle_seconds,

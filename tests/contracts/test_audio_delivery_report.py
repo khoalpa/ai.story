@@ -145,3 +145,39 @@ def test_loudness_range_uses_its_own_measurement(measured: object, expected: str
         "checks": {"integrated_loudness": integrated_passed},
     })
     assert next(row for row in rows if row["Chỉ số"] == "Loudness range")["Kết quả"] == expected
+
+
+@pytest.mark.parametrize("checks", [{"true_peak": False}, {"true_peak": "false"}, {"true_peak": 1}, {}])
+def test_audio_readiness_requires_passing_checks(tmp_path: Path, checks: dict) -> None:
+    _write_delivery(tmp_path)
+    data, _ = load_audio_delivery(tmp_path)
+    data["audio_quality"]["checks"] = checks
+    summary = inspect_audio_delivery(data, tmp_path)
+    assert summary["ready"] is False
+    assert summary["passed"] is False
+    assert summary["issues"]
+
+
+@pytest.mark.parametrize("duration", ["invalid", [], {}, True, -1, "", float("nan"), float("inf")])
+def test_invalid_audio_duration_blocks_readiness(tmp_path: Path, duration: object) -> None:
+    from io import BytesIO
+
+    from studio.audio_delivery_report import format_duration
+
+    _write_delivery(tmp_path)
+    data, _ = load_audio_delivery(tmp_path)
+    data["audio_quality"]["duration"]["output_seconds"] = duration
+    data["audio_quality"] = read_audio_delivery_override(
+        BytesIO(json.dumps(data["audio_quality"]).encode()), "audio_quality",
+    )
+    summary = inspect_audio_delivery(data, tmp_path)
+    assert summary["ready"] is False
+    assert any("duration.output_seconds" in issue for issue in summary["issues"])
+    assert format_duration(duration) == "—"
+
+
+@pytest.mark.parametrize(("seconds", "expected"), [(None, "0:00"), (0, "0:00"), (90, "1:30"), (3661, "1:01:01")])
+def test_valid_duration_format_is_preserved(seconds: int | None, expected: str) -> None:
+    from studio.audio_delivery_report import format_duration
+
+    assert format_duration(seconds) == expected

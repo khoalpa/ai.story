@@ -13,6 +13,7 @@ from studio.video_delivery_report import (
     discover_video_report_names,
     inspect_video_variant,
     load_video_deliveries,
+    read_video_report,
     video_report_identity,
 )
 
@@ -93,3 +94,40 @@ def test_invalid_video_size_is_reported_without_crashing(tmp_path: Path, size: o
     }, tmp_path)
     assert summary["ready"] is False
     assert any("Kích thước" in issue for issue in summary["issues"])
+
+
+@pytest.mark.parametrize("checks", [{"decode": False}, {"decode": "false"}, {"decode": 1}, {}])
+def test_video_readiness_requires_passing_checks(tmp_path: Path, checks: dict) -> None:
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"video")
+    quality = _quality()
+    quality["checks"] = checks
+    summary = inspect_video_variant("video", {"result": _result(video.name, 5), "quality": quality}, tmp_path)
+    assert summary["ready"] is False
+    assert summary["passed"] is False
+    assert summary["issues"]
+
+
+def test_video_preserves_long_subtitle_lines(tmp_path: Path) -> None:
+    quality = _quality()
+    lines = ["x" * 71, "y" * 80]
+    quality["subtitle"] = {"long_lines": lines}
+    loaded = read_video_report(BytesIO(json.dumps(quality).encode()), "quality")
+    summary = inspect_video_variant("video", {"quality": loaded}, tmp_path)
+    assert summary["long_lines"] == lines
+
+
+@pytest.mark.parametrize("kind", ["result", "quality"])
+@pytest.mark.parametrize("duration", ["invalid", [], {}, True, -1, "", float("nan"), float("inf")])
+def test_invalid_video_duration_blocks_readiness(tmp_path: Path, kind: str, duration: object) -> None:
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"video")
+    reports = {"result": _result(video.name, 5), "quality": _quality()}
+    if kind == "result":
+        reports[kind]["metadata"] = {"duration_seconds": duration}
+    else:
+        reports[kind]["duration"] = {"container_seconds": duration}
+    reports[kind] = read_video_report(BytesIO(json.dumps(reports[kind]).encode()), kind)
+    summary = inspect_video_variant("video", reports, tmp_path)
+    assert summary["ready"] is False
+    assert any("Thời lượng" in issue for issue in summary["issues"])

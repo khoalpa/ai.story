@@ -1000,6 +1000,12 @@ if story_files != 1 or report_files != 1 or validation_files != 1:
     errors.append("FIXED_SIDECAR_COUNT_DRIFT")
 if '- CHARACTER_REFERENCE_ASSET_KEY = reference_asset' not in lines or '- CHARACTER_REFERENCE_ASSET_SCHEMA_VERSION = "1.0"' not in lines:
     errors.append("PER_CHARACTER_REFERENCE_ASSET_CONSTANT_MISSING")
+prompt_contract_text = re.sub(
+    r"STATIC_PROMPT_LINTER_EXECUTABLE_3\.11\.14:\n```python\n.*?\n```",
+    "",
+    text,
+    flags=re.S,
+)
 for literal in (
     'Story mới do CURRENT tạo phải có đúng 5 root field theo thứ tự:',
     '5. script',
@@ -1009,6 +1015,19 @@ for literal in (
 ):
     if literal not in text:
         errors.append("PER_CHARACTER_REFERENCE_ASSET_CONTRACT_MISSING:" + literal)
+for literal in (
+    'Trong STORY_CONTENT_PROJECTION trước character reference commit, mỗi item có đúng 8 field nội dung theo thứ tự:',
+    'Trong story.json CURRENT schema 2.3 sau character reference commit, mỗi item có đúng 9 field theo thứ tự:',
+    '9. reference_asset',
+    'meta của story CURRENT phải có đúng 14 field theo thứ tự:',
+    'meta CURRENT có đúng 14 field; legacy schema 2.0 có đúng 13 field chỉ qua explicit compatibility path; outline có đúng 8 key; mỗi script item có đúng 6 field.',
+):
+    if literal not in prompt_contract_text:
+        errors.append("CURRENT_STORY_SCHEMA_INVARIANT_MISSING:" + literal)
+if "characters là array 1–12 item, không duplicate character_id/name sau Unicode NFC normalization. Mỗi item có đúng 8 field theo thứ tự:" in prompt_contract_text:
+    errors.append("CHARACTER_PROJECTION_FINAL_SCHEMA_AMBIGUOUS")
+if "- meta đủ 13 field; outline đủ 8 key; mỗi script item đủ 6 field." in prompt_contract_text:
+    errors.append("STALE_CURRENT_META_FIELD_COUNT")
 if '- TOTAL_OUTPUT_FILES = 23 + CHARACTER_IMAGE_COUNT + FINAL_PACKAGE_ANCHOR_COUNT' not in lines:
     errors.append("DYNAMIC_PACKAGE_COUNT_MISSING")
 if '- STORY_VALIDATION_REPORT_IN_FINAL_PACKAGE = true' not in lines or validation_files != 1:
@@ -1244,6 +1263,7 @@ result = {
     "canonical_rule_count": len(canonical_rules),
     "safety_binding_count": len(safety_rules),
     "safety_integration_status": "NOT_VERIFIED",
+    "overall_release_status": "NOT_VERIFIED",
     "series_title_rule_count": len(title_rule_ids),
     "package_manifest_fixtures": package_manifest_fixtures,
     "episode_label_fixture_count": len(episode_label_fixtures),
@@ -2623,7 +2643,9 @@ PROFILE META RULES:
 --------------------------------------------------
 
 STORY-CHARACTER-REGISTRY-01 áp dụng cho toàn bộ array và các cross-reference liên quan.
-characters là array 1–12 item, không duplicate character_id/name sau Unicode NFC normalization. Mỗi item có đúng 8 field theo thứ tự:
+characters là array 1–12 item, không duplicate character_id/name sau Unicode NFC normalization.
+
+Trong STORY_CONTENT_PROJECTION trước character reference commit, mỗi item có đúng 8 field nội dung theo thứ tự:
 1. character_id
 2. name
 3. role
@@ -2632,6 +2654,19 @@ characters là array 1–12 item, không duplicate character_id/name sau Unicode
 6. adult_visual_eligibility
 7. visual_story_importance
 8. identity_traits
+
+Trong story.json CURRENT schema 2.3 sau character reference commit, mỗi item có đúng 9 field theo thứ tự:
+1. character_id
+2. name
+3. role
+4. canonical_age_min
+5. canonical_age_max
+6. adult_visual_eligibility
+7. visual_story_importance
+8. identity_traits
+9. reference_asset
+
+- `reference_asset` là field cuối bắt buộc của artifact CURRENT đã commit và phải vượt CHARACTER-REFERENCE-SET-GATE-01. Nó không thuộc STORY_CONTENT_PROJECTION dùng để khóa nội dung trước khi tạo ảnh. Validator phải chọn đúng schema theo lifecycle state; không được áp contract 8-field của projection lên story.json final hoặc cho phép contract 9-field trước character reference commit.
 
 - character_id là lowercase snake_case stable trong story; name/role là string không rỗng; canonical_age_min/max là integer với 0 <= min <= max <= 120; identity_traits là array 2–6 string không trùng.
 - adult_visual_eligibility thuộc ADULT_VISUAL_ELIGIBILITY_ENUM. VERIFIED_ADULT chỉ hợp lệ khi canonical_age_min >=18 và ACTIVE_PROFILE thuộc ADULT_VISUAL_PROFILES. NOT_ADULT bắt buộc khi canonical_age_max <18. AGE_AMBIGUOUS dùng khi range giao cắt 18 hoặc age source không đủ exact; sensuality bắt buộc NONE. YOUTH_SAFE item phải NOT_ADULT hoặc NOT_APPLICABLE, không VERIFIED_ADULT.
@@ -4372,7 +4407,7 @@ STORY_GATE:
 - FRAMING-ECONOMY-GATE-01 và NARRATIVE-META-LEAK-GATE-01 đạt; meta_leak_count = 0, audience_ledger_leak_count = 0, audience_address_in_narrative_count = 0 và engine_policy_declaration_count = 0. HUMAN-LOGIC-OVER-OPTIMAL-LOGIC-01/CHARACTER-BEHAVIORAL-SURPRISE-01 không ép quota nhưng mọi major counterintuitive action phải vượt MOTIVATED-IRRATIONALITY-GATE-01; BEHAVIORAL-SURPRISE-DENSITY-GUARD-01 phải PASS khi metric applicable; unmotivated_random_twist_count = 0.
 - ENGAGEMENT_SCORE >= ENGAGEMENT_SCORE_MIN và mọi engagement blocker áp dụng PASS; FINAL_STORY_QUALITY_SCORE không override engagement fail.
 - story.json parse UTF-8; current story root đúng `schema_version/meta/characters/outline/script` và field order; current meta.story_quality_commitment vượt STORY-QUALITY-COMMITMENT-GATE-01; mọi `characters[*].reference_asset` vượt CHARACTER-REFERENCE-SET-GATE-01. Schema 2.2 root character_assets, schema 2.1 + sidecar hoặc schema 2.0/root cũ chỉ theo explicit compatibility path. Current characters registry schema/cross-reference/age eligibility phải PASS; legacy không được tuyên bố verified-adult portability hoặc portable planning-evidence PASS ngoài evidence adapter thực có.
-- meta đủ 13 field; outline đủ 8 key; mỗi script item đủ 6 field.
+- meta CURRENT có đúng 14 field; legacy schema 2.0 có đúng 13 field chỉ qua explicit compatibility path; outline có đúng 8 key; mỗi script item có đúng 6 field.
 - COVER FIELD COLLISION PRECHECK đạt cho ACTIVE_COVER_FIELDS đã resolve.
 - meta.length_min/meta.length_max đạt global length bounds; mọi phép đếm total_words dùng đúng WORD COUNT NORMALIZATION và không dùng tokenizer khác giữa các stage.
 - Enum, ZONE-ORDER-FINAL-GATE-01, lang mapping và environment hợp lệ; đủ đúng tám zone, không có cặp item liền kề giảm rank và không dùng cached PASS trước mutation cuối.

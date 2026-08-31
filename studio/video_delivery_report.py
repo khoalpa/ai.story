@@ -7,6 +7,7 @@ from typing import Any, BinaryIO, Mapping
 
 from studio.audio_delivery_report import (
     _artifact_size_matches,
+    _report_duration,
     format_bytes,
     format_duration,
 )
@@ -121,28 +122,33 @@ def inspect_video_variant(
         issues.append("Kích thước video không khớp result manifest.")
     if failed_checks:
         issues.append(f"{len(failed_checks)} phép kiểm tra chất lượng chưa đạt.")
+    elif quality and not checks:
+        issues.append("Chưa có dữ liệu kiểm tra chất lượng.")
     if not result:
         issues.append(f"Thiếu `{variant}{RESULT_SUFFIX}`.")
     if not quality:
         issues.append(f"Thiếu `{variant}{QUALITY_SUFFIX}`.")
-    passed = quality.get("passed") is True
+    metadata_duration = _report_duration(metadata.get("duration_seconds"), "metadata.duration_seconds", issues)
+    container_duration = _report_duration(duration.get("container_seconds"), "duration.container_seconds", issues)
+    long_lines = subtitle.get("long_lines")
+    passed = quality.get("passed") is True and bool(checks) and not failed_checks
     return {
         "variant": variant,
         "label": variant.replace("video_", "").replace("_", " ").title(),
-        "ready": bool(result and quality and passed and video_exists and size_ok),
+        "ready": bool(result and quality and passed and video_exists and size_ok and not issues),
         "passed": passed,
         "video_path": video_path if video_exists else None,
         "video_name": video_name or "—",
         "size": format_bytes(expected_size),
         "resolution": metadata.get("resolution") or (f"{stream.get('width')}×{stream.get('height')}" if stream else "—"),
-        "duration": float(metadata.get("duration_seconds") or duration.get("container_seconds") or 0),
+        "duration": metadata_duration or container_duration,
         "fps": stream.get("avg_frame_rate", "—"),
         "video_codec": stream.get("codec_name", "—"),
         "audio_codec": audio.get("codec_name", "—"),
         "loudness": _object(quality.get("measured")).get("integrated_lufs", "—"),
         "subtitle_present": subtitle.get("present") is True,
         "subtitle_timing_ok": subtitle.get("timing_ok") is True,
-        "long_lines": _items(subtitle.get("long_lines")),
+        "long_lines": [line for line in long_lines if isinstance(line, str)] if isinstance(long_lines, list) else [],
         "checks": checks,
         "failed_checks": failed_checks,
         "visual_samples": _items(quality.get("visual_samples")),
@@ -232,7 +238,7 @@ def render_video_deliveries(
             passed_count = sum(value is True for value in checks.values())
             st.metric("Phép kiểm tra đạt", f"{passed_count}/{len(checks)}")
             st.dataframe(
-                [{"Kiểm tra": _check_label(name), "Kết quả": "Đạt" if passed else "Không đạt"} for name, passed in checks.items()],
+                [{"Kiểm tra": _check_label(name), "Kết quả": "Đạt" if passed is True else "Không đạt"} for name, passed in checks.items()],
                 width="stretch", hide_index=True,
             )
             quality = summary["quality"]
