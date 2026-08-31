@@ -137,10 +137,11 @@ def render_project_assets(root: Path, reports: Mapping[str, Any]) -> None:
     row = next(r for r in visible if r["name"] == selected)
     st.caption(str(row["path"] or selected))
     left, right = st.columns(2)
+    frame_ratio = (16, 9) if row["group"] in {"landscape", "portrait"} else None
     with left:
-        render_image_thumbnail(row["path"], caption=selected, key="asset_selected")
+        render_image_thumbnail(row["path"], caption=selected, key="asset_selected", frame_ratio=frame_ratio)
     if row["group"] in {"landscape", "portrait"}:
         counterpart = ("portrait" if row["group"] == "landscape" else "landscape") + "/" + Path(selected).name
         other = next((r for r in rows if r["name"] == counterpart), None)
         with right:
-            render_image_thumbnail(other["path"] if other else None, caption=counterpart, key="asset_counterpart")
+            render_image_thumbnail(other["path"] if other else None, caption=counterpart, key="asset_counterpart", frame_ratio=frame_ratio)
