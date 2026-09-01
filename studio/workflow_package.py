@@ -287,7 +287,13 @@ def inspect_directory(root: Path, *, overridden: bool = False) -> dict[str, Any]
             rows = manifest.get("files", [])
             if not isinstance(rows, list) or len(rows) > 1024:
                 raise ValueError("manifest.files không hợp lệ")
-            names = {r.get("path") for r in rows if isinstance(r, dict) and isinstance(r.get("path"), str)}
+            names: set[str] = {
+                path
+                for row in rows
+                if isinstance(row, dict)
+                for path in [row.get("path")]
+                if isinstance(path, str)
+            }
             names.update({"story.json", "story_validation.json", "series_anchor.json", "visual_bible.json", contract.video_prompt_file_name, "package_quality_report.json"})
             for group in ("characters", "landscape", "portrait"):
                 folder = root / group

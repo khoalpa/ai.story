@@ -6,7 +6,7 @@ import json
 import math
 import unicodedata
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from studio.prompt_contract import PromptContract, load_prompt_contract
 from studio.workflow_package import safe_name
@@ -131,17 +131,24 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
             errors.append(f"Clip {index}: ID/sequence không liên tục.")
         duration = clip.get("duration_seconds")
         usable = clip.get("usable_span_seconds")
-        if duration not in contract.video_clip_durations or not _finite(usable, positive=True) or usable > duration:
+        duration_number = float(cast(float, duration)) if _finite(duration, positive=True) else None
+        usable_number = float(cast(float, usable)) if _finite(usable, positive=True) else None
+        if (duration not in contract.video_clip_durations or duration_number is None
+                or usable_number is None or usable_number > duration_number):
             errors.append(f"Clip {index}: duration/usable_span không hợp lệ.")
         else:
-            total += duration
-        start, end = source.get("start_time_seconds"), source.get("end_time_seconds")
-        if not _finite(start) or not _finite(end, positive=True) or start >= end or start < previous_end:
+            total += duration_number
+        start = source.get("start_time_seconds")
+        end = source.get("end_time_seconds")
+        start_number = float(cast(float, start)) if _finite(start) else None
+        end_number = float(cast(float, end)) if _finite(end, positive=True) else None
+        if (start_number is None or end_number is None
+                or start_number >= end_number or start_number < previous_end):
             errors.append(f"Clip {index}: source interval không hợp lệ.")
         else:
-            if project.get("coverage_mode") == "FULL_STORY" and not math.isclose(start, previous_end, abs_tol=.0005, rel_tol=0):
+            if project.get("coverage_mode") == "FULL_STORY" and not math.isclose(start_number, previous_end, abs_tol=.0005, rel_tol=0):
                 errors.append(f"Clip {index}: FULL_STORY có khoảng trống nguồn.")
-            previous_end = end
+            previous_end = end_number
         if variants.get("requested_continuity_mode") not in contract.video_continuity_modes or variants.get("preferred_mode") not in contract.video_generation_modes or variants.get("portable_mode") != "TEXT_TO_VIDEO" or variants.get("capability_status") not in contract.video_capability_statuses:
             errors.append(f"Clip {index}: generation_variants ngoài enum.")
         fallback = variants.get("fallback_modes")
@@ -167,7 +174,7 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
         if normalized_prompt in normalized_prompts:
             errors.append(f"Clip {index}: prompt trùng exact.")
         normalized_prompts.add(normalized_prompt)
-        names = [refs.get("zone_reference_frame"), refs.get("primary_frame"), refs.get("target_last_frame")]
+        names: list[Any] = [refs.get("zone_reference_frame"), refs.get("primary_frame"), refs.get("target_last_frame")]
         names += refs.get("character_images", []) if isinstance(refs.get("character_images"), list) else [None]
         character_images = refs.get("character_images")
         if (not isinstance(character_images, list) or not all(isinstance(item, str) for item in character_images)
@@ -184,32 +191,45 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
             script = story_document.get("script")
             start_item, end_item = source.get("start_item_index"), source.get("end_item_index")
             start_word, end_word = source.get("start_word_offset"), source.get("end_word_offset")
-            if not (isinstance(script, list) and all(type(v) is int and v >= 0 for v in (start_item, end_item, start_word, end_word))
-                    and start_item <= end_item < len(script)):
+            offsets_are_integers = all(
+                type(value) is int and value >= 0
+                for value in (start_item, end_item, start_word, end_word)
+            )
+            if not isinstance(script, list) or not offsets_are_integers:
                 errors.append(f"Clip {index}: item/word offsets không hợp lệ.")
             else:
-                segments = []
-                valid_offsets = True
-                for item_index in range(start_item, end_item + 1):
-                    item = script[item_index]
-                    tokens = str(item.get("text", "")).split() if isinstance(item, dict) else []
-                    left = start_word if item_index == start_item else 0
-                    right = end_word if item_index == end_item else len(tokens)
-                    if left > right or right > len(tokens):
-                        valid_offsets = False
-                        break
-                    token_slice = " ".join(tokens[left:right])
-                    segments.append(f"{item_index}\x1f{left}\x1f{right}\x1f{unicodedata.normalize('NFC', token_slice)}\x1f{str(bool(source.get('pause_only'))).lower()}")
-                digest = hashlib.sha256("\x1e".join(segments).encode("utf-8")).hexdigest()
-                if not valid_offsets or source.get("source_text_digest_sha256") != digest:
-                    errors.append(f"Clip {index}: source_text_digest/offset không khớp story.")
+                start_item_int = cast(int, start_item)
+                end_item_int = cast(int, end_item)
+                start_word_int = cast(int, start_word)
+                end_word_int = cast(int, end_word)
+                if not start_item_int <= end_item_int < len(script):
+                    errors.append(f"Clip {index}: item/word offsets không hợp lệ.")
+                else:
+                    segments = []
+                    valid_offsets = True
+                    for item_index in range(start_item_int, end_item_int + 1):
+                        item = script[item_index]
+                        tokens = str(item.get("text", "")).split() if isinstance(item, dict) else []
+                        left = start_word_int if item_index == start_item_int else 0
+                        right = end_word_int if item_index == end_item_int else len(tokens)
+                        if left > right or right > len(tokens):
+                            valid_offsets = False
+                            break
+                        token_slice = " ".join(tokens[left:right])
+                        segments.append(f"{item_index}\x1f{left}\x1f{right}\x1f{unicodedata.normalize('NFC', token_slice)}\x1f{str(bool(source.get('pause_only'))).lower()}")
+                    digest = hashlib.sha256("\x1e".join(segments).encode("utf-8")).hexdigest()
+                    if not valid_offsets or source.get("source_text_digest_sha256") != digest:
+                        errors.append(f"Clip {index}: source_text_digest/offset không khớp story.")
         rows.append({"Clip": clip.get("clip_id", index), "Zone": clip.get("zone", "—"), "Scene": clip.get("derived_scene_id", "—"), "Bắt đầu (s)": start, "Kết thúc (s)": end, "Độ dài video (s)": duration, "Tỷ lệ": clip.get("aspect_ratio", "—")})
 
     planned = project.get("planned_video_duration_seconds")
-    if not _finite(planned) or not math.isclose(total, planned, abs_tol=.0005, rel_tol=0):
+    if not _finite(planned) or not math.isclose(total, float(cast(float, planned)), abs_tol=.0005, rel_tol=0):
         errors.append("planned_video_duration_seconds không bằng tổng duration clip.")
     if project.get("coverage_mode") == "FULL_STORY":
-        if not math.isclose(previous_end, project.get("total_story_duration_seconds", -1), abs_tol=.0005, rel_tol=0) or project.get("coverage_exclusions") != []:
+        story_duration = project.get("total_story_duration_seconds")
+        if (not _finite(story_duration)
+                or not math.isclose(previous_end, float(cast(float, story_duration)), abs_tol=.0005, rel_tol=0)
+                or project.get("coverage_exclusions") != []):
             errors.append("FULL_STORY phải phủ toàn truyện và không có exclusions.")
     validation = exact(plan.get("validation"), VALIDATION_FIELDS, "validation")
     if any(validation.get(key) != "PASS" for key in VALIDATION_FIELDS if key not in {"output_digest_sha256"}):

@@ -82,7 +82,7 @@ def video_source_checks(plan: Mapping[str, Any], *, root: Path | None = None,
         checks.append({"Kiểm tra": name, "Trạng thái": status, "Phạm vi": "Exact source SHA-256"})
     for clip in _items(plan.get("clips")):
         refs = _object(clip.get("reference_inputs"))
-        names = [refs.get("zone_reference_frame")]
+        names: list[Any] = [refs.get("zone_reference_frame")]
         names.extend(refs[k] for k in ("primary_frame", "target_last_frame") if refs.get(k) is not None)
         character_images = refs.get("character_images", [])
         if isinstance(character_images, list):

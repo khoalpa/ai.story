@@ -10,8 +10,9 @@ Story generation and image generation are intentionally outside this repository.
 Canonical authoring references live in `prompts/`, named `ChatGPT_prompt_vX.Y.Z.txt`
 with an optional numeric prefix such as `01-`. Runtime
 tooling selects the newest semantic version, projects its deterministic constants,
-and reports the selected version plus SHA-256. Older prompt files remain available
-for comparison but are not authoritative while a newer version is present.
+and reports the selected version plus SHA-256. Older prompt files may be retained
+for comparison, but their presence is optional and they are never authoritative
+while a newer version is present.
 
 ## Requirements
 

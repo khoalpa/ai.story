@@ -147,32 +147,32 @@ class _LiteralParser:
     def _value(self) -> Any:
         token = self._take()
         if token == "[":
-            result: list[Any] = []
+            list_result: list[Any] = []
             if self.index < len(self.tokens) and self.tokens[self.index] == "]":
                 self.index += 1
-                return result
+                return list_result
             while True:
-                result.append(self._value())
+                list_result.append(self._value())
                 separator = self._take()
                 if separator == "]":
-                    return result
+                    return list_result
                 if separator != ",":
                     raise ValueError("Array literal thiếu dấu phẩy")
         if token == "{":
-            result: dict[str, Any] = {}
+            dict_result: dict[str, Any] = {}
             if self.index < len(self.tokens) and self.tokens[self.index] == "}":
                 self.index += 1
-                return result
+                return dict_result
             while True:
                 key = self._atom(self._take())
                 if not isinstance(key, str) or self._take() != ":":
                     raise ValueError("Map literal có key/dấu hai chấm không hợp lệ")
-                if key in result:
+                if key in dict_result:
                     raise ValueError(f"Map literal có key trùng: {key}")
-                result[key] = self._value()
+                dict_result[key] = self._value()
                 separator = self._take()
                 if separator == "}":
-                    return result
+                    return dict_result
                 if separator != ",":
                     raise ValueError("Map literal thiếu dấu phẩy")
         return self._atom(token)
