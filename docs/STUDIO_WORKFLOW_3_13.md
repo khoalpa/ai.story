@@ -9,14 +9,14 @@
   Upload ZIP ở đây là bản kiểm tra riêng, không đổi nguồn của các workspace khác.
 - **Visual Bible** đọc `visual_bible.json` của Stage 2. File này không bắt buộc ở Stage 3/4.
 - **Kế hoạch video** đọc `video_prompts.json`: timeline, source span, reference inputs,
-  continuity, prompt/audio prompt, capability và source binding. Khi canonical validation đạt,
-  viewer cho tải projection một chiều `video_prompts.veo.json` hoặc
-  `video_prompts.flow.json`; đây không phải công cụ render video.
+  continuity, prompt/audio prompt, capability và source binding. Khi canonical structure
+  không FAIL, viewer cho xem trước và tải projection Veo, Flow hoặc Generic dưới dạng
+  JSON tổng, prompt text và ZIP gồm job từng clip; đây không phải công cụ render video.
 - **Tài nguyên** hiển thị metadata/provenance nguồn; đủ số ảnh không tự chứng minh đủ commit.
 
 Ứng dụng không ghi đè artifact, giải nén lên thư mục người dùng, chuyển stage tự động,
 gọi generator hoặc tự migrate legacy. Package builder API có thể rebuild archive mới và
-atomic-publish khi caller yêu cầu; UI hiện vẫn chỉ đọc. Nút projection chỉ tạo bytes
+atomic-publish khi caller yêu cầu; UI hiện vẫn chỉ đọc. Các nút export chỉ tạo bytes
 download dẫn xuất ngoài `story.zip`; `video_prompts.json` vẫn là source of truth duy nhất.
 
 ## Phạm vi kiểm tra đã triển khai
@@ -57,9 +57,13 @@ FULL_STORY trên 120 clip hiển thị cảnh báo xác nhận; mở viewer khô
 - `workflow_builder.py` cung cấp lõi CREATE/REPAIR deterministic: exact allowlist/order,
   parent/ownership binding, build trong bộ nhớ, reopen integrity và atomic publish tùy chọn;
   chưa có UI điều khiển hoặc detector đầy đủ để tự nâng `publish_status` thành PASS.
-- Projection Veo/Flow là export disposable có binding source/adapter/digest, giữ nguyên
-  canonical semantic envelope và không phải package authoritative. Khi còn gate
-  `NOT_VERIFIED`, UI khóa export.
+- Projection Veo/Flow/Generic là export disposable có binding source/adapter/digest,
+  giữ nguyên canonical semantic envelope và không phải package authoritative. UI chỉ
+  khóa export khi canonical structure FAIL; gate/capability `NOT_VERIFIED` được ghi rõ
+  thành cảnh báo trong giao diện và manifest ZIP.
+- ZIP export chứa canonical source, target payload, prompt JSON từng clip, bản text,
+  reference map và generation order. Flow graph tạo dependency
+  `last_frame_to_first_frame` cho clip yêu cầu `CHAINED_LAST_FRAME`.
 - Legacy router chỉ activate exact basename/version allowlist. Thiếu fixture/gate của
   phiên bản gốc thì dừng ở `MIGRATION_REQUIRED`, không materialize package CURRENT.
 - Tệp thay thế nội dung/báo cáo là bản xem thử, không ghi đè dữ liệu và không giữ xác minh

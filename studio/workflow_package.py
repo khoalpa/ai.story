@@ -31,6 +31,7 @@ MAX_PACKAGE_BYTES = 512 * 1024 * 1024
 MAX_JSON_BYTES = 5 * 1024 * 1024
 INTEGRITY_CHECKS = {"manifest_schema", "file_schema", "file_set", "file_digest", "package_digest",
                     "story_binding", "stage_ownership", "parent_binding", "archive_reopen", "strict_json"}
+USER_REPLACEABLE_COVERS = {"landscape/cover.png", "portrait/cover.png"}
 
 
 def read_json(raw: bytes) -> dict[str, Any]:
@@ -155,6 +156,9 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
         result["checks"].append({"check": name, "status": "NOT_VERIFIED" if passed is None else "PASS" if passed else "FAIL",
                                  "detector_class": "HOST_UNAVAILABLE" if passed is None else "DETERMINISTIC", "detail": detail})
 
+    def warn(name: str, detail: str) -> None:
+        result["checks"].append({"check": name, "status": "WARN", "detector_class": "DETERMINISTIC", "detail": detail})
+
     if "workflow_manifest.json" not in members:
         result["compatibility"] = "MIGRATION_REQUIRED"
         check("manifest", None, "Thiếu manifest: không suy stage; legacy cần adapter đúng phiên bản.")
@@ -201,14 +205,25 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
               and len(rows) + 1 == len(expected) and (not archive or list(members) == expected),
               "Exact allowlist/order/count của stage, gồm optional anchor.")
         actual_rows = []
+        changed_paths: set[str] = set()
         for row in rows:
             raw = members.get(row["path"])
             digest = hashlib.sha256(raw).hexdigest() if raw is not None else None
             matches = raw is not None and len(raw) == row["size_bytes"] and digest == row["sha256"]
-            result["files"].append({**row, "status": "PASS" if matches else "FAIL"})
+            if not matches:
+                changed_paths.add(row["path"])
+            file_status = "PASS" if matches else "WARN" if row["path"].casefold() in USER_REPLACEABLE_COVERS else "FAIL"
+            result["files"].append({**row, "status": file_status})
             actual_rows.append({**row, "sha256": digest, "size_bytes": len(raw) if raw is not None else -1})
-        check("file_digest", all(r["status"] == "PASS" for r in result["files"]), "SHA-256 và size được tính lại trên bytes đang đọc.")
-        check("package_digest", package_digest(actual_rows) == manifest.get("package_digest_sha256"), "Canonical ordered member tuples; không hash ZIP container.")
+        if changed_paths and changed_paths <= USER_REPLACEABLE_COVERS:
+            warn("file_digest", "Ảnh cover đã được người dùng thay đổi; SHA-256/size khác manifest nhưng không chặn sử dụng.")
+        else:
+            check("file_digest", not changed_paths, "SHA-256 và size được tính lại trên bytes đang đọc.")
+        package_matches = package_digest(actual_rows) == manifest.get("package_digest_sha256")
+        if not package_matches and changed_paths and changed_paths <= USER_REPLACEABLE_COVERS:
+            warn("package_digest", "Package digest thay đổi chỉ do ảnh cover người dùng thay thế; không chặn sử dụng.")
+        else:
+            check("package_digest", package_matches, "Canonical ordered member tuples; không hash ZIP container.")
         documents = {name: read_json(raw) for name, raw in members.items() if name.endswith(".json")}
         check("strict_json", True, "Mọi JSON trong gói được parse strict UTF-8, finite number, duplicate key/NFC.")
         profile = documents["story_validation.json"].get("active_profile")
@@ -233,10 +248,15 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
             wanted_stage = stage if operation == "REPAIR" else stages[index - 1]
             inherited = [r["path"] for r in rows if r["owner_stage"] != stage or r["mutation_status"] == "READ_ONLY"]
             anchor_preserved = stage not in {stages[1], stages[3]} or ("series_anchor.json" in members) == ("series_anchor.json" in parent)
-            check("parent_binding", prior_ok and prior["stage"] == wanted_stage
-                  and prior_manifest.get("package_digest_sha256") == manifest.get("parent_package_digest_sha256")
-                  and all(members.get(n) == parent.get(n) for n in inherited) and anchor_preserved,
-                  "Đối chiếu gói cha trực tiếp và bytes kế thừa; không chứng minh toàn bộ lịch sử tổ tiên.")
+            parent_base_ok = (prior_ok and prior["stage"] == wanted_stage
+                              and prior_manifest.get("package_digest_sha256") == manifest.get("parent_package_digest_sha256")
+                              and anchor_preserved)
+            changed_inherited = {name for name in inherited if members.get(name) != parent.get(name)}
+            if parent_base_ok and changed_inherited and changed_inherited <= USER_REPLACEABLE_COVERS:
+                warn("parent_binding", "Ảnh cover kế thừa đã được người dùng thay đổi; các bytes kế thừa khác vẫn khớp gói cha.")
+            else:
+                check("parent_binding", parent_base_ok and not changed_inherited,
+                      "Đối chiếu gói cha trực tiếp và bytes kế thừa; không chứng minh toàn bộ lịch sử tổ tiên.")
         check("archive_reopen", True if archive else None,
               "Đã đọc lại mọi ZIP member và CRC." if archive else "Đang xem thư mục; cần mở ZIP để kiểm CRC/duplicate entries.")
         reports_to_check = [documents["story_validation.json"]]

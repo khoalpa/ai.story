@@ -102,3 +102,9 @@ The audit checks strict JSON parsing, current schema projections, artifact bindi
 archive file sets, CRC, PNG format, and canonical image dimensions. Gates that need
 OCR, generator provenance, semantic review, or an external safety adapter are reported
 as `NOT_VERIFIED`; deterministic checks never promote those gates to `PASS`.
+
+Story Studio can export a structurally valid canonical `video_prompts.json` into
+target-specific Veo, Flow, or Generic prompt artifacts. Available formats are one
+bound JSON document, copy-friendly text, and a deterministic ZIP containing per-clip
+jobs, reference mapping, generation order, capability warnings, and source digests.
+Exports are disposable views; they never replace or modify the canonical source.

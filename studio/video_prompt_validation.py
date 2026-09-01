@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import unicodedata
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, cast
 
@@ -41,6 +42,92 @@ def canonical_output_digest(plan: Mapping[str, Any]) -> str:
     validation["output_digest_sha256"] = None
     text = unicodedata.normalize("NFC", json.dumps(clone, ensure_ascii=False, separators=(",", ":"), allow_nan=False))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _source_digest(script: list[Any], source: Mapping[str, Any]) -> str:
+    """Hash one half-open story span using the prompt's canonical token format."""
+    start_item = source["start_item_index"]
+    end_item = source["end_item_index"]
+    start_word = source["start_word_offset"]
+    end_word = source["end_word_offset"]
+    segments = []
+    for item_index in range(start_item, end_item + 1):
+        item = script[item_index]
+        tokens = str(item.get("text", "")).split()
+        left = start_word if item_index == start_item else 0
+        right = end_word if item_index == end_item else len(tokens)
+        token_slice = " ".join(tokens[left:right])
+        segments.append(
+            f"{item_index}\x1f{left}\x1f{right}\x1f"
+            f"{unicodedata.normalize('NFC', token_slice)}\x1f"
+            f"{str(bool(source.get('pause_only'))).lower()}"
+        )
+    return hashlib.sha256("\x1e".join(segments).encode("utf-8")).hexdigest()
+
+
+def normalize_video_prompt_plan(plan: Mapping[str, Any], story: Mapping[str, Any], *,
+                                contract: PromptContract | None = None) -> dict[str, Any]:
+    """Repair mechanical Stage 4 fields without changing creative semantics.
+
+    Source boundaries must already describe a valid, contiguous story partition.  The
+    function deliberately refuses to invent boundaries or mark validation gates PASS.
+    """
+    contract = contract or load_prompt_contract()
+    normalized = deepcopy(dict(plan))
+    script = story.get("script")
+    clips = normalized.get("clips")
+    if not isinstance(script, list) or not all(isinstance(item, dict) for item in script):
+        raise ValueError("story.json.script không phải array object hợp lệ")
+    if not isinstance(clips, list) or not clips:
+        raise ValueError("video_prompts.json không có clips để hậu xử lý")
+
+    ratio_aliases = {"16:9": "LANDSCAPE_16_9", "9:16": "PORTRAIT_9_16"}
+    target = normalized.get("generator_target")
+    capability = target.get("capability_profile") if isinstance(target, dict) else None
+    if isinstance(capability, dict):
+        capability["aspect_ratio"] = ratio_aliases.get(
+            capability.get("aspect_ratio"), capability.get("aspect_ratio")
+        )
+
+    word_counts = [len(str(item.get("text", "")).split()) for item in script]
+    bases: list[int] = []
+    total_words = 0
+    for count in word_counts:
+        bases.append(total_words)
+        total_words += count
+
+    previous_end = 0
+    for index, clip in enumerate(clips, 1):
+        if not isinstance(clip, dict) or not isinstance(clip.get("source_script"), dict):
+            raise ValueError(f"Clip {index}: thiếu source_script hợp lệ")
+        source = clip["source_script"]
+        values = [source.get(key) for key in (
+            "start_item_index", "start_word_offset", "end_item_index", "end_word_offset"
+        )]
+        if not all(type(value) is int and value >= 0 for value in values):
+            raise ValueError(f"Clip {index}: offset phải là integer không âm")
+        start_item, start_word, end_item, end_word = values
+        if not start_item <= end_item < len(script):
+            raise ValueError(f"Clip {index}: item offset nằm ngoài story.json")
+        if start_word > word_counts[start_item] or end_word > word_counts[end_item]:
+            raise ValueError(f"Clip {index}: word offset nằm ngoài story.json")
+        start_global = bases[start_item] + start_word
+        end_global = bases[end_item] + end_word
+        if start_global != previous_end or end_global <= start_global:
+            raise ValueError(f"Clip {index}: source span không liên tục hoặc rỗng")
+        previous_end = end_global
+
+        clip["aspect_ratio"] = ratio_aliases.get(clip.get("aspect_ratio"), clip.get("aspect_ratio"))
+        source["source_text_digest_sha256"] = _source_digest(script, source)
+
+    project = normalized.get("project")
+    if isinstance(project, dict) and project.get("coverage_mode") == "FULL_STORY" and previous_end != total_words:
+        raise ValueError("FULL_STORY không phủ toàn bộ token của story.json")
+    validation = normalized.get("validation")
+    if not isinstance(validation, dict):
+        raise ValueError("video_prompts.validation không hợp lệ")
+    validation["output_digest_sha256"] = canonical_output_digest(normalized)
+    return normalized
 
 
 def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContract | None = None,
@@ -184,8 +271,12 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
         for name in names:
             if (root is not None or members is not None) and name is not None and source_bytes(name) is None:
                 errors.append(f"Clip {index}: thiếu ảnh tham chiếu {name!r}.")
-        if index > 1 and variants.get("requested_continuity_mode") == "CHAINED_LAST_FRAME":
-            if refs.get("previous_clip_id") != f"clip_{index - 1:04d}":
+        if variants.get("requested_continuity_mode") == "CHAINED_LAST_FRAME":
+            previous_clip = clips[index - 2] if index > 1 else None
+            same_scene = (isinstance(previous_clip, dict)
+                          and previous_clip.get("derived_scene_id") == clip.get("derived_scene_id"))
+            expected_previous_id = previous_clip.get("clip_id") if same_scene else None
+            if refs.get("previous_clip_id") != expected_previous_id:
                 errors.append(f"Clip {index}: previous_clip_id không bind clip trước.")
         if story_document is not None:
             script = story_document.get("script")
@@ -205,7 +296,6 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
                 if not start_item_int <= end_item_int < len(script):
                     errors.append(f"Clip {index}: item/word offsets không hợp lệ.")
                 else:
-                    segments = []
                     valid_offsets = True
                     for item_index in range(start_item_int, end_item_int + 1):
                         item = script[item_index]
@@ -215,9 +305,7 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
                         if left > right or right > len(tokens):
                             valid_offsets = False
                             break
-                        token_slice = " ".join(tokens[left:right])
-                        segments.append(f"{item_index}\x1f{left}\x1f{right}\x1f{unicodedata.normalize('NFC', token_slice)}\x1f{str(bool(source.get('pause_only'))).lower()}")
-                    digest = hashlib.sha256("\x1e".join(segments).encode("utf-8")).hexdigest()
+                    digest = _source_digest(script, source) if valid_offsets else None
                     if not valid_offsets or source.get("source_text_digest_sha256") != digest:
                         errors.append(f"Clip {index}: source_text_digest/offset không khớp story.")
         rows.append({"Clip": clip.get("clip_id", index), "Zone": clip.get("zone", "—"), "Scene": clip.get("derived_scene_id", "—"), "Bắt đầu (s)": start, "Kết thúc (s)": end, "Độ dài video (s)": duration, "Tỷ lệ": clip.get("aspect_ratio", "—")})
@@ -254,4 +342,4 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
             "needs_confirmation": project.get("coverage_mode") == "FULL_STORY" and len(clips) > 120}
 
 
-__all__ = ["canonical_output_digest", "validate_video_prompt_plan"]
+__all__ = ["canonical_output_digest", "normalize_video_prompt_plan", "validate_video_prompt_plan"]

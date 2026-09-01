@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from studio.prompt_contract import PromptContract, load_prompt_contract
+from studio.video_prompt_validation import normalize_video_prompt_plan, validate_video_prompt_plan
 from studio.workflow_package import (
     FILE_FIELDS,
     MANIFEST_FIELDS,
@@ -46,6 +47,20 @@ def build_workflow_package(stage: str, operation: str, files: Mapping[str, bytes
     expected = expected_files(stage, story, "series_anchor.json" in files, contract)[1:]
     if list(files) != expected:
         raise ValueError("Input files phải đúng exact allowlist và canonical order của stage")
+    files = dict(files)
+    if stage == stages[3]:
+        try:
+            video_plan = read_json(files[contract.video_prompt_file_name])
+            normalized_plan = normalize_video_prompt_plan(video_plan, story, contract=contract)
+        except (KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Stage 4 cần ChatGPT tạo lại video_prompts: {exc}") from exc
+        files[contract.video_prompt_file_name] = _json_bytes(normalized_plan)
+        validation_result = validate_video_prompt_plan(
+            normalized_plan, contract=contract, members=files
+        )
+        if validation_result["errors"]:
+            summary = "; ".join(validation_result["errors"][:5])
+            raise ValueError(f"Stage 4 còn lỗi sau hậu xử lý; cần ChatGPT tạo lại: {summary}")
     if stage == stages[0] and operation == "CREATE":
         if parent is not None:
             raise ValueError("Stage 1 CREATE không nhận parent")

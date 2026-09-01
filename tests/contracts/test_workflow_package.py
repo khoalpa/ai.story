@@ -141,6 +141,25 @@ def test_manifest_pass_cannot_hide_mutations(mutation, failed):
     assert checks(result)[failed] == "FAIL"
 
 
+@pytest.mark.parametrize(
+    ("stage", "cover"),
+    [("STAGE2", "landscape/cover.png"), ("STAGE3", "portrait/cover.png")],
+)
+def test_user_replaced_cover_warns_without_integrity_failure(stage, cover):
+    parent = fixture_package("STAGE1")
+    if stage == "STAGE3":
+        parent = fixture_package("STAGE2", parent)
+    members = fixture_package(stage, parent)
+    members[cover] += b" user replacement"
+
+    result = inspect_members(members, archive=True, parent=parent)
+
+    assert checks(result)["file_digest"] == "WARN"
+    assert checks(result)["package_digest"] == "WARN"
+    assert result["integrity_status"] == "PASS"
+    assert next(row for row in result["files"] if row["path"] == cover)["status"] == "WARN"
+
+
 def test_missing_parent_is_unverified_and_rehashed_inherited_mutation_fails():
     parent = fixture_package()
     members = fixture_package("STAGE2", parent)

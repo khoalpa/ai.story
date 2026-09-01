@@ -83,6 +83,8 @@ def test_runtime_projection_matches_latest_prompt() -> None:
     assert "PHYSICAL_SLICE_MANIFEST_SCHEMA_VERSION" not in prompt_text
     assert "VIDEO_PROMPT_DEFAULT_CONFIG" in prompt_text
     assert "META_LEAK_LIMIT_BY_CLASS" in prompt_text
+    assert "image_evidence` tuyệt đối không được serialize trực tiếp thành array" in prompt_text
+    assert "literal hiển thị `16:9`/`9:16` chỉ dành" in prompt_text
     assert "CURRENT_PUBLIC_SCHEMA_REGISTRY" in prompt_text
     assert "CURRENT_ENUM_REGISTRY" in prompt_text
     assert "CURRENT_CONFIG_REGISTRY" in prompt_text

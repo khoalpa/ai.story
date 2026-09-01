@@ -138,24 +138,55 @@ def render_video_plan(plan: Mapping[str, Any], *, key_prefix: str = "video_plan"
         st.json({k: clip.get(k) for k in ("source_script", "reference_inputs", "generation_variants", "continuity_in", "continuity_out", "state_change_records", "avoid")}, expanded=False)
     with st.expander("Continuity toàn cục và kết luận do file khai báo"):
         st.json({"global_continuity_lock": plan.get("global_continuity_lock"), "validation": plan.get("validation")}, expanded=False)
-    if model.get("export_eligible"):
+    if not model["errors"]:
         from studio.prompt_contract import load_prompt_contract
-        from studio.video_prompt_projection import project_video_prompts
+        from studio.video_prompt_adapters import get_adapter
+        from studio.video_prompt_projection import (
+            build_prompt_package,
+            project_video_prompts,
+            prompt_text,
+        )
         contract = load_prompt_contract()
         canonical_raw = members.get(contract.video_prompt_file_name) if members is not None else None
         if canonical_raw is None and root is not None:
             canonical_path = root / contract.video_prompt_file_name
             if canonical_path.is_file():
                 canonical_raw = canonical_path.read_bytes()
-        st.caption("Tệp canonical vẫn là nguồn chuẩn. Veo/Flow bên dưới là projection dùng một chiều, nằm ngoài story.zip.")
-        columns = st.columns(2)
-        for column, projection_target in zip(columns, ("VEO", "FLOW")):
-            filename, payload = project_video_prompts(plan, projection_target, source_bytes=canonical_raw, contract=contract)
-            column.download_button(f"Tải projection {projection_target.title()}", payload, file_name=filename,
-                                   mime="application/json", key=f"{key_prefix}_{projection_target.lower()}_projection")
-    elif not model["errors"]:
-        pending = ", ".join(name for name, status in model.get("gate_statuses", {}).items() if status != "PASS")
-        st.warning(f"Projection bị khóa vì chưa đủ gate PASS: {pending}.")
+        st.caption("Tệp canonical vẫn là nguồn chuẩn. Các export là projection một chiều, nằm ngoài story.zip và không sửa artifact nguồn.")
+        projection_target = st.selectbox("Target export", ("VEO", "FLOW", "GENERIC"), key=f"{key_prefix}_projection_target")
+        adapter = get_adapter(projection_target)
+        warnings = adapter.capability_warnings(plan)
+        pending = [name for name, status in model.get("gate_statuses", {}).items() if status != "PASS"]
+        for warning in warnings:
+            st.warning(warning)
+        if pending:
+            st.warning("Export mang cảnh báo vì các gate chưa xác minh: " + ", ".join(pending))
+        with st.expander(f"Xem trước payload {projection_target.title()}"):
+            st.json(adapter.project_plan(plan))
+        json_name, json_payload = project_video_prompts(
+            plan, projection_target, source_bytes=canonical_raw, contract=contract
+        )
+        text_payload = prompt_text(plan, projection_target, contract=contract)
+        zip_name, zip_payload = build_prompt_package(
+            plan, projection_target, source_bytes=canonical_raw, contract=contract
+        )
+        stem = contract.video_prompt_file_name.rsplit(".", 1)[0]
+        columns = st.columns(3)
+        columns[0].download_button(
+            "Tải JSON tổng", json_payload, file_name=json_name, mime="application/json",
+            key=f"{key_prefix}_{projection_target.lower()}_projection",
+        )
+        columns[1].download_button(
+            "Tải prompt text", text_payload,
+            file_name=f"{stem}.{projection_target.lower()}.txt", mime="text/plain",
+            key=f"{key_prefix}_{projection_target.lower()}_text",
+        )
+        columns[2].download_button(
+            "Tải gói ZIP", zip_payload, file_name=zip_name, mime="application/zip",
+            key=f"{key_prefix}_{projection_target.lower()}_package",
+        )
+    else:
+        st.error("Không thể export vì video_prompts.json chưa đạt kiểm tra cấu trúc canonical.")
 
 
 def render_visual_bible(document: Mapping[str, Any]) -> None:

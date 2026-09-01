@@ -108,6 +108,29 @@ def test_asset_changes_invalidate_cached_hash_and_path_escape_is_rejected(tmp_pa
     assert project_asset_path(tmp_path, "../outside.png") is None
 
 
+@pytest.mark.parametrize("group", ["landscape", "portrait"])
+def test_user_replaced_cover_is_notice_not_asset_error(tmp_path: Path, group: str) -> None:
+    directory = tmp_path / group
+    directory.mkdir()
+    image = directory / "cover.png"
+    dimensions = (3840, 2160) if group == "landscape" else (1080, 1920)
+    Image.new("RGB", dimensions, "blue").save(image)
+    reports = {
+        "workflow": {"package_stage": "STAGE3"},
+        "quality": {"image_evidence": {"asset_results": [{
+            "path": f"{group}/cover.png",
+            "file_sha256": hashlib.sha256(b"original cover").hexdigest(),
+            "dimensions": {"width": dimensions[0], "height": dimensions[1]},
+        }]}},
+    }
+
+    row = next(item for item in inspect_project_assets(tmp_path, reports) if item["name"] == f"{group}/cover.png")
+
+    assert row["issues"] == []
+    assert row["notices"] == ["Ảnh cover đã được người dùng thay đổi"]
+    assert not row["hash_verified"]
+
+
 def test_overview_standalone_not_blocked_and_cannot_publish_without_verified_video(tmp_path: Path) -> None:
     reports = {"story": {"meta": {}}, "validation": standalone_validation(), "quality": {"summary": {"publish_verdict": "PASS"}}}
     model = build_overview_model(reports, {"anchor": "Thiếu"}, {}, output_dir=tmp_path)

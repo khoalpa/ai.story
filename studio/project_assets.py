@@ -16,6 +16,8 @@ from studio.story_images import (
     render_image_thumbnail,
 )
 
+USER_REPLACEABLE_COVERS = {"landscape/cover.png", "portrait/cover.png"}
+
 
 def project_asset_path(root: Path, relative: str) -> Path | None:
     """Report paths may only reference files within the active project."""
@@ -73,6 +75,7 @@ def inspect_project_assets(root: Path, reports: Mapping[str, Any]) -> list[dict[
     for name, declared in expected.items():
         path = project_asset_path(root, name)
         issues: list[str] = []
+        notices: list[str] = []
         dimensions = None
         digest = ""
         size = 0
@@ -89,7 +92,10 @@ def inspect_project_assets(root: Path, reports: Mapping[str, Any]) -> list[dict[
         bindings = [declared, evidence.get(name, {})]
         hashes = [a.get("file_sha256") for a in bindings if a.get("file_sha256")]
         if digest and any(digest != h for h in hashes):
-            issues.append("Hash không khớp báo cáo")
+            if name.replace("\\", "/").casefold() in USER_REPLACEABLE_COVERS:
+                notices.append("Ảnh cover đã được người dùng thay đổi")
+            else:
+                issues.append("Hash không khớp báo cáo")
         for binding in bindings:
             target = _object(binding.get("dimensions"))
             if dimensions and target and dimensions != (target.get("width"), target.get("height")):
@@ -98,8 +104,9 @@ def inspect_project_assets(root: Path, reports: Mapping[str, Any]) -> list[dict[
         rows.append({
             "name": name, "group": name.replace("\\", "/").split("/")[0], "path": path,
             "dimensions": dimensions, "bytes": size, "sha256": digest,
-            "issues": issues, "hash_verified": bool(digest and hashes and all(digest == h for h in hashes)),
-            "status": " · ".join(issues) if issues else ("Khớp báo cáo" if hashes else "Chưa có hash đối chiếu"),
+            "issues": issues, "notices": notices,
+            "hash_verified": bool(digest and hashes and all(digest == h for h in hashes)),
+            "status": " · ".join(issues or notices) if issues or notices else ("Khớp báo cáo" if hashes else "Chưa có hash đối chiếu"),
         })
     return rows
 
@@ -128,7 +135,7 @@ def render_project_assets(root: Path, reports: Mapping[str, Any]) -> None:
     st.caption("Đủ file không đồng nghĩa đủ COMMITTED_ASSET. GENERATION_CALL (kể cả retry) khác ASSET_TRANSACTION; thiếu evidence thì chưa xác minh số commit.")
     group = st.selectbox("Nhóm tài nguyên", ["Tất cả", "characters", "landscape", "portrait"])
     only_issues = st.checkbox("Chỉ ảnh cần xem lại")
-    visible = [r for r in rows if (group == "Tất cả" or r["group"] == group) and (not only_issues or r["issues"] or not r["hash_verified"])]
+    visible = [r for r in rows if (group == "Tất cả" or r["group"] == group) and (not only_issues or r["issues"] or r["notices"] or not r["hash_verified"])]
     st.dataframe([{
         "Tệp": r["name"], "Kích thước": "×".join(map(str, r["dimensions"])) if r["dimensions"] else "—",
         "Dung lượng (MiB)": round(r["bytes"] / 1024**2, 2), "Trạng thái": r["status"],

@@ -133,6 +133,7 @@ def validate_story_validation(
     contract = contract or load_prompt_contract()
     root = (
         "schema_version", "prompt_version", "story_sha256",
+        "story_content_digest_sha256", "character_reference_set_digest_sha256",
         "story_quality_commitment_digest_sha256", "active_profile", "summary",
         "scene_zone_map", "dialogue_audio", "quality", "engagement", "gates",
         "refinement", "evidence_graph",
@@ -159,7 +160,9 @@ def validate_series_anchor(path: Path, contract: PromptContract | None = None) -
     return result
 
 
-def validate_package_quality(path: Path, contract: PromptContract | None = None) -> ValidationResult:
+def validate_package_quality(
+    path: Path, contract: PromptContract | None = None, *, story_path: Path | None = None,
+) -> ValidationResult:
     contract = contract or load_prompt_contract()
     root = (
         "schema_version", "report_id", "generated_at_utc", "package_identity",
@@ -175,9 +178,42 @@ def validate_package_quality(path: Path, contract: PromptContract | None = None)
         if not isinstance(validation, dict) or validation.get("status") != "PASS":
             result.fail("package quality validation.status phải là PASS")
         image_evidence = document.get("image_evidence")
-        asset_results = image_evidence.get("asset_results") if isinstance(image_evidence, dict) else None
-        if not isinstance(asset_results, list) or len(asset_results) != 20:
-            result.fail("image_evidence.asset_results phải bind đúng 20 ảnh")
+        image_fields = (
+            "asset_results", "set_results", "pair_results", "cover_results",
+            "evidence_digest_sha256",
+        )
+        if not isinstance(image_evidence, dict) or tuple(image_evidence) != image_fields:
+            result.fail("image_evidence phải là object đúng field/order schema 2.0")
+            asset_results = None
+        else:
+            asset_results = image_evidence.get("asset_results")
+        expected_paths = {
+            *(f"landscape/{name}" for name in contract.image_basenames),
+            *(f"portrait/{name}" for name in contract.image_basenames),
+        }
+        if story_path is not None and story_path.is_file():
+            try:
+                story = strict_json_bytes(story_path.read_bytes())
+                characters = story.get("characters")
+                if not isinstance(characters, list):
+                    raise ValueError("story.characters phải là array")
+                for character in characters:
+                    reference = character.get("reference_asset") if isinstance(character, dict) else None
+                    name = reference.get("reference_image") if isinstance(reference, dict) else None
+                    if not isinstance(name, str) or not name.startswith("characters/"):
+                        raise ValueError("character reference_image không hợp lệ")
+                    expected_paths.add(name)
+            except (OSError, UnicodeError, ValueError) as exc:
+                result.fail(f"Không thể resolve TOTAL_IMAGE_COUNT từ story.json: {exc}")
+        if not isinstance(asset_results, list):
+            result.fail("image_evidence.asset_results phải là array")
+        else:
+            paths = [row.get("path") if isinstance(row, dict) else None for row in asset_results]
+            if len(paths) != len(expected_paths) or len(set(paths)) != len(paths) or set(paths) != expected_paths:
+                result.fail(
+                    "image_evidence.asset_results phải bind exact TOTAL_IMAGE_COUNT "
+                    f"({len(expected_paths)}) ảnh, không thiếu/trùng/thừa path"
+                )
     return result
 
 
@@ -319,7 +355,9 @@ def validate_project(path: Path, contract: PromptContract | None = None) -> list
         results.append(validate_series_anchor(anchor, contract))
     quality = path / "package_quality_report.json"
     if quality.is_file():
-        results.append(validate_package_quality(quality, contract))
+        results.append(validate_package_quality(
+            quality, contract, story_path=story if story.is_file() else None,
+        ))
     for archive_name in ("stage1_checkpoint.zip", "stage2_checkpoint.zip", "story.zip"):
         archive = path / archive_name
         if archive.is_file():

@@ -14,6 +14,9 @@ the supported integration surfaces for the 0.1 series.
   version and its SHA-256 provenance.
 - Added workflow 3.13 package inspection for stage manifests, strict JSON, archive
   security, member digests, ownership, parent binding, and video-prompt projection.
+- Added target adapter exports for Veo, Flow, and Generic video prompts, including
+  per-clip JSON jobs, copy-friendly text, deterministic ZIP packages, reference maps,
+  generation order, capability warnings, and Flow last-frame dependency edges.
 - Added adaptive narration pacing, configurable voice speed, TTS caching, and
   delivery-quality reports.
 - Added a 45% branch-aware coverage gate for shipped Audio, Video, and Studio

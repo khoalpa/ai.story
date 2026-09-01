@@ -9,7 +9,12 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from studio.artifact_validation import strict_json_bytes, validate_archive
+from studio.artifact_validation import (
+    strict_json_bytes,
+    validate_archive,
+    validate_package_quality,
+    validate_story_validation,
+)
 from studio.prompt_audit import main as audit_main
 from studio.prompt_contract import load_prompt_contract
 
@@ -74,6 +79,56 @@ def test_strict_json_preserves_finite_numbers() -> None:
     assert strict_json_bytes(b'{"values":[1.25,-1e308,1e308,42]}') == {
         "values": [1.25, -1e308, 1e308, 42],
     }
+
+
+def test_story_validation_accepts_current_15_field_root(tmp_path: Path) -> None:
+    root = (
+        "schema_version", "prompt_version", "story_sha256",
+        "story_content_digest_sha256", "character_reference_set_digest_sha256",
+        "story_quality_commitment_digest_sha256", "active_profile", "summary",
+        "scene_zone_map", "dialogue_audio", "quality", "engagement", "gates",
+        "refinement", "evidence_graph",
+    )
+    document = dict.fromkeys(root)
+    document["schema_version"] = load_prompt_contract().story_validation_schema_version
+    path = tmp_path / "story_validation.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = validate_story_validation(path)
+
+    assert result.status == "PASS"
+
+
+def test_package_quality_requires_object_and_all_character_images(tmp_path: Path) -> None:
+    contract = load_prompt_contract()
+    story_path = tmp_path / "story.json"
+    story_path.write_text(json.dumps({"characters": [{
+        "reference_asset": {"reference_image": "characters/nhi.png"},
+    }]}), encoding="utf-8")
+    root = (
+        "schema_version", "report_id", "generated_at_utc", "package_identity",
+        "registry_bindings", "summary", "dimensions", "measurement_ledger",
+        "story_evidence", "image_evidence", "blockers", "recommendations", "validation",
+    )
+    paths = [
+        *(f"landscape/{name}" for name in contract.image_basenames),
+        *(f"portrait/{name}" for name in contract.image_basenames),
+        "characters/nhi.png",
+    ]
+    document = dict.fromkeys(root)
+    document["schema_version"] = contract.package_quality_schema_version
+    document["validation"] = {"status": "PASS"}
+    document["image_evidence"] = {
+        "asset_results": [{"path": name} for name in paths],
+        "set_results": [], "pair_results": [], "cover_results": [],
+        "evidence_digest_sha256": "0" * 64,
+    }
+    quality_path = tmp_path / "package_quality_report.json"
+    quality_path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = validate_package_quality(quality_path, contract, story_path=story_path)
+
+    assert result.status == "PASS"
 
 
 def _audit_archive(tmp_path, archive_name, *, overrides=None, prefix="", extra=None):

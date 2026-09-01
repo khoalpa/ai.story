@@ -14,6 +14,8 @@ REQUIRED_MEMBERS = [
     'audio/gui_entry.py',
     'video/gui_entry.py',
     'studio/gui_entry.py',
+    'studio/video_prompt_projection.py',
+    'studio/video_prompt_adapters/registry.py',
     'audio/assets/abbreviation_map.json',
     'audio/assets/bgm_config.json',
     'audio/assets/bgm/bgm_lofi.mp3',

@@ -35,7 +35,7 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
     issues = [{"section": "Kiểm định", "text": text} for text in gate_issues(validation)]
     if workflow["stage"] or workflow["status"] == "FAIL":
         issues.extend({"section": "Gói & quy trình", "text": f"{c['check']}: {c['detail']}"}
-                      for c in workflow["checks"] if c["status"] != "PASS")
+                      for c in workflow["checks"] if c["status"] not in {"PASS", "WARN"})
     if quality and _object(quality.get("summary")).get("publish_verdict") != "PASS":
         issues.append({"section": "Chất lượng", "text": "Báo cáo chất lượng gói chưa kết luận PASS."})
     for key, label in (("story", "Nội dung"), ("validation", "Kiểm định"), ("quality", "Chất lượng"), ("anchor", "Series")):

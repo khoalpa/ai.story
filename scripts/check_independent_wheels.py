@@ -71,7 +71,8 @@ def main() -> int:
         clean_env = os.environ.copy()
         clean_env.pop("PYTHONPATH", None)
         run(
-            [str(integration_python), "-c", "import studio.gui_entry; import audio.app_api, video.app_api"],
+            [str(integration_python), "-c",
+             "import studio.gui_entry, studio.video_prompt_projection; import audio.app_api, video.app_api"],
             cwd=temp,
             env=clean_env,
         )
