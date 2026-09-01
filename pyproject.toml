@@ -35,12 +35,14 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "pytest>=8,<9",
+  "pytest-cov>=6,<8",
   "ruff>=0.11,<1",
   "mypy>=1.10,<2",
   "wheel>=0.42,<1",
 ]
 dev = [
   "pytest>=8,<9",
+  "pytest-cov>=6,<8",
   "ruff>=0.11,<1",
   "mypy>=1.10,<2",
   "wheel>=0.42,<1",
@@ -93,6 +95,19 @@ exclude = [
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["audio", "video", "studio"]
+
+[tool.coverage.report]
+fail_under = 45
+show_missing = true
+skip_covered = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+]
 
 
 [tool.ruff]

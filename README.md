@@ -66,7 +66,7 @@ Narration pacing is adaptive: the mixer measures leading and trailing silence fr
 ```bash
 ruff check .
 mypy
-pytest -q
+pytest -q --cov=audio --cov=video --cov=studio --cov-report=term-missing:skip-covered --cov-report=xml
 python scripts/run_audio_to_video_e2e.py --fixture --report e2e-report.json
 python scripts/check_public_api.py
 python scripts/check_dependency_direction.py
@@ -76,6 +76,10 @@ python scripts/check_wheel_contents.py
 python scripts/check_independent_wheels.py
 python scripts/release_smoke.py
 ```
+
+The full-suite coverage command measures branches in the three shipped packages
+and fails below the threshold configured in `pyproject.toml`. Targeted test runs do
+not apply the global threshold, so they remain useful during development.
 
 See [Troubleshooting](docs/TROUBLESHOOTING.md),
 [standalone-package migration](docs/MIGRATION_STANDALONE_PACKAGES.md), and
