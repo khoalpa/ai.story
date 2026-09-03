@@ -84,6 +84,40 @@ def _status_text(value: Any) -> str:
     }.get(str(value), str(value or "Không rõ"))
 
 
+def package_quality_summary(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize current and legacy quality-report presentation fields."""
+    summary = _object(report.get("summary"))
+    dimensions = _items(report.get("dimensions"))
+    legacy_gates = _items(_object(report.get("story_evidence")).get("gate_results"))
+    gates = legacy_gates or [row for row in dimensions if row.get("applicability") != "NOT_APPLICABLE"]
+    assets = _items(_object(report.get("image_evidence")).get("asset_results"))
+    score = summary.get("overall_score")
+    if score is None:
+        score = summary.get("global_score")
+    coverage = summary.get("scoring_coverage_ratio")
+    if coverage is None:
+        coverage = summary.get("coverage_ratio")
+
+    def asset_passed(row: Mapping[str, Any]) -> bool:
+        if row.get("gate_status") is not None:
+            return row.get("gate_status") == "PASS"
+        return (row.get("validation_status") == "PASS"
+                and row.get("provenance_status") == "PASS"
+                and row.get("visual_quality_status") in {"PASS", "ASSESSED_PASS"})
+
+    return {
+        "score": score,
+        "coverage": coverage,
+        "gates": gates,
+        "gates_passed": sum(row.get("status") == "PASS" for row in gates),
+        "assets": assets,
+        "assets_passed": sum(asset_passed(row) for row in assets),
+        "blockers": _items(report.get("blockers")),
+        "publish_verdict": summary.get("publish_verdict"),
+        "quality_rating": summary.get("quality_rating"),
+    }
+
+
 def _render_header(report: Mapping[str, Any]) -> None:
     import streamlit as st
 
@@ -93,7 +127,7 @@ def _render_header(report: Mapping[str, Any]) -> None:
     profile = escape(str(identity.get("active_profile") or "—"))
     verdict = str(summary.get("publish_verdict") or "UNKNOWN")
     verdict_class = "pqr-pass" if verdict == "PASS" else "pqr-fail"
-    verdict_text = "Sẵn sàng xuất bản" if verdict == "PASS" else "Chưa sẵn sàng xuất bản"
+    verdict_text = "Đạt theo báo cáo chất lượng" if verdict == "PASS" else "Chưa đạt theo báo cáo chất lượng"
     st.markdown(
         f"""
         <div class="pqr-heading">
@@ -111,23 +145,24 @@ def _render_overview(report: Mapping[str, Any]) -> None:
     import streamlit as st
 
     summary = _object(report.get("summary"))
+    model = package_quality_summary(report)
     dimensions = _items(report.get("dimensions"))
-    gates = _items(_object(report.get("story_evidence")).get("gate_results"))
-    assets = _items(_object(report.get("image_evidence")).get("asset_results"))
-    blockers = _items(report.get("blockers"))
+    gates = model["gates"]
+    assets = model["assets"]
+    blockers = model["blockers"]
 
     columns = st.columns(6)
-    columns[0].metric("Điểm tổng thể", f"{summary.get('overall_score', '—')}/100")
+    columns[0].metric("Điểm tổng thể", f"{model['score'] if model['score'] is not None else '—'}/100")
     columns[1].metric("Xếp loại", _status_text(summary.get("quality_rating")))
-    columns[2].metric("Độ phủ", f"{float(summary.get('scoring_coverage_ratio', 0)):.0%}")
-    columns[3].metric("Cổng đạt", f"{sum(g.get('status') == 'PASS' for g in gates)}/{len(gates)}")
-    columns[4].metric("Ảnh đạt", f"{sum(a.get('gate_status') == 'PASS' for a in assets)}/{len(assets)}")
+    columns[2].metric("Độ phủ", f"{float(model['coverage'] or 0):.0%}")
+    columns[3].metric("Cổng đạt", f"{model['gates_passed']}/{len(gates)}")
+    columns[4].metric("Ảnh đạt", f"{model['assets_passed']}/{len(assets)}")
     columns[5].metric("Lỗi chặn", len(blockers))
 
     if blockers:
         st.error(f"Có {len(blockers)} lỗi đang chặn xuất bản.")
     elif summary.get("publish_verdict") == "PASS":
-        st.success("Tất cả điều kiện bắt buộc đều đạt; gói nội dung có thể xuất bản.")
+        st.success("Tất cả điều kiện bắt buộc đều đạt theo báo cáo chất lượng; workflow gói được đánh giá riêng.")
 
     st.subheader("Điểm theo tiêu chí")
     for dimension in dimensions:
@@ -147,17 +182,17 @@ def _render_overview(report: Mapping[str, Any]) -> None:
 def _render_gates(report: Mapping[str, Any]) -> None:
     import streamlit as st
 
-    gates = _items(_object(report.get("story_evidence")).get("gate_results"))
+    gates = package_quality_summary(report)["gates"]
     if not gates:
         st.info("Báo cáo không chứa kết quả cổng kiểm định.")
         return
     rows = sorted(gates, key=lambda row: row.get("status") == "PASS")
     st.dataframe(
         [{
-            "Cổng kiểm định": row.get("gate_id", "—"),
+            "Cổng kiểm định": row.get("gate_id") or row.get("dimension_id", "—"),
             "Mức độ": str(row.get("severity", "—")).replace("_", " ").title(),
             "Kết quả": _status_text(row.get("status")),
-            "Phương pháp": row.get("detector_method", "—"),
+            "Phương pháp": row.get("detector_method", "Dimension report"),
         } for row in rows],
         hide_index=True,
         use_container_width=True,
@@ -188,7 +223,7 @@ def _render_assets(report: Mapping[str, Any]) -> None:
             "Hướng": str(row.get("orientation", "—")).title(),
             "Kích thước": row.get("dimensions", "—"),
             "Điểm": row.get("quality_score", "—"),
-            "Kết quả": _status_text(row.get("gate_status")),
+            "Kết quả": _status_text(row.get("gate_status") or row.get("validation_status")),
         } for row in sorted(assets, key=lambda row: (str(row.get("orientation")), str(row.get("path"))))],
         hide_index=True,
         use_container_width=True,
@@ -241,10 +276,17 @@ def _render_technical(report: Mapping[str, Any]) -> None:
         st.json(report, expanded=False)
 
 
-def render_package_quality_report(report: Mapping[str, Any], *, include_technical: bool = True) -> None:
+def render_package_quality_report(
+    report: Mapping[str, Any], *, include_technical: bool = True,
+    workflow_status: str | None = None,
+) -> None:
     import streamlit as st
 
     _render_header(report)
+    if workflow_status == "FAIL":
+        st.error("Workflow gói đang FAIL; kết luận PASS của báo cáo chất lượng không đủ để cho phép chuyển stage hoặc xuất bản.")
+    elif workflow_status == "NOT_VERIFIED":
+        st.warning("Workflow gói chưa được xác minh đầy đủ; kết luận bên dưới chỉ thuộc báo cáo chất lượng.")
     labels = ["Tổng quan", "Cổng kiểm định", "Nội dung truyện", "Tài nguyên ảnh"]
     if include_technical:
         labels.append("Kỹ thuật")
@@ -293,4 +335,4 @@ def render_package_quality_workspace(*, embedded: bool = False) -> None:
     render_package_quality_report(report)
 
 
-__all__ = ["render_package_quality_report", "render_package_quality_workspace"]
+__all__ = ["package_quality_summary", "render_package_quality_report", "render_package_quality_workspace"]

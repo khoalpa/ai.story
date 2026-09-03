@@ -10,6 +10,7 @@ from studio.story_images import (
     image_for_zone,
     image_metadata,
     inspect_story_images,
+    stage_applicable_aspects,
     thumbnail_bytes,
 )
 
@@ -33,6 +34,12 @@ def test_image_summary_reports_missing_expected_assets(tmp_path: Path) -> None:
     assert summary["landscape"]["count"] == 1
     assert len(summary["landscape"]["missing"]) == len(EXPECTED_IMAGE_STEMS) - 1
     assert summary["portrait"]["count"] == 0
+
+
+def test_stage_image_applicability_does_not_require_portrait_in_stage2() -> None:
+    assert stage_applicable_aspects("STAGE1") == ()
+    assert stage_applicable_aspects("STAGE2") == ("landscape",)
+    assert stage_applicable_aspects("STAGE3") == ("landscape", "portrait")
 
 
 def test_thumbnail_is_resized_and_metadata_keeps_original_dimensions(tmp_path: Path) -> None:

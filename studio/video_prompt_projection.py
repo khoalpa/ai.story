@@ -12,6 +12,7 @@ from typing import Any, Mapping
 from studio.prompt_contract import PromptContract, load_prompt_contract
 from studio.video_prompt_adapters import adapter_targets, get_adapter
 from studio.video_prompt_adapters.base import reference_files
+from studio.video_voice import combined_prompt
 
 ADAPTERS = {
     target: (get_adapter(target).adapter_id, get_adapter(target).adapter_version)
@@ -79,14 +80,13 @@ def prompt_text(plan: Mapping[str, Any], target: str, *, contract: PromptContrac
         if not isinstance(clip, dict):
             continue
         projected = adapter.project_clip(clip)
-        prompt = clip.get("prompt", "")
-        audio = clip.get("audio_prompt", "")
+        prompt = combined_prompt(clip)
         avoid = ", ".join(str(value) for value in clip.get("avoid", []) if isinstance(value, str))
         references = ", ".join(reference_files(clip)) or "—"
         sections.append(
             f"[{clip.get('clip_id', 'unknown')}] {adapter.target}\n"
             f"Duration: {clip.get('duration_seconds')}s | Aspect ratio: {clip.get('aspect_ratio')}\n"
-            f"Prompt: {prompt}\nAudio: {audio}\nAvoid: {avoid or '—'}\nReferences: {references}\n"
+            f"Prompt:\n{prompt}\nAvoid: {avoid or '—'}\nReferences: {references}\n"
             f"Target job: {canonical_json_bytes(projected).decode('utf-8')}"
         )
     return unicodedata.normalize("NFC", "\n\n".join(sections) + ("\n" if sections else "")).encode("utf-8")
@@ -116,11 +116,14 @@ def build_prompt_package(plan: Mapping[str, Any], target: str, *, source_bytes: 
             "clip_ids": [clip.get("clip_id") for clip in clips],
             "strategy": "dependency_order",
         }),
+        "README.txt": ("Native voice prompts for manual copy/paste into the selected web video generator.\n"
+                       "Each prompts/*.txt file is self-contained. Choose a model with native audio support.\n").encode("utf-8"),
     }
     for index, clip in enumerate(clips, 1):
         clip_id = str(clip.get("clip_id", f"clip_{index:04d}"))
         safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", clip_id)
         files[f"prompts/{safe_id}.json"] = canonical_json_bytes(adapter.project_clip(clip))
+        files[f"prompts/{safe_id}.txt"] = (combined_prompt(clip) + "\n").encode("utf-8")
     rows = [
         {"path": name, "sha256": hashlib.sha256(raw).hexdigest(), "size_bytes": len(raw)}
         for name, raw in sorted(files.items())

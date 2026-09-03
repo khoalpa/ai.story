@@ -2,9 +2,34 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
-from studio.overview import build_overview_model
+from studio.overview import build_overview_model, workflow_verdict
+from studio.workflow_views import workflow_stage_caption
+
+
+@pytest.mark.parametrize("status,message,kind", [
+    ("PASS", "Gói đạt các phép kiểm tra đã chạy", "success"),
+    ("NOT_VERIFIED", "Gói chưa được xác minh đầy đủ", "warning"),
+    ("FAIL", "Gói có lỗi cần xử lý", "error"),
+])
+def test_workflow_status_drives_overview_banner_and_stage_caption(status, message, kind):
+    assert workflow_verdict(status) == (message, kind)
+    caption = workflow_stage_caption("STAGE4", "STAGE4", status)
+    if status == "PASS":
+        assert "đạt các phép kiểm tra đã chạy" in caption
+        assert "chưa xác minh" not in caption
+    elif status == "FAIL":
+        assert "có lỗi" in caption
+    else:
+        assert "chưa xác minh đầy đủ" in caption
+
+
+def test_workflow_stage_caption_distinguishes_completed_current_and_future_stages():
+    assert workflow_stage_caption("STAGE1", "STAGE3", "PASS") == "Đã hoàn thành · dữ liệu có trong gói hiện tại"
+    assert workflow_stage_caption("STAGE3", "STAGE3", "PASS") == "Stage hiện tại · đạt các phép kiểm tra đã chạy"
+    assert workflow_stage_caption("STAGE4", "STAGE3", "PASS") == "Chưa thực hiện"
 from studio.story_images import EXPECTED_IMAGE_STEMS
 
 
@@ -94,6 +119,41 @@ def test_completed_run_overrides_current_production_settings(tmp_path: Path) -> 
     assert model["audio"]["Định dạng"] == "MP3"
     assert model["audio"]["TTS provider"] == "vieneu"
     assert model["video"]["Tỷ lệ"] == "9x16"
+
+
+def test_overview_restores_production_settings_from_persisted_quality_reports(tmp_path: Path) -> None:
+    reports = {
+        "audio_quality": {
+            "audio_file": str(tmp_path / "story.wav"),
+            "target": {"integrated_lufs": -16.0, "true_peak_dbtp": -1.5},
+            "pacing": {"preset": "natural"},
+            "mix": {"bgm_ducking_enabled": True},
+            "segments": {"measured_count": 81},
+        },
+        "video_deliveries": {
+            "video_landscape": {
+                "quality": {
+                    "video_stream": {
+                        "codec_name": "h264", "profile": "High", "pix_fmt": "yuv420p",
+                        "display_aspect_ratio": "16:9", "avg_frame_rate": "24/1",
+                    },
+                    "subtitle": {"present": True},
+                },
+            },
+        },
+    }
+
+    model = build_overview_model(reports, {}, {}, output_dir=tmp_path)
+
+    assert model["audio"]["Định dạng"] == "WAV"
+    assert model["audio"]["Pacing"] == "natural"
+    assert model["audio"]["Loudness"] == "-16 LUFS · -1.5 dBTP"
+    assert model["audio"]["Nhạc nền"] == "Bật"
+    assert model["audio"]["Segments"] == 81
+    assert model["video"]["Tỷ lệ"] == "16:9"
+    assert model["video"]["Encoding"] == "H264 · High · yuv420p"
+    assert model["video"]["FPS"] == 24
+    assert model["video"]["Phụ đề"] == "Bật"
 
 
 def test_overview_uses_current_scenes_directory_and_canonical_image_count(tmp_path: Path) -> None:

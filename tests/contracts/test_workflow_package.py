@@ -9,6 +9,13 @@ import pytest
 
 from studio.overview import build_overview_model
 from studio.project_assets import inspect_project_assets
+from studio.project_review import (
+    LOCAL_ZIP_SOURCE,
+    VERIFICATION_ROOT_KEY,
+    VERIFICATION_SOURCE_KEY,
+    inspect_selected_workflow,
+    review_package,
+)
 from studio.story_studio import load_story_package
 from studio.workflow_builder import build_workflow_package, publish_package_atomic
 from studio.workflow_package import (
@@ -23,7 +30,25 @@ from studio.workflow_package import (
     read_archive,
     read_json,
 )
-from studio.workflow_views import video_plan_model, video_source_checks
+from studio.workflow_views import (
+    video_plan_error_rows,
+    video_plan_model,
+    video_source_checks,
+    visual_bible_summary,
+)
+
+
+def test_video_plan_error_rows_collapses_repeated_clip_messages() -> None:
+    rows = video_plan_error_rows([
+        "Clip 1: digest sai.",
+        "Clip 1: span chồng lấn.",
+        "Lỗi toàn kế hoạch.",
+    ], 2)
+    assert rows[0] == {
+        "Clip": "clip_0001", "Trạng thái": "FAIL", "Lỗi": "digest sai. · span chồng lấn.",
+    }
+    assert rows[1]["Trạng thái"] == "PASS"
+    assert rows[2]["Clip"] == "Toàn kế hoạch"
 
 
 def encoded(value):
@@ -78,7 +103,7 @@ def test_builder_creates_deterministic_reopened_current_package(tmp_path):
     second, _ = build_workflow_package("STAGE1", "CREATE", files)
     assert first == second
     assert inspection["integrity_status"] == "PASS"
-    assert inspection["publish_status"] == "NOT_VERIFIED"
+    assert inspection["publish_status"] == "PASS"
     destination = tmp_path / "story.zip"
     publish_package_atomic(destination, first)
     assert destination.read_bytes() == first
@@ -89,6 +114,19 @@ def test_builder_rejects_noncanonical_file_order():
     files = {name: raw for name, raw in reversed(list(source.items())) if name != "workflow_manifest.json"}
     with pytest.raises(ValueError, match="canonical order"):
         build_workflow_package("STAGE1", "CREATE", files)
+
+
+def test_builder_accepts_direct_parent_when_ancestor_is_unavailable():
+    stage1 = fixture_package()
+    stage2 = fixture_package("STAGE2", stage1)
+    assert checks(inspect_members(stage2, archive=True))["parent_binding"] == "WARN"
+    stage3 = fixture_package("STAGE3", stage2)
+    files = {name: raw for name, raw in stage3.items() if name != "workflow_manifest.json"}
+
+    _, inspection = build_workflow_package("STAGE3", "CREATE", files, parent=stage2)
+
+    assert checks(inspection)["parent_binding"] == "PASS"
+    assert inspection["integrity_status"] == "PASS"
 
 
 @pytest.mark.parametrize("stage,count", [("STAGE1", 4), ("STAGE2", 15), ("STAGE3", 25), ("STAGE4", 26)])
@@ -102,19 +140,59 @@ def test_stage_allowlists(stage, count):
     assert ("package_quality_report.json" in files) == (stage in {"STAGE3", "STAGE4"})
 
 
-def test_reopen_is_not_full_stage_verification():
+def test_optional_stage_certification_does_not_block_verified_package():
     members = read_archive(archive_bytes(fixture_package()))
     result = inspect_members(members, archive=True)
     assert checks(result)["file_digest"] == "PASS"
     assert checks(result)["package_digest"] == "PASS"
     assert checks(result)["archive_reopen"] == "PASS"
-    assert checks(result)["stage_gate"] == "NOT_VERIFIED"
-    assert result["status"] == "NOT_VERIFIED"
+    assert checks(result)["stage_gate"] == "WARN"
+    assert result["status"] == "PASS"
+    assert result["stage_gate_status"] == "PASS"
+
+
+def test_shared_local_zip_source_reopens_archive_and_matches_directory(tmp_path):
+    members = fixture_package()
+    write_members(tmp_path, members)
+    (tmp_path / "story.zip").write_bytes(archive_bytes(members))
+    state = {
+        VERIFICATION_ROOT_KEY: str(tmp_path.resolve()),
+        VERIFICATION_SOURCE_KEY: LOCAL_ZIP_SOURCE,
+    }
+    result = inspect_selected_workflow(tmp_path, state)
+    assert checks(result)["archive_reopen"] == "PASS"
+    assert checks(result)["source_match"] == "PASS"
+    assert result["source_comparison"]["status"] == "PASS"
+
+
+def test_shared_local_zip_source_rejects_directory_zip_mismatch(tmp_path):
+    members = fixture_package()
+    write_members(tmp_path, members)
+    (tmp_path / "story.zip").write_bytes(archive_bytes(members))
+    (tmp_path / "story.json").write_bytes(b'{"changed":true}')
+    state = {
+        VERIFICATION_ROOT_KEY: str(tmp_path.resolve()),
+        VERIFICATION_SOURCE_KEY: LOCAL_ZIP_SOURCE,
+    }
+    result = inspect_selected_workflow(tmp_path, state)
+    assert checks(result)["source_match"] == "FAIL"
+    assert result["integrity_status"] == "FAIL"
+    assert result["publish_status"] == "FAIL"
+
+
+def test_stage4_video_prompt_failure_is_shared_with_overview_review(tmp_path):
+    write_members(tmp_path, fixture_package("STAGE4", fixture_package("STAGE3", fixture_package("STAGE2", fixture_package()))))
+    reports, statuses = load_story_package(tmp_path)
+    review = review_package(tmp_path, reports, statuses, {})
+    assert checks(review["workflow"])["video_prompt_plan"] == "FAIL"
+    assert review["workflow"]["stage_gate_status"] == "FAIL"
+    assert review["workflow"]["publish_status"] == "FAIL"
+    assert any(issue["section"] == "Kế hoạch video" for issue in review["issues"])
 
 
 @pytest.mark.parametrize("mutation,failed", [("bytes", "file_digest"), ("extra", "file_set"),
-    ("missing", "file_set"), ("purpose", "manifest_schema"), ("owner", "stage_ownership"),
-    ("null_parent", "manifest_schema"), ("schema", "manifest_schema"), ("count_bool", "manifest_schema")])
+        ("missing", "file_set"), ("purpose", "manifest_schema"), ("owner", "stage_ownership"),
+        ("schema", "manifest_schema"), ("count_bool", "manifest_schema")])
 def test_manifest_pass_cannot_hide_mutations(mutation, failed):
     parent = fixture_package()
     members = fixture_package("STAGE2", parent)
@@ -129,8 +207,6 @@ def test_manifest_pass_cannot_hide_mutations(mutation, failed):
         manifest["package_purpose"] = "LANDSCAPE_CHECKPOINT"
     elif mutation == "owner":
         manifest["files"][0]["owner_stage"] = "STAGE2"
-    elif mutation == "null_parent":
-        manifest["parent_package_digest_sha256"] = None
     elif mutation == "count_bool":
         manifest["file_count"] = True
     else:
@@ -160,10 +236,10 @@ def test_user_replaced_cover_warns_without_integrity_failure(stage, cover):
     assert next(row for row in result["files"] if row["path"] == cover)["status"] == "WARN"
 
 
-def test_missing_parent_is_unverified_and_rehashed_inherited_mutation_fails():
+def test_parent_verification_is_optional_and_reports_mismatches_as_warnings():
     parent = fixture_package()
     members = fixture_package("STAGE2", parent)
-    assert checks(inspect_members(members, archive=True))["parent_binding"] == "NOT_VERIFIED"
+    assert checks(inspect_members(members, archive=True))["parent_binding"] == "WARN"
     assert checks(inspect_members(members, archive=True, parent=parent))["parent_binding"] == "PASS"
     members["characters/hero.png"] += b"changed"
     manifest = read_json(members["workflow_manifest.json"])
@@ -174,7 +250,7 @@ def test_missing_parent_is_unverified_and_rehashed_inherited_mutation_fails():
     members["workflow_manifest.json"] = encoded(manifest)
     result = inspect_members(members, archive=True, parent=parent)
     assert checks(result)["file_digest"] == "PASS"
-    assert checks(result)["parent_binding"] == "FAIL"
+    assert checks(result)["parent_binding"] == "WARN"
 
 
 @pytest.mark.parametrize("name", ["../escape", "/absolute", "C:/escape", "a\\b", "a/./b", "a//b", "name.", "a/"])
@@ -227,10 +303,21 @@ def test_stage1_overview_does_not_require_later_assets_or_media(tmp_path):
     assert not model["review"]["package_ready"]
 
 
+def test_stage4_labels_visual_bible_as_stage2_only_artifact(tmp_path):
+    stage1 = fixture_package()
+    stage2 = fixture_package("STAGE2", stage1)
+    stage3 = fixture_package("STAGE3", stage2)
+    write_members(tmp_path, fixture_package("STAGE4", stage3))
+
+    _reports, statuses = load_story_package(tmp_path)
+
+    assert statuses["visual_bible"] == "Không thuộc gói Stage 4 · chỉ dùng ở Stage 2"
+
+
 def test_preview_and_directory_do_not_claim_archive_verification(tmp_path):
     write_members(tmp_path, fixture_package())
     result = inspect_directory(tmp_path, overridden=True)
-    assert checks(result)["archive_reopen"] == "NOT_VERIFIED"
+    assert checks(result)["archive_reopen"] == "WARN"
     assert checks(result)["preview_override"] == "NOT_VERIFIED"
 
 
@@ -264,6 +351,18 @@ def test_video_plan_rejects_overlap_and_incorrect_count():
     assert any("khoảng trống" in e for e in result["errors"])
 
 
+def test_optional_safety_and_no_invented_event_gates_do_not_block_export():
+    from studio.video_prompt_validation import export_gate_eligible
+
+    statuses = {
+        "schema": "PASS", "source_binding": "PASS", "semantic_continuity": "PASS",
+        "no_invented_event": "NOT_VERIFIED", "safety": "NOT_VERIFIED",
+    }
+    assert export_gate_eligible(statuses, []) is True
+    assert export_gate_eligible({**statuses, "source_binding": "NOT_VERIFIED"}, []) is False
+    assert export_gate_eligible(statuses, ["schema error"]) is False
+
+
 @pytest.mark.parametrize("plan", [{}, {"clips": [None]}, {"clips": {}, "project": []}])
 def test_video_view_handles_malformed_json_objects(plan):
     assert video_plan_model(plan)["errors"]
@@ -282,14 +381,58 @@ def test_repair_preserves_read_only_members_and_binds_same_stage():
     assert checks(result)["stage_ownership"] == "PASS"
     assert checks(result)["parent_binding"] == "PASS"
     repaired["characters/hero.png"] += b"changed"
-    assert checks(inspect_members(repaired, archive=True, parent=parent))["parent_binding"] == "FAIL"
+    assert checks(inspect_members(repaired, archive=True, parent=parent))["parent_binding"] == "WARN"
 
 
 def test_parent_claim_with_missing_source_bytes_cannot_bind():
     parent = fixture_package()
     child = fixture_package("STAGE2", parent)
     del parent["story.json"]
-    assert checks(inspect_members(child, archive=True, parent=parent))["parent_binding"] == "FAIL"
+    assert checks(inspect_members(child, archive=True, parent=parent))["parent_binding"] == "WARN"
+
+
+def test_extracted_directory_can_verify_against_uploaded_parent(tmp_path):
+    parent = fixture_package()
+    child = fixture_package("STAGE2", parent)
+    write_members(tmp_path, child)
+
+    assert checks(inspect_directory(tmp_path))["parent_binding"] == "WARN"
+    assert checks(inspect_directory(tmp_path, parent=parent))["parent_binding"] == "PASS"
+
+
+def test_manifest_schema_detail_names_the_actual_stage_and_purpose():
+    stage1 = fixture_package()
+    stage2 = fixture_package("STAGE2", stage1)
+    result = inspect_members(fixture_package("STAGE3", stage2), archive=True, parent=stage2)
+    detail = next(row["detail"] for row in result["checks"] if row["check"] == "manifest_schema")
+    assert "STAGE3" in detail
+    assert "AUDIO_STORY_RELEASE" in detail
+
+
+def test_visual_bible_summary_checks_story_and_landscape_hashes(tmp_path):
+    story = b'{"title":"Story"}'
+    (tmp_path / "story.json").write_bytes(story)
+    landscape = tmp_path / "landscape"
+    landscape.mkdir()
+    references = {}
+    for stem in ("cover", "greeting", "opening", "introduction", "development",
+                 "climax", "falling", "ending", "farewell", "outro"):
+        raw = stem.encode()
+        (landscape / f"{stem}.png").write_bytes(raw)
+        references[f"{stem}.png"] = {
+            "path": f"landscape/{stem}.png", "file_sha256": hashlib.sha256(raw).hexdigest()
+        }
+    document = {
+        "schema_version": "2.0", "story_sha256": hashlib.sha256(story).hexdigest(),
+        "active_profile": "YOUTH_SAFE", "art_direction_id": "TEST",
+        "character_identity_locks": [{"character_id": "hero"}],
+        "recurring_location_locks": [{"location_id": "home"}],
+        "landscape_reference_map": references, "dependency_digest": "a" * 64,
+    }
+
+    summary = visual_bible_summary(document, root=tmp_path)
+    assert summary["status"] == "PASS"
+    assert summary["asset_passed"] == summary["asset_checked"] == 10
 
 
 def test_media_render_does_not_change_workflow_verdict(tmp_path):
@@ -307,7 +450,7 @@ def test_video_source_checks_fail_on_changed_source_and_escaping_reference(tmp_p
     files = {"story.json": b"story", "story_validation.json": b"validation", "package_quality_report.json": b"quality"}
     write_members(tmp_path, files)
     plan = {"source_binding": {"story_sha256": hashlib.sha256(b"old").hexdigest()},
-            "clips": [{"clip_id": "clip_0001", "reference_inputs": {"zone_reference_frame": "../escape.png", "character_images": []}}]}
+            "clips": [{"clip_id": "clip_0001", "reference_inputs": {"character_images": ["../escape.png"]}}]}
     result = video_source_checks(plan, root=tmp_path)
     assert result[0]["Trạng thái"] == "FAIL"
     assert result[-1]["Trạng thái"] == "FAIL"

@@ -8,6 +8,7 @@ import pytest
 
 from studio.audio_delivery_report import (
     _artifact_size_matches,
+    _delivery_result_text,
     _quality_rows,
     inspect_audio_delivery,
     load_audio_delivery,
@@ -15,6 +16,11 @@ from studio.audio_delivery_report import (
     read_audio_delivery_override,
     verify_artifact_hashes,
 )
+
+
+def test_missing_audio_quality_is_not_reported_as_failure() -> None:
+    assert _delivery_result_text({}, False) == "Chưa kiểm định"
+    assert _delivery_result_text({"passed": False}, False) == "Không đạt"
 
 
 def _write_delivery(directory: Path, *, segment_count: int = 2) -> None:

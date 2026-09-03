@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from studio.story_studio import STORY_STUDIO_SECTION_INTROS, STORY_STUDIO_SECTIONS
+from studio.story_studio import (
+    STORY_STUDIO_SECTION_ANCHORS,
+    STORY_STUDIO_SECTION_INTROS,
+    STORY_STUDIO_SECTIONS,
+)
 
 
 def test_story_studio_section_order_is_stable() -> None:
@@ -31,6 +35,13 @@ def test_each_story_section_has_distinct_heading_and_caption() -> None:
         assert caption.strip()
 
 
+def test_each_story_section_has_a_distinct_stable_anchor() -> None:
+    assert set(STORY_STUDIO_SECTION_ANCHORS) == set(STORY_STUDIO_SECTIONS)
+    anchors = list(STORY_STUDIO_SECTION_ANCHORS.values())
+    assert len(set(anchors)) == len(STORY_STUDIO_SECTIONS)
+    assert all(anchor.startswith("story-studio-") for anchor in anchors)
+
+
 def test_integrated_shell_renders_navigation_before_story_workspace() -> None:
     shell = Path("studio/gui_entry.py").read_text(encoding="utf-8")
     navigation = shell.index('if selected == "Story Studio":')
@@ -48,3 +59,20 @@ def test_source_selector_is_rendered_only_for_overview() -> None:
 
     assert overview_branch < selector_call < background_load
     assert "return" in source[selector_call:background_load]
+
+
+def test_story_sections_have_distinct_replaceable_placeholders() -> None:
+    source = Path("studio/story_studio.py").read_text(encoding="utf-8")
+    workspace = source.index("def render_story_studio_workspace(")
+    section_renderer = source.index("def _render_story_studio_section(", workspace)
+    body = source[workspace:section_renderer]
+
+    assert "section_slots = {name: st.empty() for name in STORY_STUDIO_SECTIONS}" in body
+    assert "with section_slots[section].container():" in body
+    assert "_render_story_studio_section(section)" in body
+
+
+def test_top_level_workspaces_have_distinct_replaceable_placeholders() -> None:
+    source = Path("studio/gui_entry.py").read_text(encoding="utf-8")
+    assert "workspace_slots = {name: st.empty() for name in renderers}" in source
+    assert "with workspace_slots[selected].container():" in source

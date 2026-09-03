@@ -187,7 +187,18 @@ def _show_image_dialog(
     dialog()
 
 
-def render_aspect_cover_gallery(output_dir: Path, *, key_prefix: str) -> None:
+def stage_applicable_aspects(stage: str | None) -> tuple[str, ...]:
+    """Return image aspects owned by or inherited into the current package stage."""
+    if stage == "STAGE1":
+        return ()
+    if stage == "STAGE2":
+        return ("landscape",)
+    return ASPECTS
+
+
+def render_aspect_cover_gallery(
+    output_dir: Path, *, key_prefix: str, stage: str | None = None
+) -> None:
     import streamlit as st
 
     summary = inspect_story_images(output_dir)
@@ -196,6 +207,9 @@ def render_aspect_cover_gallery(output_dir: Path, *, key_prefix: str) -> None:
         data = summary[aspect]
         with column:
             st.markdown(f"**{aspect.title()}**")
+            if aspect not in stage_applicable_aspects(stage):
+                st.info("Chưa áp dụng ở stage này.")
+                continue
             cover = data["images"].get("cover")
             render_image_thumbnail(
                 cover, caption=f"Cover · {aspect.title()}", key=f"{key_prefix}_{aspect}",
@@ -216,5 +230,5 @@ def render_aspect_cover_gallery(output_dir: Path, *, key_prefix: str) -> None:
 __all__ = [
     "ASPECTS", "EXPECTED_IMAGE_STEMS", "ZONE_IMAGE_STEMS", "discover_story_images",
     "image_for_zone", "image_metadata", "inspect_story_images", "render_aspect_cover_gallery",
-    "render_image_thumbnail", "thumbnail_bytes",
+    "render_image_thumbnail", "stage_applicable_aspects", "thumbnail_bytes",
 ]

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from studio.audio_delivery_report import format_duration, inspect_audio_delivery
-from studio.package_quality_report import _items, _object
+from studio.package_quality_report import _items, _object, package_quality_summary
 from studio.project_context import (
     OVERVIEW_DIRECTORY_KEY,
     apply_project_directory,
@@ -22,6 +22,7 @@ from studio.story_images import (
     EXPECTED_IMAGE_STEMS,
     inspect_story_images,
     render_aspect_cover_gallery,
+    stage_applicable_aspects,
 )
 from studio.story_repetition import analyze_story_repetition
 from studio.story_studio import (
@@ -33,6 +34,15 @@ from studio.video_delivery_report import build_video_delivery_summary
 from studio.workflow_views import render_workflow_summary
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+def workflow_verdict(status: str) -> tuple[str, str]:
+    """Map a verified workflow status to its overview message and Streamlit call."""
+    return {
+        "PASS": ("Gói đạt các phép kiểm tra đã chạy", "success"),
+        "FAIL": ("Gói có lỗi cần xử lý", "error"),
+        "NOT_VERIFIED": ("Gói chưa được xác minh đầy đủ", "warning"),
+    }.get(status, ("Gói chưa được xác minh đầy đủ", "warning"))
 
 
 def _video_aspect_name(value: Any) -> str:
@@ -48,6 +58,61 @@ def _existing_path(value: Any, *, root: Path) -> Path | None:
     if not path.is_absolute():
         path = root / path
     return path.resolve() if path.exists() else None
+
+
+def _persisted_audio_summary(reports: Mapping[str, Any]) -> dict[str, Any]:
+    quality = _object(reports.get("audio_quality"))
+    if not quality:
+        return {}
+    target = _object(quality.get("target"))
+    pacing = _object(quality.get("pacing"))
+    mix = _object(quality.get("mix"))
+    segments = _object(quality.get("segments"))
+    audio_file = str(quality.get("audio_file") or "")
+    loudness = " · ".join(
+        part for part in (
+            f"{target['integrated_lufs']:g} LUFS" if type(target.get("integrated_lufs")) in {int, float} else "",
+            f"{target['true_peak_dbtp']:g} dBTP" if type(target.get("true_peak_dbtp")) in {int, float} else "",
+        ) if part
+    )
+    values = {
+        "audio_format": Path(audio_file).suffix.lstrip(".") or None,
+        "pacing_preset": pacing.get("preset"),
+        "loudness_profile": loudness or quality.get("profile"),
+        "bgm": "Bật" if mix.get("bgm_ducking_enabled") is True else "Tắt" if mix.get("bgm_ducking_enabled") is False else None,
+        "segment_count": segments.get("measured_count"),
+    }
+    return {key: value for key, value in values.items() if value is not None}
+
+
+def _persisted_video_summary(variants: Any, preferred_aspect: Any) -> dict[str, Any]:
+    if not isinstance(variants, Mapping) or not variants:
+        return {}
+    preferred = _video_aspect_name(preferred_aspect)
+    name, reports = next(
+        ((name, value) for name, value in variants.items() if preferred in str(name).casefold()),
+        next(iter(variants.items())),
+    )
+    quality = _object(_object(reports).get("quality"))
+    stream = _object(quality.get("video_stream"))
+    subtitle = _object(quality.get("subtitle"))
+    if not quality:
+        return {}
+    aspect = stream.get("display_aspect_ratio")
+    fps = stream.get("avg_frame_rate") or stream.get("r_frame_rate")
+    if isinstance(fps, str) and fps.endswith("/1") and fps[:-2].isdigit():
+        fps = int(fps[:-2])
+    codec = str(stream.get("codec_name") or "").upper()
+    profile = str(stream.get("profile") or "")
+    pixel_format = str(stream.get("pix_fmt") or "")
+    encoding = " · ".join(part for part in (codec, profile, pixel_format) if part)
+    values = {
+        "aspect": aspect or ("9:16" if "portrait" in str(name).casefold() else "16:9"),
+        "encoding_profile": encoding or None,
+        "video_fps": fps,
+        "show_subtitles": subtitle.get("present") if "present" in subtitle else None,
+    }
+    return {key: value for key, value in values.items() if value is not None}
 
 
 _display_score = display_score
@@ -69,7 +134,7 @@ def build_overview_model(
     metrics = _object(commitment.get("recomputable_metrics")) or _object(validation.get("summary"))
     committed_quality = _object(commitment.get("committed_quality_metrics"))
     validation_quality = _object(validation.get("quality"))
-    quality_summary = _object(quality.get("summary"))
+    normalized_quality = package_quality_summary(quality)
     continuity = _object(anchor.get("continuity"))
     blockers = _items(quality.get("blockers"))
     defects = int(_object(validation.get("summary")).get("material_defect_remaining_count") or 0)
@@ -83,10 +148,13 @@ def build_overview_model(
     # it populated when Streamlit stops rendering the workspace-owned widgets.
     # A completed run remains authoritative for fields captured at render time.
     audio_summary = {
+        **_persisted_audio_summary(reports),
         **_object(state.get("audio_production_settings")),
         **_object(state.get("last_result_summary")),
     }
+    video_variants = reports.get("video_deliveries")
     video_summary = {
+        **_persisted_video_summary(video_variants, _object(state.get("video_production_settings")).get("aspect") or state.get("video_aspect")),
         **_object(state.get("video_production_settings")),
         **_object(state.get("video_last_summary")),
     }
@@ -111,7 +179,6 @@ def build_overview_model(
     video_path = _existing_path(
         state.get("video_last_output") or video_summary.get("output"), root=root
     )
-    video_variants = reports.get("video_deliveries")
     video_deliveries = build_video_delivery_summary(
         video_variants if isinstance(video_variants, Mapping) else {}, output_dir
     )
@@ -149,9 +216,13 @@ def build_overview_model(
     stage = workflow["stage"]
     production_ready = review["story_ready"]
     completed = bool(delivery["ready"] and delivery["passed"] and video_deliveries and ready_videos == len(video_deliveries))
-    if stage or workflow["status"] == "FAIL":
-        verdict = "Gói có lỗi cần xử lý" if workflow["status"] == "FAIL" else "Gói chưa được xác minh đầy đủ"
-        verdict_kind = "error" if workflow["status"] == "FAIL" else "warning"
+    workflow_status = workflow.get("status", "NOT_VERIFIED")
+    if workflow_status == "FAIL":
+        verdict, verdict_kind = workflow_verdict(workflow_status)
+    elif stage and workflow_status == "NOT_VERIFIED":
+        verdict, verdict_kind = workflow_verdict(workflow_status)
+    elif stage and workflow_status == "PASS":
+        verdict, verdict_kind = workflow_verdict(workflow_status)
     elif blockers or review["issues"] or (validation and not production_ready):
         verdict = "Cần xử lý"
         verdict_kind = "error"
@@ -238,8 +309,8 @@ def build_overview_model(
             ("Số từ", f"{int(metrics.get('total_words') or 0):,}" if metrics else "—"),
             ("Số cảnh", str(expected_scenes) if expected_scenes else "—"),
             ("Chất lượng truyện", _display_score(committed_quality.get("final_story_quality_score", validation_quality.get("final_story_quality_score")), 10)),
-            ("Chất lượng gói", _display_score(quality_summary.get("overall_score"), 100)),
-            ("Độ phủ chấm điểm", display_coverage(quality_summary.get("scoring_coverage_ratio"))),
+            ("Chất lượng gói", _display_score(normalized_quality["score"], 100)),
+            ("Độ phủ chấm điểm", display_coverage(normalized_quality["coverage"])),
             ("Vấn đề cần xử lý", str(defects + len(blockers) + len(review["issues"]) + len(asset_problems))),
             ("Câu lặp cần xem", str(repeated_sentences)),
         ],
@@ -336,6 +407,9 @@ def render_overview() -> None:
         st.caption(subtitle)
     getattr(st, model["verdict_kind"])(f"**{model['verdict']}** · Dữ liệu tại `{model['output_dir']}`")
     render_workflow_summary(model["workflow"])
+    source_comparison = model["workflow"].get("source_comparison")
+    if source_comparison:
+        (st.success if source_comparison["status"] == "PASS" else st.error)(source_comparison["detail"])
 
     st.subheader("Hành động ưu tiên")
 
@@ -366,6 +440,11 @@ def render_overview() -> None:
             )
 
     render_source_provenance(output_dir, reports, statuses)
+    if model["workflow"]["stage"] == "STAGE2":
+        visual_status = statuses.get("visual_bible", "Thiếu")
+        icon = "✓" if visual_status.startswith("Có dữ liệu") else "!"
+        st.caption("ARTIFACT THEO STAGE")
+        st.metric("Visual Bible", f"{icon} {visual_status}")
     columns = [*st.columns(4), *st.columns(3)]
     for column, (label, value) in zip(columns, model["metrics"]):
         column.metric(label, value)
@@ -406,12 +485,14 @@ def render_overview() -> None:
                     st.caption(f"{len(item['failed_checks'])} kiểm tra chưa đạt")
 
     st.subheader("Hình ảnh dự án")
+    applicable_aspects = stage_applicable_aspects(model["workflow"]["stage"])
     for column, group in zip(st.columns(3), ("characters", "landscape", "portrait")):
         assets = [row for row in model["review"]["assets"] if row["group"] == group]
-        column.metric({"characters": "Nhân vật", "landscape": "Landscape", "portrait": "Portrait"}[group],
-                      f"{sum(bool(row['sha256']) and not row['issues'] for row in assets)}/{len(assets)} ảnh hợp lệ")
+        value = ("Chưa áp dụng" if group in {"landscape", "portrait"} and group not in applicable_aspects
+                 else f"{sum(bool(row['sha256']) and not row['issues'] for row in assets)}/{len(assets)} ảnh hợp lệ")
+        column.metric({"characters": "Nhân vật", "landscape": "Landscape", "portrait": "Portrait"}[group], value)
     st.button("Mở tài nguyên", on_click=open_workspace, args=("Story Studio", "Tài nguyên"))
-    render_aspect_cover_gallery(output_dir, key_prefix="overview_cover")
+    render_aspect_cover_gallery(output_dir, key_prefix="overview_cover", stage=model["workflow"]["stage"])
 
     with st.expander("Thông số sản xuất", expanded=False):
         audio_col, video_col = st.columns(2)

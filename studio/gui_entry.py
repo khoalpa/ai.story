@@ -117,7 +117,11 @@ def main() -> int:
         "Video Studio": lambda: render_video_workspace(embedded=True),
         "Prompt Info": lambda: render_prompt_library_workspace(embedded=True),
     }
-    renderers[selected]()
+    # Give each top-level workspace a stable delta-tree slot. This prevents
+    # expanders/dataframes from the previous workspace surviving navigation.
+    workspace_slots = {name: st.empty() for name in renderers}
+    with workspace_slots[selected].container():
+        renderers[selected]()
     return 0
 
 

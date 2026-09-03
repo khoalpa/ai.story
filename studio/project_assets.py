@@ -14,6 +14,7 @@ from studio.story_images import (
     EXPECTED_IMAGE_STEMS,
     IMAGE_SUFFIXES,
     render_image_thumbnail,
+    stage_applicable_aspects,
 )
 
 USER_REPLACEABLE_COVERS = {"landscape/cover.png", "portrait/cover.png"}
@@ -90,7 +91,8 @@ def inspect_project_assets(root: Path, reports: Mapping[str, Any]) -> list[dict[
         except (OSError, ValueError, UnidentifiedImageError):
             issues.append("Không đọc được ảnh")
         bindings = [declared, evidence.get(name, {})]
-        hashes = [a.get("file_sha256") for a in bindings if a.get("file_sha256")]
+        hashes = [a.get("file_sha256") or a.get("sha256") for a in bindings
+                  if a.get("file_sha256") or a.get("sha256")]
         if digest and any(digest != h for h in hashes):
             if name.replace("\\", "/").casefold() in USER_REPLACEABLE_COVERS:
                 notices.append("Ảnh cover đã được người dùng thay đổi")
@@ -155,7 +157,12 @@ def render_project_assets(root: Path, reports: Mapping[str, Any]) -> None:
         counterpart = ("portrait" if row["group"] == "landscape" else "landscape") + "/" + Path(selected).name
         other = next((r for r in rows if r["name"] == counterpart), None)
         with right:
-            render_image_thumbnail(other["path"] if other else None, caption=counterpart, key="asset_counterpart", frame_ratio=frame_ratio)
+            counterpart_group = counterpart.split("/", 1)[0]
+            stage = str(_object(reports.get("workflow")).get("package_stage") or "")
+            if counterpart_group not in stage_applicable_aspects(stage):
+                st.info(f"{counterpart_group.title()} chưa áp dụng ở stage này.")
+            else:
+                render_image_thumbnail(other["path"] if other else None, caption=counterpart, key="asset_counterpart", frame_ratio=frame_ratio)
     with st.expander("Metadata / provenance nguồn"):
         st.caption("Metadata là khai báo gắn với ảnh, không tự chứng minh gate PASS. Giữ nguyên dữ liệu gốc để đối chiếu transaction/evidence.")
         try:

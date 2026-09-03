@@ -10,20 +10,37 @@ from pathlib import Path
 from typing import Any, Mapping, cast
 
 from studio.prompt_contract import PromptContract, load_prompt_contract
+from studio.video_voice import (
+    VOICE_PLAN_FIELDS,
+    VOICE_SEGMENT_FIELDS,
+    VOICE_STRATEGY_FIELDS,
+    build_voice_plan,
+    native_audio_prompt,
+    source_segments,
+)
 from studio.workflow_package import safe_name
 
 ROOT_FIELDS = ("schema_version", "generator_target", "source_binding", "project", "global_continuity_lock", "clips", "validation")
+VOICE_ROOT_FIELDS = ("schema_version", "generator_target", "source_binding", "project", "voice_strategy", "global_continuity_lock", "clips", "validation")
 TARGET_FIELDS = ("family", "preferred_model", "prompt_language", "capability_profile")
 CAPABILITY_FIELDS = ("aspect_ratio", "clip_duration_seconds", "audio_mode", "requested_continuity_mode", "reference_images", "first_last_frame", "video_extension")
 CAPABILITY_EVIDENCE_FIELDS = ("supported", "status", "evidence_locator")
-BINDING_FIELDS = ("story_sha256", "story_validation_sha256", "package_quality_report_sha256", "visual_continuity_source_digest_sha256", "character_set_digest_sha256", "landscape_set_digest_sha256", "portrait_set_digest_sha256")
+BINDING_FIELDS = ("story_sha256", "story_validation_sha256", "package_quality_report_sha256", "character_continuity_source_digest_sha256", "character_set_digest_sha256")
 PROJECT_FIELDS = ("title", "series", "episode", "active_profile", "coverage_mode", "total_story_duration_seconds", "planned_covered_duration_seconds", "planned_video_duration_seconds", "clip_count", "derived_scene_count", "coverage_exclusions")
 GLOBAL_FIELDS = ("visual_style", "cinematography", "color_pipeline", "character_identity_rules", "location_rules", "prop_rules", "forbidden_changes", "derived_scene_registry")
 CLIP_FIELDS = ("clip_id", "sequence_index", "zone", "derived_scene_id", "continuity_take_id", "source_script", "generation_variants", "duration_seconds", "usable_span_seconds", "aspect_ratio", "reference_inputs", "continuity_in", "primary_action", "visual_delta", "terminal_handoff", "prompt", "audio_prompt", "avoid", "continuity_out", "state_change_records", "transition_type")
+VOICE_CLIP_FIELDS = ("clip_id", "sequence_index", "zone", "derived_scene_id", "continuity_take_id", "source_script", "generation_variants", "duration_seconds", "usable_span_seconds", "aspect_ratio", "reference_inputs", "continuity_in", "primary_action", "visual_delta", "terminal_handoff", "prompt", "voice_plan", "audio_prompt", "avoid", "continuity_out", "state_change_records", "transition_type")
 SOURCE_FIELDS = ("start_item_index", "start_word_offset", "end_item_index", "end_word_offset", "start_time_seconds", "end_time_seconds", "pause_only", "source_text_digest_sha256")
 VARIANT_FIELDS = ("requested_continuity_mode", "preferred_mode", "fallback_modes", "portable_mode", "capability_status", "selection_basis")
-REFERENCE_FIELDS = ("primary_frame", "zone_reference_frame", "character_images", "previous_clip_id", "previous_last_frame_required", "previous_output_last_frame", "previous_output_video_required", "target_last_frame")
-VALIDATION_FIELDS = ("schema_status", "source_binding_status", "timeline_derivation_status", "scene_derivation_status", "reference_router_status", "coverage_status", "continuity_status", "identity_reference_status", "prompt_budget_status", "prompt_atomicity_status", "no_invented_event_status", "anti_repeat_status", "safety_status", "fixture_status", "output_digest_sha256", "status")
+REFERENCE_FIELDS = ("character_images", "previous_clip_id", "previous_last_frame_required", "previous_output_last_frame", "previous_output_video_required")
+VALIDATION_FIELDS = ("schema_status", "source_binding_status", "timeline_derivation_status", "scene_derivation_status", "reference_router_status", "character_only_reference_status", "coverage_status", "continuity_status", "identity_reference_status", "prompt_budget_status", "prompt_atomicity_status", "no_invented_event_status", "anti_repeat_status", "safety_status", "fixture_status", "output_digest_sha256", "status")
+REQUIRED_EXPORT_GATES = ("schema", "source_binding", "semantic_continuity")
+ADVISORY_EXPORT_GATES = ("no_invented_event", "safety")
+
+
+def export_gate_eligible(gate_statuses: Mapping[str, str], errors: list[str]) -> bool:
+    """Apply export policy: local deterministic gates block; advisory certification does not."""
+    return not errors and all(gate_statuses.get(name) == "PASS" for name in REQUIRED_EXPORT_GATES)
 
 
 def _object(value: Any) -> Mapping[str, Any]:
@@ -42,6 +59,28 @@ def canonical_output_digest(plan: Mapping[str, Any]) -> str:
     validation["output_digest_sha256"] = None
     text = unicodedata.normalize("NFC", json.dumps(clone, ensure_ascii=False, separators=(",", ":"), allow_nan=False))
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def semantic_continuity_gate(clips: list[Any]) -> tuple[str, list[str]]:
+    """Deterministically compare the serialized state chain within each scene."""
+    continuity_keys = (
+        "character_state", "wardrobe_state", "location_state", "prop_state",
+        "screen_direction", "camera_state",
+    )
+    if not clips or not all(isinstance(clip, dict) for clip in clips):
+        return "NOT_VERIFIED", []
+    failures = []
+    for previous, current in zip(clips, clips[1:]):
+        if previous.get("derived_scene_id") != current.get("derived_scene_id"):
+            continue
+        continuity_out = _object(previous.get("continuity_out"))
+        continuity_in = _object(current.get("continuity_in"))
+        if ({key: continuity_out.get(key) for key in continuity_keys}
+                != {key: continuity_in.get(key) for key in continuity_keys}):
+            failures.append(
+                f"{previous.get('clip_id', '—')} → {current.get('clip_id', '—')}"
+            )
+    return ("FAIL", failures) if failures else ("PASS", [])
 
 
 def _source_digest(script: list[Any], source: Mapping[str, Any]) -> str:
@@ -89,6 +128,15 @@ def normalize_video_prompt_plan(plan: Mapping[str, Any], story: Mapping[str, Any
             capability.get("aspect_ratio"), capability.get("aspect_ratio")
         )
 
+    global_lock = normalized.get("global_continuity_lock")
+    if isinstance(global_lock, dict):
+        for key in GLOBAL_FIELDS[:-1]:
+            value = global_lock.get(key)
+            if isinstance(value, str) and value.strip():
+                global_lock[key] = [value]
+
+    voice_strategy = normalized.get("voice_strategy")
+
     word_counts = [len(str(item.get("text", "")).split()) for item in script]
     bases: list[int] = []
     total_words = 0
@@ -119,6 +167,15 @@ def normalize_video_prompt_plan(plan: Mapping[str, Any], story: Mapping[str, Any
 
         clip["aspect_ratio"] = ratio_aliases.get(clip.get("aspect_ratio"), clip.get("aspect_ratio"))
         source["source_text_digest_sha256"] = _source_digest(script, source)
+        if isinstance(voice_strategy, dict):
+            voice_plan = build_voice_plan(script, source)
+            clip["voice_plan"] = voice_plan
+            audio_prompt = str(clip.get("audio_prompt") or "")
+            if "Background below voice:" in audio_prompt:
+                ambience = audio_prompt.split("Background below voice:", 1)[1].split(". No music", 1)[0]
+            else:
+                ambience = "Quiet source-consistent ambience and natural foley"
+            clip["audio_prompt"] = native_audio_prompt(voice_plan, voice_strategy, ambience)
 
     project = normalized.get("project")
     if isinstance(project, dict) and project.get("coverage_mode") == "FULL_STORY" and previous_end != total_words:
@@ -154,7 +211,7 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
                 return path.read_bytes()
         return None
 
-    if tuple(plan) != ROOT_FIELDS or plan.get("schema_version") != contract.video_prompt_schema_version:
+    if tuple(plan) not in {ROOT_FIELDS, VOICE_ROOT_FIELDS} or plan.get("schema_version") != contract.video_prompt_schema_version:
         errors.append(f"Root schema/field order không đúng video prompt v{contract.video_prompt_schema_version}.")
     target = exact(plan.get("generator_target"), TARGET_FIELDS, "generator_target")
     capability = exact(target.get("capability_profile"), CAPABILITY_FIELDS, "capability_profile")
@@ -188,6 +245,21 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
                 errors.append("story.json không parse được để kiểm source span.")
 
     project = exact(plan.get("project"), PROJECT_FIELDS, "project")
+    allowed_character_images: set[str] = set()
+    if story_document is not None and isinstance(story_document.get("characters"), list):
+        for character in story_document["characters"]:
+            if isinstance(character, dict):
+                path = _object(character.get("reference_asset")).get("reference_image")
+                if isinstance(path, str):
+                    allowed_character_images.add(path)
+    voice_strategy = _object(plan.get("voice_strategy"))
+    if voice_strategy:
+        exact(voice_strategy, VOICE_STRATEGY_FIELDS, "voice_strategy")
+        if voice_strategy.get("audio_mode") != "NATIVE_GENERATED_VOICE" or voice_strategy.get("language") != "vi-VN":
+            errors.append("voice_strategy audio_mode/language không hợp lệ.")
+        profiles = voice_strategy.get("voice_profiles")
+        if not isinstance(profiles, list) or not profiles:
+            errors.append("voice_strategy.voice_profiles phải là array không rỗng.")
     global_lock = exact(plan.get("global_continuity_lock"), GLOBAL_FIELDS, "global_continuity_lock")
     for key in GLOBAL_FIELDS[:-1]:
         if not isinstance(global_lock.get(key), list):
@@ -207,10 +279,17 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
 
     total = 0.0
     previous_end = 0.0
+    previous_word_end = 0
+    story_word_bases: list[int] = []
+    story_total_words = 0
+    if story_document is not None and isinstance(story_document.get("script"), list):
+        for item in story_document["script"]:
+            story_word_bases.append(story_total_words)
+            story_total_words += len(str(item.get("text", "")).split()) if isinstance(item, dict) else 0
     normalized_prompts: set[str] = set()
     scene_ids = {item.get("derived_scene_id", item.get("scene_id")) for item in registry if isinstance(item, dict)}
     for index, clip in enumerate(clips, 1):
-        exact(clip, CLIP_FIELDS, f"clip {index}")
+        exact(clip, VOICE_CLIP_FIELDS if voice_strategy else CLIP_FIELDS, f"clip {index}")
         source = exact(clip.get("source_script"), SOURCE_FIELDS, f"clip {index}.source_script")
         variants = exact(clip.get("generation_variants"), VARIANT_FIELDS, f"clip {index}.generation_variants")
         refs = exact(clip.get("reference_inputs"), REFERENCE_FIELDS, f"clip {index}.reference_inputs")
@@ -251,7 +330,9 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
         prompt_words = len(str(clip.get("prompt", "")).split())
         audio_words = len(str(clip.get("audio_prompt", "")).split())
         avoid = clip.get("avoid")
-        if prompt_words > contract.video_prompt_hard_max_words or audio_words > contract.video_audio_prompt_hard_max_words:
+        audio_word_limit = (contract.video_prompt_hard_max_words if voice_strategy
+                            else contract.video_audio_prompt_hard_max_words)
+        if prompt_words > contract.video_prompt_hard_max_words or audio_words > audio_word_limit:
             errors.append(f"Clip {index}: vượt hard word budget.")
         if (not isinstance(avoid, list) or not all(isinstance(item, str) for item in avoid)
                 or len(avoid) > contract.video_avoid_item_max_count
@@ -261,14 +342,16 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
         if normalized_prompt in normalized_prompts:
             errors.append(f"Clip {index}: prompt trùng exact.")
         normalized_prompts.add(normalized_prompt)
-        names: list[Any] = [refs.get("zone_reference_frame"), refs.get("primary_frame"), refs.get("target_last_frame")]
-        names += refs.get("character_images", []) if isinstance(refs.get("character_images"), list) else [None]
         character_images = refs.get("character_images")
         if (not isinstance(character_images, list) or not all(isinstance(item, str) for item in character_images)
                 or len(character_images) > contract.video_max_character_references_per_clip
                 or len(character_images) != len(set(character_images))):
             errors.append(f"Clip {index}: character_images vượt giới hạn hoặc trùng.")
+        names = character_images if isinstance(character_images, list) else []
         for name in names:
+            if (name.startswith(("landscape/", "portrait/")) or "://" in name
+                    or name not in allowed_character_images):
+                errors.append(f"Clip {index}: PACKAGED_SCENE_REFERENCE_FORBIDDEN: {name}")
             if (root is not None or members is not None) and name is not None and source_bytes(name) is None:
                 errors.append(f"Clip {index}: thiếu ảnh tham chiếu {name!r}.")
         if variants.get("requested_continuity_mode") == "CHAINED_LAST_FRAME":
@@ -308,6 +391,33 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
                     digest = _source_digest(script, source) if valid_offsets else None
                     if not valid_offsets or source.get("source_text_digest_sha256") != digest:
                         errors.append(f"Clip {index}: source_text_digest/offset không khớp story.")
+                    if valid_offsets and voice_strategy:
+                        voice_plan = exact(clip.get("voice_plan"), VOICE_PLAN_FIELDS, f"clip {index}.voice_plan")
+                        expected_segments = source_segments(script, source)
+                        segments = voice_plan.get("segments")
+                        if not isinstance(segments, list) or len(segments) != len(expected_segments):
+                            errors.append(f"Clip {index}: voice segments không khớp source span.")
+                        else:
+                            for position, (segment, expected) in enumerate(zip(segments, expected_segments), 1):
+                                exact(segment, VOICE_SEGMENT_FIELDS, f"clip {index}.voice_plan.segment {position}")
+                                if segment != expected:
+                                    errors.append(f"Clip {index}: voice segment {position} không khớp story.json.")
+                            joined = unicodedata.normalize("NFC", "\n".join(item["text"] for item in expected_segments))
+                            if voice_plan.get("source_text_sha256") != hashlib.sha256(joined.encode("utf-8")).hexdigest():
+                                errors.append(f"Clip {index}: voice source digest không khớp.")
+                        if voice_plan.get("allow_paraphrase") is not False or voice_plan.get("language") != "vi-VN":
+                            errors.append(f"Clip {index}: voice plan phải giữ nguyên lời tiếng Việt.")
+                        audio_text = str(clip.get("audio_prompt") or "").casefold()
+                        if "no generated narration" in audio_text or "no generated narration or dialogue" in audio_text:
+                            errors.append(f"Clip {index}: audio prompt mâu thuẫn native voice.")
+                    if valid_offsets:
+                        start_global = story_word_bases[start_item_int] + start_word_int
+                        end_global = story_word_bases[end_item_int] + end_word_int
+                        if end_global <= start_global:
+                            errors.append(f"Clip {index}: source span rỗng hoặc đảo chiều.")
+                        if project.get("coverage_mode") == "FULL_STORY" and start_global != previous_word_end:
+                            errors.append(f"Clip {index}: source span không liên tục với clip trước.")
+                        previous_word_end = end_global
         rows.append({"Clip": clip.get("clip_id", index), "Zone": clip.get("zone", "—"), "Scene": clip.get("derived_scene_id", "—"), "Bắt đầu (s)": start, "Kết thúc (s)": end, "Độ dài video (s)": duration, "Tỷ lệ": clip.get("aspect_ratio", "—")})
 
     planned = project.get("planned_video_duration_seconds")
@@ -319,6 +429,8 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
                 or not math.isclose(previous_end, float(cast(float, story_duration)), abs_tol=.0005, rel_tol=0)
                 or project.get("coverage_exclusions") != []):
             errors.append("FULL_STORY phải phủ toàn truyện và không có exclusions.")
+        if story_document is not None and previous_word_end != story_total_words:
+            errors.append("FULL_STORY không phủ đúng toàn bộ token của story.json.")
     validation = exact(plan.get("validation"), VALIDATION_FIELDS, "validation")
     if any(validation.get(key) != "PASS" for key in VALIDATION_FIELDS if key not in {"output_digest_sha256"}):
         errors.append("validation components/aggregate phải PASS.")
@@ -327,19 +439,27 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
             errors.append("validation.output_digest_sha256 không khớp canonical JSON.")
     except (TypeError, ValueError):
         errors.append("Không thể tính output_digest_sha256.")
+    continuity_status, continuity_failures = semantic_continuity_gate(clips)
+    if continuity_failures:
+        errors.append("Semantic continuity không khớp: " + ", ".join(continuity_failures[:5]))
+    if errors and continuity_status == "PASS":
+        continuity_status = "NOT_VERIFIED"
     gate_statuses = {
         "schema": "FAIL" if errors else "PASS",
         "source_binding": "FAIL" if any(c["status"] == "FAIL" for c in checks) else
                           "NOT_VERIFIED" if any(c["status"] == "NOT_VERIFIED" for c in checks) else "PASS",
-        "semantic_continuity": "NOT_VERIFIED",
+        "semantic_continuity": continuity_status,
         "no_invented_event": "NOT_VERIFIED",
         "safety": "NOT_VERIFIED",
     }
-    export_eligible = not errors and all(value == "PASS" for value in gate_statuses.values())
+    export_eligible = export_gate_eligible(gate_statuses, errors)
     return {"status": "FAIL" if errors else "NOT_VERIFIED" if not export_eligible else "PASS",
             "errors": errors, "checks": checks, "gate_statuses": gate_statuses,
+            "required_export_gates": REQUIRED_EXPORT_GATES,
+            "advisory_export_gates": ADVISORY_EXPORT_GATES,
             "export_eligible": export_eligible, "rows": rows, "clips": clips, "duration": total,
             "needs_confirmation": project.get("coverage_mode") == "FULL_STORY" and len(clips) > 120}
 
 
-__all__ = ["canonical_output_digest", "normalize_video_prompt_plan", "validate_video_prompt_plan"]
+__all__ = ["ADVISORY_EXPORT_GATES", "REQUIRED_EXPORT_GATES", "canonical_output_digest", "export_gate_eligible",
+           "normalize_video_prompt_plan", "semantic_continuity_gate", "validate_video_prompt_plan"]

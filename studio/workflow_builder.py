@@ -12,9 +12,13 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from studio.prompt_contract import PromptContract, load_prompt_contract
-from studio.video_prompt_validation import normalize_video_prompt_plan, validate_video_prompt_plan
+from studio.video_prompt_validation import (
+    normalize_video_prompt_plan,
+    validate_video_prompt_plan,
+)
 from studio.workflow_package import (
     FILE_FIELDS,
+    INTEGRITY_CHECKS,
     MANIFEST_FIELDS,
     VALIDATION_FIELDS,
     expected_files,
@@ -70,7 +74,19 @@ def build_workflow_package(stage: str, operation: str, files: Mapping[str, bytes
             raise ValueError("Stage sau hoặc REPAIR bắt buộc có exact parent package")
         prior = inspect_members(parent, archive=True, contract=contract)
         wanted = stage if operation == "REPAIR" else stages[index - 1]
-        if prior.get("integrity_status") != "PASS" or prior.get("stage") != wanted:
+        # A direct parent can be used without having every ancestor available.
+        # This mirrors inspect_members(): all deterministic integrity checks on
+        # the supplied parent must pass, except its own parent_binding.
+        prior_checks = {
+            item.get("check"): item.get("status")
+            for item in prior.get("checks", [])
+            if item.get("check") in INTEGRITY_CHECKS - {"parent_binding"}
+        }
+        required = INTEGRITY_CHECKS - {"parent_binding"}
+        parent_integrity_ok = set(prior_checks) == required and all(
+            prior_checks[name] == "PASS" for name in required
+        )
+        if not parent_integrity_ok or prior.get("stage") != wanted:
             raise ValueError("Parent package không đúng stage hoặc chưa đạt integrity")
         parent_digest = prior["manifest"].get("package_digest_sha256")
         for name, raw in files.items():

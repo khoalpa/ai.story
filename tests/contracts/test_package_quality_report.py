@@ -9,6 +9,7 @@ from studio.package_quality_report import (
     _format_generated_at,
     _read_report,
     _short_digest,
+    package_quality_summary,
 )
 
 
@@ -29,3 +30,23 @@ def test_short_digest_preserves_context_at_both_ends() -> None:
 
 def test_generated_time_is_human_readable() -> None:
     assert _format_generated_at("2026-08-26T12:04:12Z") != "2026-08-26T12:04:12Z"
+
+
+def test_current_quality_schema_is_normalized() -> None:
+    report = {
+        "summary": {"global_score": 94, "coverage_ratio": 1, "publish_verdict": "PASS"},
+        "dimensions": [
+            {"dimension_id": "STORY_CONTENT", "status": "PASS", "applicability": "APPLICABLE"},
+            {"dimension_id": "SAFETY", "status": "PASS", "applicability": "APPLICABLE"},
+        ],
+        "image_evidence": {"asset_results": [{
+            "path": "portrait/cover.png", "validation_status": "PASS",
+            "provenance_status": "PASS", "visual_quality_status": "ASSESSED_PASS",
+        }]},
+    }
+
+    summary = package_quality_summary(report)
+    assert summary["score"] == 94
+    assert summary["coverage"] == 1
+    assert summary["gates_passed"] == len(summary["gates"]) == 2
+    assert summary["assets_passed"] == len(summary["assets"]) == 1

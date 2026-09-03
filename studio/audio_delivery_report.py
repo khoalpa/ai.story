@@ -294,6 +294,12 @@ def _quality_rows(quality: Mapping[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _delivery_result_text(quality: Mapping[str, Any], passed: bool) -> str:
+    if not quality:
+        return "Chưa kiểm định"
+    return "Đạt" if passed else "Không đạt"
+
+
 def render_audio_delivery(data: Mapping[str, Any], directory: Path) -> None:
     import streamlit as st
 
@@ -313,8 +319,9 @@ def render_audio_delivery(data: Mapping[str, Any], directory: Path) -> None:
             st.info("Chưa đủ dữ liệu để kết luận trạng thái bàn giao.")
         cols = st.columns(6)
         stream, duration = _object(quality.get("stream")), _object(quality.get("duration"))
+        result_text = _delivery_result_text(quality, summary["passed"])
         values = [
-            ("Kết quả", "Đạt" if summary["passed"] else "Không đạt"),
+            ("Kết quả", result_text),
             ("Thời lượng", format_duration(summary["duration_seconds"])),
             ("Profile", quality.get("profile", "—")),
             ("Codec", stream.get("codec_name", "—")),

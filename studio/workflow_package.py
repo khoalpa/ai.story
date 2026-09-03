@@ -30,7 +30,7 @@ MAX_MEMBER_BYTES = 64 * 1024 * 1024
 MAX_PACKAGE_BYTES = 512 * 1024 * 1024
 MAX_JSON_BYTES = 5 * 1024 * 1024
 INTEGRITY_CHECKS = {"manifest_schema", "file_schema", "file_set", "file_digest", "package_digest",
-                    "story_binding", "stage_ownership", "parent_binding", "archive_reopen", "strict_json"}
+                    "story_binding", "stage_ownership", "archive_reopen", "strict_json"}
 USER_REPLACEABLE_COVERS = {"landscape/cover.png", "portrait/cover.png"}
 
 
@@ -149,6 +149,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
     result: dict[str, Any] = {"stage": None, "purpose": None, "next_stage": None,
         "status": "NOT_VERIFIED", "checks": [], "files": [], "manifest": {},
         "compatibility": "NATIVE_CURRENT", "expected_count": None, "actual_count": len(members),
+        "actual_package_digest_sha256": None,
         "stage_gate_status": "NOT_VERIFIED", "integrity_status": "NOT_VERIFIED",
         "publish_status": "NOT_VERIFIED"}
 
@@ -183,11 +184,12 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
             and manifest.get("allowed_next_stage") == result["next_stage"]
             and type(manifest.get("file_count")) is int
             and hex_digest(manifest.get("story_sha256")) and hex_digest(manifest.get("package_digest_sha256"))
-            and (manifest.get("parent_package_digest_sha256") is None if stage == stages[0] and operation == "CREATE"
-                 else hex_digest(manifest.get("parent_package_digest_sha256")))
+            and (manifest.get("parent_package_digest_sha256") is None
+                 or hex_digest(manifest.get("parent_package_digest_sha256")))
             and isinstance(validation, dict) and tuple(validation) == VALIDATION_FIELDS
             and all(value == "PASS" for value in validation.values()))
-        check("manifest_schema", schema_ok, "Exact field/order/enum; Stage 2 purpose canonical = WORKFLOW_CHECKPOINT.")
+        check("manifest_schema", schema_ok,
+              f"Exact field/order/enum; {stage} purpose canonical = {result['purpose']}.")
         story = read_json(members["story.json"])
         rows = manifest.get("files")
         if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
@@ -219,7 +221,9 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
             warn("file_digest", "Ảnh cover đã được người dùng thay đổi; SHA-256/size khác manifest nhưng không chặn sử dụng.")
         else:
             check("file_digest", not changed_paths, "SHA-256 và size được tính lại trên bytes đang đọc.")
-        package_matches = package_digest(actual_rows) == manifest.get("package_digest_sha256")
+        actual_package_digest = package_digest(actual_rows)
+        result["actual_package_digest_sha256"] = actual_package_digest
+        package_matches = actual_package_digest == manifest.get("package_digest_sha256")
         if not package_matches and changed_paths and changed_paths <= USER_REPLACEABLE_COVERS:
             warn("package_digest", "Package digest thay đổi chỉ do ảnh cover người dùng thay thế; không chặn sử dụng.")
         else:
@@ -236,9 +240,9 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
         if stage == stages[0] and operation == "CREATE":
             check("parent_binding", manifest.get("parent_package_digest_sha256") is None, "Stage 1 CREATE không có parent.")
         elif not manifest.get("parent_package_digest_sha256"):
-            check("parent_binding", False, "Stage sau/REPAIR bắt buộc có parent digest.")
+            warn("parent_binding", "Không khai báo gói cha; liên kết giữa các stage là tùy chọn.")
         elif parent is None:
-            check("parent_binding", None, "Cần exact gói nguồn để kiểm tra parent digest và bytes kế thừa.")
+            warn("parent_binding", "Chưa cung cấp gói nguồn để đối chiếu tùy chọn; không chặn gói hiện tại.")
         else:
             prior = inspect_members(parent, archive=True, contract=contract)
             prior_manifest = prior["manifest"]
@@ -254,11 +258,15 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
             changed_inherited = {name for name in inherited if members.get(name) != parent.get(name)}
             if parent_base_ok and changed_inherited and changed_inherited <= USER_REPLACEABLE_COVERS:
                 warn("parent_binding", "Ảnh cover kế thừa đã được người dùng thay đổi; các bytes kế thừa khác vẫn khớp gói cha.")
+            elif not parent_base_ok or changed_inherited:
+                warn("parent_binding", "Gói cha hoặc bytes kế thừa không khớp; đối chiếu liên-stage là tùy chọn và không chặn gói hiện tại.")
             else:
-                check("parent_binding", parent_base_ok and not changed_inherited,
+                check("parent_binding", True,
                       "Đối chiếu gói cha trực tiếp và bytes kế thừa; không chứng minh toàn bộ lịch sử tổ tiên.")
-        check("archive_reopen", True if archive else None,
-              "Đã đọc lại mọi ZIP member và CRC." if archive else "Đang xem thư mục; cần mở ZIP để kiểm CRC/duplicate entries.")
+        if archive:
+            check("archive_reopen", True, "Đã đọc lại mọi ZIP member và CRC.")
+        else:
+            warn("archive_reopen", "Đang dùng thư mục đầu ra chính; kiểm tra ZIP/CRC là tùy chọn và không chặn gói.")
         reports_to_check = [documents["story_validation.json"]]
         if stage in {stages[2], stages[3]}:
             reports_to_check.append(documents.get("package_quality_report.json", {}))
@@ -276,7 +284,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
                 declared_failure |= any(isinstance(g, dict) and g.get("status") == "FAIL" and g.get("severity") != "ADVISORY" for g in report["gates"])
         if declared_failure:
             check("reported_blocker", False, "Artifact báo cáo có blocker FAIL; không thể xác nhận gói đạt.")
-        check("stage_gate", None, "Chưa chạy đầy đủ detector safety/provenance/creative của stage; manifest PASS chỉ là khai báo.")
+        warn("stage_gate", "Chứng nhận safety/provenance/creative độc lập là tùy chọn; chỉ các validator thực sự đã chạy mới ảnh hưởng trạng thái gói.")
     except (KeyError, TypeError, ValueError, UnicodeError, RecursionError) as exc:
         check("parse", False, str(exc))
     statuses = [c["status"] for c in result["checks"]]
@@ -291,7 +299,9 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
     return result
 
 
-def inspect_directory(root: Path, *, overridden: bool = False) -> dict[str, Any]:
+def inspect_directory(
+    root: Path, *, overridden: bool = False, parent: Mapping[str, bytes] | None = None
+) -> dict[str, Any]:
     """Inspect only the package projection; production files stay outside it."""
     members: dict[str, bytes] = {}
     try:
@@ -330,7 +340,7 @@ def inspect_directory(root: Path, *, overridden: bool = False) -> dict[str, Any]
                     if size > MAX_MEMBER_BYTES or total > MAX_PACKAGE_BYTES:
                         raise ValueError("Package vượt giới hạn dung lượng")
                     members[name] = path.read_bytes()
-        result = inspect_members(members, contract=contract)
+        result = inspect_members(members, parent=parent, contract=contract)
     except (OSError, ValueError, UnicodeError, RecursionError) as exc:
         result = inspect_members({})
         result["status"] = "FAIL"

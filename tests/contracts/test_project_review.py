@@ -131,6 +131,24 @@ def test_user_replaced_cover_is_notice_not_asset_error(tmp_path: Path, group: st
     assert not row["hash_verified"]
 
 
+def test_quality_asset_sha256_field_is_used_for_binding(tmp_path: Path) -> None:
+    directory = tmp_path / "landscape"
+    directory.mkdir()
+    image = directory / "cover.png"
+    Image.new("RGB", (3840, 2160), "blue").save(image)
+    reports = {
+        "workflow": {"package_stage": "STAGE3"},
+        "quality": {"image_evidence": {"asset_results": [{
+            "path": "landscape/cover.png", "sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+            "dimensions": {"width": 3840, "height": 2160},
+        }]}},
+    }
+
+    row = next(item for item in inspect_project_assets(tmp_path, reports)
+               if item["name"] == "landscape/cover.png")
+    assert row["hash_verified"]
+
+
 def test_overview_standalone_not_blocked_and_cannot_publish_without_verified_video(tmp_path: Path) -> None:
     reports = {"story": {"meta": {}}, "validation": standalone_validation(), "quality": {"summary": {"publish_verdict": "PASS"}}}
     model = build_overview_model(reports, {"anchor": "Thiếu"}, {}, output_dir=tmp_path)

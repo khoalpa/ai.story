@@ -15,7 +15,7 @@ from studio.story_images import EXPECTED_IMAGE_STEMS
 
 def test_current_registries_are_resolved_and_immutable() -> None:
     contract = load_prompt_contract()
-    assert contract.current_public_schema_registry["video_prompt"] == "1.0"
+    assert contract.current_public_schema_registry["video_prompt"] == "1.1"
     assert contract.current_enum_registry["video_audio_mode"] == (
         "AMBIENCE_ONLY", "NATIVE_DIALOGUE", "SILENT",
     )
@@ -51,12 +51,17 @@ def test_runtime_projection_matches_latest_prompt() -> None:
     assert contract.story_validation_schema_version == "2.3"
     assert contract.package_quality_schema_version == "2.0"
     assert contract.series_anchor_schema_version == "3.2.0"
-    assert contract.video_prompt_schema_version == "1.0"
+    assert contract.video_prompt_schema_version == "1.1"
+    assert contract.video_prompt_default_config["audio_mode"] == "NATIVE_DIALOGUE"
     prompt_text = contract.path.read_text(encoding="utf-8-sig")
     assert "VIDEO-PROMPT-CANONICAL-SOURCE-01:" in prompt_text
     assert "video_prompts.flow.json" in prompt_text
     assert "LITERAL-REACHABILITY-01:" in prompt_text
     assert "VEO_VIDEO_PROMPT_SCHEMA_VERSION" not in prompt_text
+    assert "VIDEO_SENTENCE_USABLE_SPAN_MAX_SECONDS = 7.950" in prompt_text
+    assert "Mỗi clip có đúng 22 field" in prompt_text
+    assert "voice_plan" in prompt_text
+    assert "VOICE_PROJECTION_LOSS" in prompt_text
     assert "BASELINE_HISTORY_" not in prompt_text
     global_constants = prompt_text[
         prompt_text.index("GLOBAL CONSTANTS"):prompt_text.index("===== MODULE:CANONICAL_REGISTRY END =====")
