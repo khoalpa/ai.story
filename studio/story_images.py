@@ -1,6 +1,7 @@
 """Shared discovery and thumbnail UI for landscape/portrait story artwork."""
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
@@ -21,6 +22,51 @@ ZONE_IMAGE_STEMS = {
     "ENDING": "ending", "FAREWELL": "farewell",
 }
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def visual_plan_image_stems(output_dir: Path) -> tuple[str, ...]:
+    """Return the persisted active image set, falling back to legacy ZONE names."""
+    path = output_dir / "visual_plan.json"
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        assets = document.get("assets") if isinstance(document, dict) else None
+        mode = (document.get("resolved_mode") or document.get("resolved_image_generation_mode")) if isinstance(document, dict) else None
+        stems = tuple(
+            Path(str(item.get("basename"))).stem.casefold()
+            for item in assets
+            if isinstance(item, dict) and isinstance(item.get("basename"), str)
+        ) if isinstance(assets, list) else ()
+        if mode in {"ZONE", "SCENE"} and stems and len(stems) == len(set(stems)):
+            return stems
+    except (OSError, UnicodeError, ValueError, TypeError, json.JSONDecodeError):
+        pass
+    return EXPECTED_IMAGE_STEMS
+
+
+def apply_visual_plan_zone_aliases(
+    catalog: dict[str, dict[str, Path]], output_dir: Path
+) -> None:
+    """Map each story zone to its first selected SCENE image for reader views."""
+    try:
+        document = json.loads((output_dir / "visual_plan.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
+        return
+    if not isinstance(document, dict) or (document.get("resolved_mode") or document.get("resolved_image_generation_mode")) != "SCENE":
+        return
+    assets = document.get("assets")
+    if not isinstance(assets, list):
+        return
+    for item in assets:
+        if not isinstance(item, dict):
+            continue
+        zone_stem = ZONE_IMAGE_STEMS.get(str(item.get("zone") or "").upper())
+        basename = item.get("basename")
+        scene_stem = Path(basename).stem.casefold() if isinstance(basename, str) else ""
+        if not zone_stem or not scene_stem:
+            continue
+        for images in catalog.values():
+            if scene_stem in images:
+                images.setdefault(zone_stem, images[scene_stem])
 
 
 def discover_story_images(output_dir: Path) -> dict[str, dict[str, Path]]:
@@ -44,11 +90,12 @@ def inspect_story_images(output_dir: Path) -> dict[str, dict[str, Any]]:
         "portrait": contract.portrait_size,
     }
     summary: dict[str, dict[str, Any]] = {}
+    expected_stems = visual_plan_image_stems(output_dir)
     for aspect, images in discovered.items():
-        missing = [f"{stem}.png" for stem in EXPECTED_IMAGE_STEMS if stem not in images]
+        missing = [f"{stem}.png" for stem in expected_stems if stem not in images]
         noncanonical: list[str] = []
         wrong_size: list[str] = []
-        for stem in EXPECTED_IMAGE_STEMS:
+        for stem in expected_stems:
             path = images.get(stem)
             if path is None:
                 continue
@@ -65,8 +112,8 @@ def inspect_story_images(output_dir: Path) -> dict[str, dict[str, Any]]:
         summary[aspect] = {
             "directory": output_dir / aspect,
             "images": images,
-            "count": sum(stem in images for stem in EXPECTED_IMAGE_STEMS),
-            "expected": len(EXPECTED_IMAGE_STEMS),
+            "count": sum(stem in images for stem in expected_stems),
+            "expected": len(expected_stems),
             "missing": missing,
             "noncanonical": noncanonical,
             "wrong_size": wrong_size,
@@ -228,7 +275,8 @@ def render_aspect_cover_gallery(
 
 
 __all__ = [
-    "ASPECTS", "EXPECTED_IMAGE_STEMS", "ZONE_IMAGE_STEMS", "discover_story_images",
+    "ASPECTS", "EXPECTED_IMAGE_STEMS", "ZONE_IMAGE_STEMS", "apply_visual_plan_zone_aliases", "discover_story_images",
     "image_for_zone", "image_metadata", "inspect_story_images", "render_aspect_cover_gallery",
+    "visual_plan_image_stems",
     "render_image_thumbnail", "stage_applicable_aspects", "thumbnail_bytes",
 ]

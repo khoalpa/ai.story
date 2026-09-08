@@ -5,7 +5,14 @@ import hashlib
 import unicodedata
 from typing import Any, Mapping
 
-VOICE_STRATEGY_FIELDS = ("audio_mode", "language", "voice_profiles", "global_instructions")
+VOICE_STRATEGY_FIELDS = (
+    "audio_mode", "language", "preferred_locale", "preferred_accent",
+    "selection_priority", "voice_profiles", "global_instructions",
+)
+VOICE_PROFILE_FIELDS = (
+    "speaker_id", "role", "character_id", "voice_gender", "age_band", "locale",
+    "accent", "provider_voice_id", "fallback_level", "selection_basis", "capability_status",
+)
 VOICE_PLAN_FIELDS = ("mode", "language", "segments", "allow_paraphrase", "source_text_sha256")
 VOICE_SEGMENT_FIELDS = ("speaker_id", "role", "text", "emotion", "pace")
 
@@ -87,5 +94,5 @@ def combined_prompt(clip: Mapping[str, Any]) -> str:
     return f"VISUAL:\n{clip.get('prompt', '')}\n\n{clip.get('audio_prompt', '')}".strip()
 
 
-__all__ = ["VOICE_PLAN_FIELDS", "VOICE_SEGMENT_FIELDS", "VOICE_STRATEGY_FIELDS", "build_voice_plan",
+__all__ = ["VOICE_PLAN_FIELDS", "VOICE_PROFILE_FIELDS", "VOICE_SEGMENT_FIELDS", "VOICE_STRATEGY_FIELDS", "build_voice_plan",
            "combined_prompt", "default_voice_strategy", "native_audio_prompt", "source_segments"]

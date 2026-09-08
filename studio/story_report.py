@@ -11,6 +11,7 @@ from studio.project_assets import file_facts, project_asset_path
 from studio.report_semantics import display_score
 from studio.story_images import (
     ASPECTS,
+    apply_visual_plan_zone_aliases,
     discover_story_images,
     image_for_zone,
     render_image_thumbnail,
@@ -350,6 +351,8 @@ def render_story_report(
             st.session_state.pop("story_evidence_range", None)
             st.rerun()
     image_catalog = discover_story_images(images_root) if images_root is not None else None
+    if image_catalog is not None and images_root is not None:
+        apply_visual_plan_zone_aliases(image_catalog, images_root)
     image_aspect = "landscape"
     if image_catalog is not None:
         available = [aspect for aspect in ASPECTS if image_catalog.get(aspect)] or list(ASPECTS)

@@ -28,6 +28,7 @@ _VIDEO_SETTINGS_FIELDS = (
     'video_movflags',
     'slideshow_match_audio',
     'zone_aware_slideshow',
+    'slideshow_timeline_mode',
     'environment_overlays',
     'environment_overlay_intensity',
     'environment_overlay_fade',

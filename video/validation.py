@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional
@@ -95,12 +97,13 @@ def _normalize_scene_stem(value: str) -> str:
 
 def _is_removed_legacy_image(path: Path) -> bool:
     stem = path.stem.casefold()
-    for removed_stem in ("scene", "intro"):
-        if stem == removed_stem:
-            return True
-        if stem.startswith(f"{removed_stem}_") and stem[len(removed_stem) + 1:].isdigit():
-            return True
-    return False
+    # ``scene_XXXX.png`` is the current SCENE-mode contract.  Only the old
+    # singleton/generic scene name and the removed intro family stay blocked.
+    if stem == "scene":
+        return True
+    if re.fullmatch(r"scene_\d{4}", stem):
+        return False
+    return stem == "intro" or bool(re.fullmatch(r"intro_\d+", stem))
 
 
 def _build_scene_alias_index() -> dict[str, str]:
@@ -132,6 +135,9 @@ def _slideshow_asset_order_key(image: Path) -> tuple[int, str]:
     if normalized_stem == "cover":
         rank = 0
     else:
+        scene_match = re.fullmatch(r"scene_(\d{4})", normalized_stem)
+        if scene_match:
+            return 2 + int(scene_match.group(1)), image.name.casefold()
         image_key = _scene_key_for_path(image)
         if image_key == "intro_card":
             rank = 1
@@ -321,6 +327,27 @@ def _inspect_image_file(
     )
 
 
+def _scene_plan_assets(visual_plan_json: Path | None) -> tuple[list[dict[str, object]] | None, list[str]]:
+    """Load the authoritative SCENE asset list without falling back to zones."""
+    if visual_plan_json is None or not visual_plan_json.is_file():
+        return None, []
+    try:
+        document = json.loads(visual_plan_json.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return None, [f"Could not read visual_plan.json: {exc}"]
+    if not isinstance(document, dict):
+        return None, ["visual_plan.json root must be an object."]
+    mode = document.get("resolved_mode") or document.get("resolved_image_generation_mode")
+    if mode != "SCENE":
+        return None, []
+    assets = document.get("assets")
+    if not isinstance(assets, list) or not assets:
+        return None, ["SCENE visual_plan.json must contain a non-empty assets array."]
+    if not all(isinstance(asset, dict) for asset in assets):
+        return None, ["SCENE visual_plan.json assets must be objects."]
+    return assets, []  # type: ignore[return-value]
+
+
 def inspect_video_image_readiness(
     *,
     mode: str,
@@ -329,6 +356,7 @@ def inspect_video_image_readiness(
     scenes_dir: Path | None = None,
     cover_first: bool = False,
     outro_last: bool = False,
+    visual_plan_json: Path | None = None,
 ) -> ImageReadinessReport:
     if mode == "slideshow":
         cover = resolve_slideshow_cover(cover, scenes_dir, cover_first=cover_first)
@@ -341,6 +369,8 @@ def inspect_video_image_readiness(
     warnings: list[str] = []
     mapped_zones: list[str] = []
     unmatched_files: list[Path] = []
+    scene_plan, plan_errors = _scene_plan_assets(visual_plan_json)
+    errors.extend(plan_errors)
 
     if mode == "static":
         if cover is None:
@@ -350,7 +380,7 @@ def inspect_video_image_readiness(
 
     scene_count = 0
     if mode == "slideshow":
-        if cover_first:
+        if cover_first and scene_plan is None:
             if cover is None:
                 warnings.append(
                     "Cover-first is enabled, but no cover is selected; video will start with the first scene."
@@ -361,7 +391,7 @@ def inspect_video_image_readiness(
                 )
             else:
                 assets.append(_inspect_image_file(cover, role="opening cover", aspect=aspect))
-        if outro_last:
+        if outro_last and scene_plan is None:
             if outro is None:
                 warnings.append(
                     "End screen is enabled, but outro.png was not found; video will keep the final scene."
@@ -372,35 +402,56 @@ def inspect_video_image_readiness(
             errors.append(f"Scenes directory not found: {scenes_dir}")
         else:
             images = collect_scene_images(scenes_dir)
-            if cover_first and cover is not None:
-                cover_resolved = cover.resolve(strict=False)
-                images = [
-                    image
-                    for image in images
-                    if image.resolve(strict=False) != cover_resolved
-                ]
-            if outro_last and outro is not None:
-                outro_resolved = outro.resolve(strict=False)
-                images = [
-                    image
-                    for image in images
-                    if image.resolve(strict=False) != outro_resolved
-                ]
-            images.sort(key=_slideshow_asset_order_key)
-            scene_count = len(images)
-            if not images:
-                errors.append(f"No .jpg/.png images found in: {scenes_dir}")
-            for image in images:
-                image_key = _scene_key_for_path(image)
-                is_card = image_key in CARD_IMAGE_SEQUENCE
-                zone = None if is_card else image_key
-                normalized_stem = _normalize_scene_stem(image.stem)
-                if image_key is None and normalized_stem not in GENERIC_SCENE_STEMS:
-                    unmatched_files.append(image)
-                elif zone is not None and zone not in mapped_zones:
-                    mapped_zones.append(zone)
-                role = image_key.replace("_", " ") if is_card and image_key is not None else "scene"
-                assets.append(_inspect_image_file(image, role=role, aspect=aspect, zone=zone))
+            if scene_plan is not None:
+                planned_names: list[str] = []
+                for asset in scene_plan:
+                    basename = asset.get("basename")
+                    if not isinstance(basename, str) or Path(basename).name != basename:
+                        errors.append("SCENE visual_plan.json has an invalid asset basename.")
+                        continue
+                    planned_names.append(basename)
+                    role = str(asset.get("role") or "scene").lower()
+                    zone = str(asset.get("zone") or "") or None
+                    if role == "scene" and not (
+                        isinstance(asset.get("script_item_start"), int)
+                        and isinstance(asset.get("script_item_end"), int)
+                    ):
+                        errors.append(f"SCENE asset {basename} is missing script_item_start/script_item_end.")
+                    assets.append(_inspect_image_file(
+                        scenes_dir / basename, role=role, aspect=aspect, zone=zone
+                    ))
+                scene_count = sum(str(asset.get("role") or "").upper() == "SCENE" for asset in scene_plan)
+                expected = set(planned_names)
+                unexpected = [image for image in images if image.name not in expected]
+                if unexpected:
+                    warnings.append(
+                        "Images are not referenced by the SCENE visual plan: "
+                        + ", ".join(image.name for image in unexpected)
+                    )
+                if not planned_names:
+                    errors.append("SCENE visual_plan.json contains no image assets.")
+            else:
+                if cover_first and cover is not None:
+                    cover_resolved = cover.resolve(strict=False)
+                    images = [image for image in images if image.resolve(strict=False) != cover_resolved]
+                if outro_last and outro is not None:
+                    outro_resolved = outro.resolve(strict=False)
+                    images = [image for image in images if image.resolve(strict=False) != outro_resolved]
+                images.sort(key=_slideshow_asset_order_key)
+                scene_count = len(images)
+                if not images:
+                    errors.append(f"No .jpg/.png images found in: {scenes_dir}")
+                for image in images:
+                    image_key = _scene_key_for_path(image)
+                    is_card = image_key in CARD_IMAGE_SEQUENCE
+                    zone = None if is_card else image_key
+                    normalized_stem = _normalize_scene_stem(image.stem)
+                    if image_key is None and normalized_stem not in GENERIC_SCENE_STEMS:
+                        unmatched_files.append(image)
+                    elif zone is not None and zone not in mapped_zones:
+                        mapped_zones.append(zone)
+                    role = image_key.replace("_", " ") if is_card and image_key is not None else "scene"
+                    assets.append(_inspect_image_file(image, role=role, aspect=aspect, zone=zone))
 
             unsupported_images = [
                 p
@@ -414,7 +465,7 @@ def inspect_video_image_readiness(
                     f"Scene image will be ignored because its extension is unsupported: {unsupported.name}"
                 )
 
-        if outro_last and outro is not None:
+        if outro_last and outro is not None and scene_plan is None:
             assets.append(_inspect_image_file(outro, role="end screen", aspect=aspect))
 
     for asset in assets:
@@ -423,7 +474,7 @@ def inspect_video_image_readiness(
         elif asset.level == "warning":
             warnings.append(asset.message)
 
-    if mode == "slideshow" and scene_count > 0:
+    if mode == "slideshow" and scene_plan is None and scene_count > 0:
         missing_zones = tuple(zone for zone in ZONE_IMAGE_SEQUENCE if zone not in mapped_zones)
         if unmatched_files:
             warnings.append(

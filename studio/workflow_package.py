@@ -93,8 +93,62 @@ def _workflow_values(contract: PromptContract) -> tuple[tuple[str, ...], tuple[s
     return stages, (purposes[0], purposes[0], purposes[1], purposes[2])
 
 
+def active_image_basenames(
+    visual_plan: Mapping[str, Any] | None, contract: PromptContract | None = None
+) -> tuple[str, ...]:
+    """Resolve the canonical image set persisted by prompt 3.15 visual planning.
+
+    Older packages have no visual plan and therefore retain the fixed ZONE set.
+    Current SCENE packages derive their cardinality and order from the sidecar.
+    """
+    contract = contract or load_prompt_contract()
+    if visual_plan is None:
+        return contract.image_basenames
+    # Early Stage 2 packages persisted this value under the more verbose
+    # ``resolved_image_generation_mode`` name.  Treat that spelling as a
+    # read-only legacy projection, but never silently choose between two
+    # conflicting values.
+    mode = visual_plan.get("resolved_mode")
+    legacy_mode = visual_plan.get("resolved_image_generation_mode")
+    if mode is None:
+        mode = legacy_mode
+    elif legacy_mode is not None and legacy_mode != mode:
+        raise ValueError("visual_plan có resolved mode mâu thuẫn")
+    assets = visual_plan.get("assets")
+    if mode not in {"ZONE", "SCENE"} or not isinstance(assets, list) or not assets:
+        raise ValueError("visual_plan resolved_mode/assets không hợp lệ")
+    basenames = tuple(
+        item.get("basename") if isinstance(item, dict) else None for item in assets
+    )
+    if any(
+        not isinstance(name, str)
+        or "/" in name
+        or not safe_name(f"landscape/{name}")
+        for name in basenames
+    ) or len(set(basenames)) != len(basenames):
+        raise ValueError("visual_plan.assets basename không hợp lệ hoặc trùng")
+    if mode == "ZONE" and basenames != contract.image_basenames:
+        raise ValueError("visual_plan ZONE không khớp basename set canonical")
+    if mode == "SCENE":
+        scene_names = basenames[2:-2]
+        selected = visual_plan.get("selected_scene_count")
+        # The legacy projection did not record a cardinality.  Its ordered
+        # asset list is still deterministic, so derive it only for that exact
+        # shape; current plans must persist selected_scene_count explicitly.
+        if selected is None and "resolved_mode" not in visual_plan and legacy_mode in {"ZONE", "SCENE"}:
+            selected = len(scene_names)
+        expected_scene_names = tuple(f"scene_{index:04d}.png" for index in range(1, len(scene_names) + 1))
+        if (basenames[:2] != ("cover.png", "greeting.png")
+                or basenames[-2:] != ("farewell.png", "outro.png")
+                or type(selected) is not int or selected != len(scene_names)
+                or scene_names != expected_scene_names):
+            raise ValueError("visual_plan SCENE không khớp selected_scene_count/basename pattern")
+    return basenames  # type: ignore[return-value]
+
+
 def expected_files(stage: str, story: Mapping[str, Any], anchor: bool,
-                   contract: PromptContract | None = None) -> list[str]:
+                   contract: PromptContract | None = None,
+                   visual_plan: Mapping[str, Any] | None = None) -> list[str]:
     contract = contract or load_prompt_contract()
     stages, _ = _workflow_values(contract)
     if stage not in stages:
@@ -108,16 +162,19 @@ def expected_files(stage: str, story: Mapping[str, Any], anchor: bool,
     if len(set(ids)) != len(ids):
         raise ValueError("character_id trùng")
     refs = [f"characters/{c}.png" for c in ids]
-    names = contract.image_basenames
+    names = active_image_basenames(visual_plan, contract)
     landscape = [f"landscape/{n}" for n in names]
     portrait = [f"portrait/{n}" for n in names]
     base = ["story.json", "story_validation.json", *refs]
     if stage == stages[0]:
         files = base
     elif stage == stages[1]:
-        files = [*base, "visual_bible.json", *landscape]
+        files = [*base, *(["visual_plan.json"] if visual_plan is not None else []),
+                 "visual_bible.json", *landscape]
     else:
-        files = [*landscape, *portrait, *base, "package_quality_report.json"]
+        files = [*landscape, *portrait, *base,
+                 *(["visual_plan.json"] if visual_plan is not None else []),
+                 "package_quality_report.json"]
         if stage == stages[3]:
             files.append(contract.video_prompt_file_name)
     return ["workflow_manifest.json", *files, *(["series_anchor.json"] if anchor else [])]
@@ -126,7 +183,7 @@ def expected_files(stage: str, story: Mapping[str, Any], anchor: bool,
 def owner_stage(name: str, contract: PromptContract | None = None) -> str:
     contract = contract or load_prompt_contract()
     stages, _ = _workflow_values(contract)
-    if name.startswith("landscape/") or name == "visual_bible.json":
+    if name.startswith("landscape/") or name in {"visual_plan.json", "visual_bible.json"}:
         return stages[1]
     if name.startswith("portrait/") or name == "package_quality_report.json":
         return stages[2]
@@ -200,7 +257,8 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
         check("file_schema", rows_ok, "Exact member field/order/type và canonical path.")
         if not rows_ok:
             raise ValueError("Không thể xác minh member record sai schema")
-        expected = expected_files(stage, story, "series_anchor.json" in members, contract)
+        visual_plan = read_json(members["visual_plan.json"]) if "visual_plan.json" in members else None
+        expected = expected_files(stage, story, "series_anchor.json" in members, contract, visual_plan)
         result["expected_count"] = len(expected)
         check("file_set", list(r["path"] for r in rows) == expected[1:]
               and set(members) == set(expected) and manifest.get("file_count") == len(expected)

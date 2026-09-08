@@ -16,6 +16,7 @@ from studio.project_review import (
     inspect_selected_workflow,
     review_package,
 )
+from studio.prompt_contract import load_prompt_contract
 from studio.story_studio import load_story_package
 from studio.workflow_builder import build_workflow_package, publish_package_atomic
 from studio.workflow_package import (
@@ -69,7 +70,7 @@ def fixture_package(stage="STAGE1", parent=None, anchor=False):
             for name, raw in members.items()]
     index = STAGES.index(stage)
     manifest = {"schema_version": "1.0", "package_stage": stage, "package_purpose": PURPOSES[index], "operation_mode": "CREATE",
-                "created_by_prompt_version": "3.13.0", "active_profile": "ADULT_STANDARD",
+                "created_by_prompt_version": load_prompt_contract().version_label, "active_profile": "ADULT_STANDARD",
                 "story_sha256": hashlib.sha256(members["story.json"]).hexdigest(),
                 "parent_package_digest_sha256": read_json(parent["workflow_manifest.json"])["package_digest_sha256"] if parent else None,
                 "allowed_next_stage": STAGES[index + 1] if index < 3 else None, "file_count": len(members) + 1, "files": rows,
@@ -138,6 +139,45 @@ def test_stage_allowlists(stage, count):
     assert ("visual_bible.json" in files) == (stage == "STAGE2")
     assert ("video_prompts.json" in files) == (stage == "STAGE4")
     assert ("package_quality_report.json" in files) == (stage in {"STAGE3", "STAGE4"})
+
+
+def test_stage2_scene_plan_drives_dynamic_allowlist_and_ownership():
+    story = {"characters": [{"character_id": "hero"}]}
+    basenames = [
+        "cover.png", "greeting.png",
+        *(f"scene_{index:04d}.png" for index in range(1, 9)),
+        "farewell.png", "outro.png",
+    ]
+    visual_plan = {
+        "resolved_mode": "SCENE",
+        "selected_scene_count": 8,
+        "assets": [{"basename": name} for name in basenames],
+    }
+
+    files = expected_files("STAGE2", story, False, visual_plan=visual_plan)
+
+    assert "visual_plan.json" in files
+    assert [name for name in files if name.startswith("landscape/")] == [
+        f"landscape/{name}" for name in basenames
+    ]
+    assert len(files) == 18
+    assert owner_stage("visual_plan.json") == "STAGE2"
+
+
+def test_stage2_legacy_scene_plan_is_read_compatibly_but_conflicts_fail():
+    story = {"characters": [{"character_id": "hero"}]}
+    assets = ["cover.png", "greeting.png", "scene_0001.png", "farewell.png", "outro.png"]
+    legacy = {
+        "resolved_image_generation_mode": "SCENE",
+        "assets": [{"basename": name} for name in assets],
+    }
+
+    assert expected_files("STAGE2", story, False, visual_plan=legacy)[-5:] == [
+        f"landscape/{name}" for name in assets
+    ]
+    legacy["resolved_mode"] = "ZONE"
+    with pytest.raises(ValueError, match="mâu thuẫn"):
+        expected_files("STAGE2", story, False, visual_plan=legacy)
 
 
 def test_optional_stage_certification_does_not_block_verified_package():

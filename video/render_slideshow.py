@@ -18,6 +18,7 @@ from video.ffmpeg_runner import (
 )
 from video.logging_utils import get_logger
 from video.runtime_tools import is_available_tool
+from video.scene_timeline import build_scene_segments, resolve_slideshow_timeline_mode
 from video.slideshow_concat import (
     append_outro_segment,
     build_slideshow_segments,
@@ -84,6 +85,8 @@ def make_slideshow_video(
     subtitle: Optional[Path] = None,
     story_json: Optional[Path] = None,
     zone_aware: bool = False,
+    visual_plan_json: Optional[Path] = None,
+    timeline_mode: str = "auto",
     environment_overlays: bool = True,
     environment_overlay_intensity: str = "normal",
     environment_overlay_fade: float = 0.6,
@@ -91,6 +94,9 @@ def make_slideshow_video(
     environment_global_film_grain: float = 0.0,
     progress_callback: Optional[Callable[[float, str], None]] = None,
 ) -> None:
+    if zone_aware and timeline_mode == "auto":
+        timeline_mode = "zone"
+    resolved_timeline_mode = resolve_slideshow_timeline_mode(timeline_mode, visual_plan_json)
     images = validate_slideshow_inputs(audio, scenes_dir)
     slideshow_cover = resolve_slideshow_cover(cover, scenes_dir, cover_first=cover_first)
     slideshow_outro = resolve_slideshow_outro(scenes_dir, outro_last=outro_last)
@@ -100,7 +106,7 @@ def make_slideshow_video(
             images = [
                 image for image in images if image.resolve(strict=False) != cover_resolved
             ]
-            if not images and not zone_aware:
+            if not images and resolved_timeline_mode == "fixed":
                 raise ValueError("Slideshow needs at least one scene image besides cover.png.")
         else:
             logger.warning(
@@ -113,7 +119,7 @@ def make_slideshow_video(
         images = [
             image for image in images if image.resolve(strict=False) != outro_resolved
         ]
-        if not images and not zone_aware:
+        if not images and resolved_timeline_mode == "fixed":
             raise ValueError("Slideshow needs at least one scene image besides outro.png.")
     ensure_output_dir(output)
     if scenes_dir is not None:
@@ -150,17 +156,27 @@ def make_slideshow_video(
             pre_subtitle_fps=config.DEFAULT_FPS,
             pre_subtitle_filters=atmosphere_filters,
         )
-    if zone_aware:
+    if resolved_timeline_mode in {"zone", "scene"}:
         if story_json is None:
             raise ValueError("Zone-aware slideshow requires a story.json file.")
         if subtitle is None:
             raise ValueError("Zone-aware slideshow requires a subtitle .srt file with real timestamps.")
         assert scenes_dir is not None
-        segments = build_zone_segments(
-            timeline_json=story_json,
-            subtitle=subtitle,
-            scenes_dir=scenes_dir,
-        )
+        if resolved_timeline_mode == "scene":
+            if visual_plan_json is None:
+                raise ValueError("Scene-aware slideshow requires visual_plan.json.")
+            segments = build_scene_segments(
+                timeline_json=story_json,
+                visual_plan_json=visual_plan_json,
+                subtitle=subtitle,
+                scenes_dir=scenes_dir,
+            )
+        else:
+            segments = build_zone_segments(
+                timeline_json=story_json,
+                subtitle=subtitle,
+                scenes_dir=scenes_dir,
+            )
         segments = prepend_cover_segment(segments, slideshow_cover, cover_duration)
         segments = append_outro_segment(segments, slideshow_outro, outro_duration)
         expected_out = estimate_zone_duration(segments)

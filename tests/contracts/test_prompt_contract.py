@@ -23,6 +23,13 @@ def test_current_registries_are_resolved_and_immutable() -> None:
         contract.current_public_schema_registry["video_prompt"] = "changed"
 
 
+def test_human_readable_enum_explanation_is_not_treated_as_a_literal_alias() -> None:
+    contract = load_prompt_contract()
+    assert contract.current_enum_registry["host_capability_observability"] == (
+        "OBSERVED", "HOST_GUARANTEED", "UNOBSERVABLE",
+    )
+
+
 def test_explicit_prompt_file_environment_takes_priority(tmp_path: Path, monkeypatch) -> None:
     selected = tmp_path / "ChatGPT_prompt_v1.2.3.txt"
     selected.write_text("prompt", encoding="utf-8")
@@ -44,6 +51,8 @@ def test_latest_prompt_is_selected_by_semantic_version(tmp_path: Path) -> None:
 
 def test_runtime_projection_matches_latest_prompt() -> None:
     contract = load_prompt_contract()
+    assert contract.version == (3, 15, 0)
+    assert contract.path.name == "ChatGPT_prompt_v3.15.0.txt"
     assert tuple(name.removesuffix(".png") for name in contract.image_basenames) == EXPECTED_IMAGE_STEMS
     assert contract.environment_whitelist == CANONICAL_STORY_ENVIRONMENTS
     assert contract.landscape_size == (3840, 2160)
@@ -52,7 +61,7 @@ def test_runtime_projection_matches_latest_prompt() -> None:
     assert contract.package_quality_schema_version == "2.0"
     assert contract.series_anchor_schema_version == "3.2.0"
     assert contract.video_prompt_schema_version == "1.1"
-    assert contract.video_prompt_default_config["audio_mode"] == "NATIVE_DIALOGUE"
+    assert contract.video_prompt_default_config["audio_mode"] == "AMBIENCE_ONLY"
     prompt_text = contract.path.read_text(encoding="utf-8-sig")
     assert "VIDEO-PROMPT-CANONICAL-SOURCE-01:" in prompt_text
     assert "video_prompts.flow.json" in prompt_text
@@ -82,8 +91,8 @@ def test_runtime_projection_matches_latest_prompt() -> None:
         prompt_text.index("===== OVERLAY:FRAMEWORK_RELEASE_AUDIT BEGIN ====="):
         prompt_text.index("===== OVERLAY:FRAMEWORK_RELEASE_AUDIT END =====")
     ]
-    assert "EXTERNAL_CONFORMANCE_BUNDLE_REQUIRED" in release_overlay
-    assert "EXTERNAL_CONFORMANCE_BUNDLE_BINDING_FIELDS" in release_overlay
+    assert "ACTIVATION_GUARD: EXPLICIT_FRAMEWORK_RELEASE_AUDIT_ONLY" in release_overlay
+    assert "independent conformance bundle" in release_overlay
     assert "FIXTURE_REGISTRY_SCHEMA_VERSION" not in prompt_text
     assert "PHYSICAL_SLICE_MANIFEST_SCHEMA_VERSION" not in prompt_text
     assert "VIDEO_PROMPT_DEFAULT_CONFIG" in prompt_text

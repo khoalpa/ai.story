@@ -387,11 +387,20 @@ def _render_subtitle_style_settings(mode: str, aspect: str) -> dict[str, Any]:
 def _render_slideshow_behavior_settings() -> dict[str, Any]:
     with st.expander("Slideshow behavior", expanded=False):
         slideshow_match_audio = st.checkbox("Match slideshow length to audio", value=bool(config.SLIDESHOW_MATCH_AUDIO))
-        zone_aware_slideshow = st.checkbox(
-            "Use story zones to time images",
-            value=bool(config.SLIDESHOW_ZONE_AWARE),
-            key="zone_aware_slideshow",
-            help="When enabled, slideshow image durations come from timeline zones and subtitle timestamps.",
+        timeline_options = ["auto", "scene", "zone", "fixed"]
+        default_timeline = "zone" if config.SLIDESHOW_ZONE_AWARE else "auto"
+        slideshow_timeline_mode = st.selectbox(
+            "Image timing",
+            options=timeline_options,
+            index=_option_index(timeline_options, st.session_state.get("slideshow_timeline_mode"), timeline_options.index(default_timeline)),
+            key="slideshow_timeline_mode",
+            format_func=lambda value: {
+                "auto": "Automatic",
+                "scene": "By story scene",
+                "zone": "By story zone",
+                "fixed": "Fixed duration",
+            }[value],
+            help="SCENE uses visual_plan.json and SRT spans; ZONE groups the story by zone.",
         )
         cover_first = st.checkbox(
             "Use cover as first screen",
@@ -429,7 +438,8 @@ def _render_slideshow_behavior_settings() -> dict[str, Any]:
         keep_concat_list = st.checkbox("Keep temporary ffconcat list", value=bool(config.KEEP_CONCAT_LIST))
     return {
         "slideshow_match_audio": bool(slideshow_match_audio),
-        "zone_aware_slideshow": bool(zone_aware_slideshow),
+        "slideshow_timeline_mode": str(slideshow_timeline_mode),
+        "zone_aware_slideshow": slideshow_timeline_mode == "zone",
         "cover_first": bool(cover_first),
         "cover_duration": float(cover_duration),
         "outro_last": bool(outro_last),

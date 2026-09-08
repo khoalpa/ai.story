@@ -39,6 +39,7 @@ from video.render_static import make_static_video
 from video.result_manifest import write_result_manifest
 from video.run_history import append_run_history, write_run_log
 from video.runtime_tools import format_runtime_diagnostics
+from video.scene_timeline import build_scene_segments, resolve_slideshow_timeline_mode
 from video.slideshow_concat import (
     append_outro_segment,
     build_slideshow_segments,
@@ -91,6 +92,7 @@ class RenderVideoRequest:
     duration_per_image: float
     subtitle: Optional[Path] = None
     story_json: Optional[Path] = None
+    visual_plan_json: Optional[Path] = None
     cover: Optional[Path] = None
     scenes_dir: Optional[Path] = None
     cover_first: bool = True
@@ -112,6 +114,7 @@ class RenderVideoRequest:
     video_movflags: Optional[str] = None
     slideshow_match_audio: Optional[bool] = None
     zone_aware_slideshow: Optional[bool] = None
+    slideshow_timeline_mode: str = "auto"
     audio_match_epsilon: Optional[float] = None
     keep_concat_list: Optional[bool] = None
     subtitle_font: Optional[str] = None
@@ -264,11 +267,17 @@ def validate_render_request(request: RenderVideoRequest) -> None:
         raise ValueError("Static mode needs a cover image.")
     if request.mode == "slideshow" and request.scenes_dir is None:
         raise ValueError("Slideshow mode needs a scenes directory.")
-    if request.mode == "slideshow" and request.zone_aware_slideshow:
+    timeline_mode = resolve_slideshow_timeline_mode(
+        "zone" if request.zone_aware_slideshow and request.slideshow_timeline_mode == "auto" else request.slideshow_timeline_mode,
+        request.visual_plan_json,
+    )
+    if request.mode == "slideshow" and timeline_mode in {"zone", "scene"}:
         if request.story_json is None:
-            raise ValueError("Zone-aware slideshow needs a story.json file.")
+            raise ValueError(f"{timeline_mode.title()}-aware slideshow needs a story.json file.")
         if request.subtitle is None:
-            raise ValueError("Zone-aware slideshow needs a subtitle .srt file.")
+            raise ValueError(f"{timeline_mode.title()}-aware slideshow needs a subtitle .srt file.")
+        if timeline_mode == "scene" and request.visual_plan_json is None:
+            raise ValueError("Scene-aware slideshow needs a visual_plan.json file.")
     if request.environment_overlay_intensity not in {"subtle", "normal", "cinematic"}:
         raise ValueError("environment_overlay_intensity must be subtle, normal, or cinematic.")
     if request.environment_overlay_fade < 0:
@@ -288,6 +297,7 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
     resolved_cover = direct_cover
     resolved_scenes_dir = direct_scenes
     story_json_path = Path(args.story_json) if getattr(args, "story_json", None) else None
+    visual_plan_path = Path(args.visual_plan) if getattr(args, "visual_plan", None) else None
     cover_first = bool(getattr(args, "cover_first", True))
     if getattr(args, "mode", None) == "slideshow":
         resolved_cover = resolve_slideshow_cover(
@@ -311,6 +321,7 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         subtitle=subtitle_path,
         show_subtitles=bool(getattr(args, "show_subtitles", True)),
         story_json=story_json_path,
+        visual_plan_json=visual_plan_path,
         cover=resolved_cover,
         scenes_dir=resolved_scenes_dir,
         cover_first=cover_first,
@@ -318,6 +329,7 @@ def request_from_args(args: Any) -> tuple[RenderVideoRequest, Optional[Path], di
         outro_last=bool(getattr(args, "outro_last", True)),
         outro_duration=float(getattr(args, "outro_duration", 5.0)),
         zone_aware_slideshow=bool(getattr(args, "zone_aware_slideshow", False)),
+        slideshow_timeline_mode=str(getattr(args, "slideshow_timeline", "auto")),
         environment_overlays=bool(getattr(args, "environment_overlays", True)),
         environment_overlay_intensity=str(getattr(args, "environment_overlay_intensity", "normal")),
         environment_overlay_fade=float(getattr(args, "environment_overlay_fade", 0.6)),
@@ -369,6 +381,7 @@ def _execute_render_request_unlocked(
                     scenes_dir=request.scenes_dir,
                     cover_first=request.cover_first,
                     outro_last=request.outro_last,
+                    visual_plan_json=request.visual_plan_json,
                 )
                 if image_readiness.errors:
                     raise ValueError(
@@ -422,6 +435,10 @@ def _execute_render_request_unlocked(
                         )
                         reference_images = [request.cover] if request.cover is not None else []
                     elif request.mode == "slideshow":
+                        timeline_mode = resolve_slideshow_timeline_mode(
+                            "zone" if request.zone_aware_slideshow and request.slideshow_timeline_mode == "auto" else request.slideshow_timeline_mode,
+                            request.visual_plan_json,
+                        )
                         make_slideshow_video(
                             audio=prepared_audio,
                             scenes_dir=request.scenes_dir,
@@ -436,6 +453,8 @@ def _execute_render_request_unlocked(
                             subtitle=render_subtitle,
                             story_json=request.story_json,
                             zone_aware=bool(request.zone_aware_slideshow),
+                            visual_plan_json=request.visual_plan_json,
+                            timeline_mode=timeline_mode,
                             environment_overlays=request.environment_overlays,
                             environment_overlay_intensity=request.environment_overlay_intensity,
                             environment_overlay_fade=request.environment_overlay_fade,
@@ -443,12 +462,21 @@ def _execute_render_request_unlocked(
                             environment_global_film_grain=request.environment_global_film_grain,
                             progress_callback=progress_callback,
                         )
-                        if request.zone_aware_slideshow and request.story_json and request.subtitle and request.scenes_dir:
-                            zone_segments = build_zone_segments(
-                                timeline_json=request.story_json,
-                                subtitle=request.subtitle,
-                                scenes_dir=request.scenes_dir,
-                            )
+                        if timeline_mode in {"zone", "scene"} and request.story_json and request.subtitle and request.scenes_dir:
+                            if timeline_mode == "scene":
+                                assert request.visual_plan_json is not None
+                                zone_segments = build_scene_segments(
+                                    timeline_json=request.story_json,
+                                    visual_plan_json=request.visual_plan_json,
+                                    subtitle=request.subtitle,
+                                    scenes_dir=request.scenes_dir,
+                                )
+                            else:
+                                zone_segments = build_zone_segments(
+                                    timeline_json=request.story_json,
+                                    subtitle=request.subtitle,
+                                    scenes_dir=request.scenes_dir,
+                                )
                             if request.cover_first and effective_cover is not None and effective_cover.is_file():
                                 zone_segments = prepend_cover_segment(
                                     zone_segments,

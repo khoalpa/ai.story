@@ -11,10 +11,10 @@ from PIL import Image, UnidentifiedImageError
 from studio.package_quality_report import _items, _object
 from studio.prompt_contract import load_prompt_contract
 from studio.story_images import (
-    EXPECTED_IMAGE_STEMS,
     IMAGE_SUFFIXES,
     render_image_thumbnail,
     stage_applicable_aspects,
+    visual_plan_image_stems,
 )
 
 USER_REPLACEABLE_COVERS = {"landscape/cover.png", "portrait/cover.png"}
@@ -54,7 +54,7 @@ def inspect_project_assets(root: Path, reports: Mapping[str, Any]) -> list[dict[
         stage = _object(reports.get("workflow")).get("package_stage")
         if stage == "STAGE1" or (stage == "STAGE2" and group == "portrait"):
             continue
-        for stem in EXPECTED_IMAGE_STEMS:
+        for stem in visual_plan_image_stems(root):
             expected[f"{group}/{stem}.png"] = {"dimensions": {"width": expected_size[0], "height": expected_size[1]}}
     for character in _items(_object(reports.get("story")).get("characters")):
         asset = _object(character.get("reference_asset"))

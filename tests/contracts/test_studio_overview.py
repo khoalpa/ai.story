@@ -6,6 +6,7 @@ import pytest
 from PIL import Image
 
 from studio.overview import build_overview_model, workflow_verdict
+from studio.story_images import EXPECTED_IMAGE_STEMS
 from studio.workflow_views import workflow_stage_caption
 
 
@@ -30,7 +31,6 @@ def test_workflow_stage_caption_distinguishes_completed_current_and_future_stage
     assert workflow_stage_caption("STAGE1", "STAGE3", "PASS") == "Đã hoàn thành · dữ liệu có trong gói hiện tại"
     assert workflow_stage_caption("STAGE3", "STAGE3", "PASS") == "Stage hiện tại · đạt các phép kiểm tra đã chạy"
     assert workflow_stage_caption("STAGE4", "STAGE3", "PASS") == "Chưa thực hiện"
-from studio.story_images import EXPECTED_IMAGE_STEMS
 
 
 def test_overview_model_combines_story_reports_and_pipeline_outputs(tmp_path: Path) -> None:

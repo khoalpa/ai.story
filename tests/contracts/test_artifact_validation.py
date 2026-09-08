@@ -131,6 +131,53 @@ def test_package_quality_requires_object_and_all_character_images(tmp_path: Path
     assert result.status == "PASS"
 
 
+@pytest.mark.parametrize(
+    ("mode", "basenames"),
+    [
+        ("ZONE", None),
+        ("SCENE", ("cover.png", "greeting.png", "scene_0001.png", "farewell.png", "outro.png")),
+    ],
+)
+def test_package_quality_derives_image_evidence_set_from_visual_plan(
+    tmp_path: Path, mode: str, basenames: tuple[str, ...] | None,
+) -> None:
+    contract = load_prompt_contract()
+    active = basenames or contract.image_basenames
+    root = (
+        "schema_version", "report_id", "generated_at_utc", "package_identity",
+        "registry_bindings", "summary", "dimensions", "measurement_ledger",
+        "story_evidence", "image_evidence", "blockers", "recommendations", "validation",
+    )
+    paths = [
+        *(f"landscape/{name}" for name in active),
+        *(f"portrait/{name}" for name in active),
+    ]
+    document = dict.fromkeys(root)
+    document["schema_version"] = contract.package_quality_schema_version
+    document["validation"] = {"status": "PASS"}
+    document["image_evidence"] = {
+        "asset_results": [{"path": name} for name in paths],
+        "set_results": [], "pair_results": [], "cover_results": [],
+        "evidence_digest_sha256": "0" * 64,
+    }
+    quality_path = tmp_path / "package_quality_report.json"
+    quality_path.write_text(json.dumps(document), encoding="utf-8")
+    visual_plan = {
+        "resolved_mode": mode,
+        "assets": [{"basename": name} for name in active],
+    }
+    if mode == "SCENE":
+        visual_plan["selected_scene_count"] = 1
+    visual_plan_path = tmp_path / "visual_plan.json"
+    visual_plan_path.write_text(json.dumps(visual_plan), encoding="utf-8")
+
+    result = validate_package_quality(
+        quality_path, contract, visual_plan_path=visual_plan_path,
+    )
+
+    assert result.status == "PASS"
+
+
 def _audit_archive(tmp_path, archive_name, *, overrides=None, prefix="", extra=None):
     contract = replace(load_prompt_contract(), landscape_size=(8, 4), portrait_size=(4, 8))
     documents = (

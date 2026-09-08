@@ -27,7 +27,7 @@ from studio.workflow_package import (
     safe_name,
 )
 
-STAGE_LABELS = ("Truyện & nhân vật", "10 landscape", "10 portrait & gói audio", "Prompt video")
+STAGE_LABELS = ("Truyện & nhân vật", "Landscape", "Portrait & gói audio", "Prompt video")
 
 
 def workflow_stage_caption(name: str, current_stage: Any, status: str) -> str:
@@ -77,7 +77,15 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
     st.caption(" · ".join(str(v) for v in (stage or "Chưa xác định stage", result.get("purpose"),
                manifest.get("active_profile"), f"Prompt {manifest.get('created_by_prompt_version', '—')}") if v))
     status = str(result.get("status", "NOT_VERIFIED"))
-    for column, name, label in zip(st.columns(4), STAGES, STAGE_LABELS):
+    image_count = sum(
+        1 for row in result.get("files", [])
+        if isinstance(row, Mapping) and str(row.get("path", "")).startswith("landscape/")
+    )
+    labels = list(STAGE_LABELS)
+    if image_count:
+        labels[1] = f"{image_count} landscape"
+        labels[2] = f"{image_count} portrait & gói audio"
+    for column, name, label in zip(st.columns(4), STAGES, labels):
         column.markdown(f"**{name} · {label}**")
         column.caption(workflow_stage_caption(name, stage, status))
     message = {"PASS": "Gói đạt các phép kiểm tra đã chạy", "FAIL": "Gói có lỗi cần xử lý",

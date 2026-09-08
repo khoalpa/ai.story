@@ -23,6 +23,7 @@ from studio.story_images import (
     inspect_story_images,
     render_aspect_cover_gallery,
     stage_applicable_aspects,
+    visual_plan_image_stems,
 )
 from studio.story_repetition import analyze_story_repetition
 from studio.story_studio import (
@@ -207,8 +208,9 @@ def build_overview_model(
             for path in scenes_dir.iterdir()
             if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
         } if scenes_dir.is_dir() else set()
-        scene_count = sum(stem in available_stems for stem in EXPECTED_IMAGE_STEMS)
-        required_scene_images = len(EXPECTED_IMAGE_STEMS)
+        active_stems = visual_plan_image_stems(output_dir)
+        scene_count = sum(stem in available_stems for stem in active_stems)
+        required_scene_images = len(active_stems)
     expected_scenes = int(metrics.get("narrative_scene_count") or 0)
 
     review = review_package(output_dir, reports, statuses, state)

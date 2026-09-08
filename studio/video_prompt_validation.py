@@ -12,6 +12,7 @@ from typing import Any, Mapping, cast
 from studio.prompt_contract import PromptContract, load_prompt_contract
 from studio.video_voice import (
     VOICE_PLAN_FIELDS,
+    VOICE_PROFILE_FIELDS,
     VOICE_SEGMENT_FIELDS,
     VOICE_STRATEGY_FIELDS,
     build_voice_plan,
@@ -33,7 +34,7 @@ VOICE_CLIP_FIELDS = ("clip_id", "sequence_index", "zone", "derived_scene_id", "c
 SOURCE_FIELDS = ("start_item_index", "start_word_offset", "end_item_index", "end_word_offset", "start_time_seconds", "end_time_seconds", "pause_only", "source_text_digest_sha256")
 VARIANT_FIELDS = ("requested_continuity_mode", "preferred_mode", "fallback_modes", "portable_mode", "capability_status", "selection_basis")
 REFERENCE_FIELDS = ("character_images", "previous_clip_id", "previous_last_frame_required", "previous_output_last_frame", "previous_output_video_required")
-VALIDATION_FIELDS = ("schema_status", "source_binding_status", "timeline_derivation_status", "scene_derivation_status", "reference_router_status", "character_only_reference_status", "coverage_status", "continuity_status", "identity_reference_status", "prompt_budget_status", "prompt_atomicity_status", "no_invented_event_status", "anti_repeat_status", "safety_status", "fixture_status", "output_digest_sha256", "status")
+VALIDATION_FIELDS = ("schema_status", "source_binding_status", "timeline_derivation_status", "scene_derivation_status", "reference_router_status", "character_only_reference_status", "coverage_status", "continuity_status", "identity_reference_status", "voice_selection_status", "prompt_budget_status", "prompt_atomicity_status", "no_invented_event_status", "anti_repeat_status", "safety_status", "fixture_status", "output_digest_sha256", "status")
 REQUIRED_EXPORT_GATES = ("schema", "source_binding", "semantic_continuity")
 ADVISORY_EXPORT_GATES = ("no_invented_event", "safety")
 
@@ -260,6 +261,17 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
         profiles = voice_strategy.get("voice_profiles")
         if not isinstance(profiles, list) or not profiles:
             errors.append("voice_strategy.voice_profiles phải là array không rỗng.")
+            profiles = []
+        profile_speakers: set[str] = set()
+        for position, profile in enumerate(profiles, 1):
+            profile_object = exact(profile, VOICE_PROFILE_FIELDS, f"voice_profile {position}")
+            speaker_id = profile_object.get("speaker_id")
+            if not isinstance(speaker_id, str) or not speaker_id or speaker_id in profile_speakers:
+                errors.append(f"voice_profile {position}: speaker_id thiếu hoặc trùng.")
+            else:
+                profile_speakers.add(speaker_id)
+            if profile_object.get("locale") != "vi-VN":
+                errors.append(f"voice_profile {position}: locale phải là vi-VN.")
     global_lock = exact(plan.get("global_continuity_lock"), GLOBAL_FIELDS, "global_continuity_lock")
     for key in GLOBAL_FIELDS[:-1]:
         if not isinstance(global_lock.get(key), list):
@@ -399,9 +411,25 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
                             errors.append(f"Clip {index}: voice segments không khớp source span.")
                         else:
                             for position, (segment, expected) in enumerate(zip(segments, expected_segments), 1):
-                                exact(segment, VOICE_SEGMENT_FIELDS, f"clip {index}.voice_plan.segment {position}")
-                                if segment != expected:
+                                segment_object = exact(
+                                    segment, VOICE_SEGMENT_FIELDS,
+                                    f"clip {index}.voice_plan.segment {position}",
+                                )
+                                # Prompt 3.15 fixes the exact source text and field shape,
+                                # while emotion/pace and narrator/character labels remain
+                                # authored voice direction rather than derived literals.
+                                if segment_object.get("text") != expected.get("text"):
                                     errors.append(f"Clip {index}: voice segment {position} không khớp story.json.")
+                                speaker_id = segment_object.get("speaker_id")
+                                if (not isinstance(speaker_id, str) or not speaker_id
+                                        or speaker_id not in profile_speakers):
+                                    errors.append(f"Clip {index}: voice segment {position} không bind voice profile.")
+                                if not all(
+                                    isinstance(segment_object.get(field), str)
+                                    and bool(segment_object.get(field))
+                                    for field in ("role", "emotion", "pace")
+                                ):
+                                    errors.append(f"Clip {index}: voice segment {position} thiếu chỉ dẫn giọng.")
                             joined = unicodedata.normalize("NFC", "\n".join(item["text"] for item in expected_segments))
                             if voice_plan.get("source_text_sha256") != hashlib.sha256(joined.encode("utf-8")).hexdigest():
                                 errors.append(f"Clip {index}: voice source digest không khớp.")

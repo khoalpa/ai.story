@@ -207,6 +207,8 @@ def load_effective_package(directory: Path, state: Any) -> tuple[dict[str, Any],
             source = BytesIO(raw)
             if key in REPORT_SPECS:
                 reports[key] = _read_override(source, key)
+            elif key == "video_prompts":
+                reports[key] = read_json(raw)
             elif key in PRODUCTION_FILES:
                 reports[key] = read_audio_delivery_override(source, key)
             else:
@@ -214,6 +216,8 @@ def load_effective_package(directory: Path, state: Any) -> tuple[dict[str, Any],
             statuses[key] = "Có dữ liệu · tệp thay thế"
         except (OSError, UnicodeError, ValueError) as exc:
             if key in REPORT_SPECS or key in PRODUCTION_FILES:
+                reports.pop(key, None)
+            elif key == "video_prompts":
                 reports.pop(key, None)
             else:
                 variant, kind = video_report_identity(key)
@@ -311,12 +315,26 @@ def _render_source_selector() -> tuple[dict[str, Any], dict[str, str]]:
             except (OSError, ValueError) as exc:
                 reports.pop(key, None)
                 statuses[key] = f"Không hợp lệ: {exc}"
+        video_prompts_index = len(REPORT_SPECS)
+        uploaded_video_prompts = columns[video_prompts_index % 2].file_uploader(
+            "Kế hoạch video · video_prompts.json",
+            type=["json"],
+            key="story_studio_upload_video_prompts",
+        )
+        if uploaded_video_prompts is not None:
+            overrides["video_prompts"] = uploaded_video_prompts.getvalue()
+            try:
+                reports["video_prompts"] = read_json(uploaded_video_prompts.getvalue())
+                statuses["video_prompts"] = "Có dữ liệu · tệp thay thế"
+            except (UnicodeError, ValueError) as exc:
+                reports.pop("video_prompts", None)
+                statuses["video_prompts"] = f"Không hợp lệ: {exc}"
         production_uploads = (
             ("audio_quality", "Chất lượng audio", ["json"]),
             ("subtitle", "Phụ đề", ["srt"]),
             ("handoff", "Bàn giao video", ["json"]),
         )
-        for index, (key, label, file_types) in enumerate(production_uploads, start=len(REPORT_SPECS)):
+        for index, (key, label, file_types) in enumerate(production_uploads, start=len(REPORT_SPECS) + 1):
             filename = PRODUCTION_FILES[key]
             uploaded = columns[index % 2].file_uploader(
                 f"{label} · {filename}",
@@ -334,7 +352,7 @@ def _render_source_selector() -> tuple[dict[str, Any], dict[str, str]]:
                 statuses[key] = f"Không hợp lệ: {exc}"
         video_variants = reports.setdefault("video_deliveries", {})
         video_names = discover_video_report_names(directory)
-        offset = len(REPORT_SPECS) + len(production_uploads)
+        offset = len(REPORT_SPECS) + 1 + len(production_uploads)
         for index, filename in enumerate(video_names, start=offset):
             variant, kind = video_report_identity(filename)
             label = "Kết quả video" if kind == "result" else "Chất lượng video"

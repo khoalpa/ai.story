@@ -48,7 +48,10 @@ def build_workflow_package(stage: str, operation: str, files: Mapping[str, bytes
     if "story.json" not in files:
         raise ValueError("Thiếu story.json")
     story = read_json(files["story.json"])
-    expected = expected_files(stage, story, "series_anchor.json" in files, contract)[1:]
+    visual_plan = read_json(files["visual_plan.json"]) if "visual_plan.json" in files else None
+    expected = expected_files(
+        stage, story, "series_anchor.json" in files, contract, visual_plan
+    )[1:]
     if list(files) != expected:
         raise ValueError("Input files phải đúng exact allowlist và canonical order của stage")
     files = dict(files)

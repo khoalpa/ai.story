@@ -116,6 +116,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional timeline JSON file for zone-aware slideshow timing.",
     )
     parser.add_argument(
+        "--visual-plan", type=str, default=None,
+        help="visual_plan.json used to map scene_XXXX images to script spans.",
+    )
+    parser.add_argument(
+        "--slideshow-timeline",
+        choices=["auto", "scene", "zone", "fixed"],
+        default="auto",
+        help="How slideshow image durations are derived (default: auto).",
+    )
+    parser.add_argument(
         "--zone-aware-slideshow",
         action="store_true",
         help="In slideshow mode, time scene images from timeline zones and subtitle timestamps.",
@@ -177,6 +187,7 @@ def run_from_args(args: argparse.Namespace) -> Path:
         scenes_dir=request.scenes_dir,
         cover_first=request.cover_first,
         outro_last=request.outro_last,
+        visual_plan_json=request.visual_plan_json,
     )
     if getattr(args, "check_images", False):
         _print_image_readiness(image_readiness)

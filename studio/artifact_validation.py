@@ -162,6 +162,7 @@ def validate_series_anchor(path: Path, contract: PromptContract | None = None) -
 
 def validate_package_quality(
     path: Path, contract: PromptContract | None = None, *, story_path: Path | None = None,
+    visual_plan_path: Path | None = None,
 ) -> ValidationResult:
     contract = contract or load_prompt_contract()
     root = (
@@ -187,9 +188,24 @@ def validate_package_quality(
             asset_results = None
         else:
             asset_results = image_evidence.get("asset_results")
+        # Prompt 3.15 derives the active image set from visual_plan.json.  Do
+        # not validate a SCENE package against the static ZONE fallback.
+        active_basenames = contract.image_basenames
+        if visual_plan_path is not None and visual_plan_path.is_file():
+            try:
+                # Local import prevents the workflow module's strict-JSON
+                # dependency from forming an import cycle at module load time.
+                from studio.workflow_package import active_image_basenames
+
+                visual_plan = strict_json_bytes(visual_plan_path.read_bytes())
+                if not isinstance(visual_plan, dict):
+                    raise ValueError("visual_plan root phải là object")
+                active_basenames = active_image_basenames(visual_plan, contract)
+            except (OSError, UnicodeError, ValueError) as exc:
+                result.fail(f"Không thể resolve active image set từ visual_plan.json: {exc}")
         expected_paths = {
-            *(f"landscape/{name}" for name in contract.image_basenames),
-            *(f"portrait/{name}" for name in contract.image_basenames),
+            *(f"landscape/{name}" for name in active_basenames),
+            *(f"portrait/{name}" for name in active_basenames),
         }
         if story_path is not None and story_path.is_file():
             try:
@@ -357,6 +373,7 @@ def validate_project(path: Path, contract: PromptContract | None = None) -> list
     if quality.is_file():
         results.append(validate_package_quality(
             quality, contract, story_path=story if story.is_file() else None,
+            visual_plan_path=(path / "visual_plan.json") if (path / "visual_plan.json").is_file() else None,
         ))
     for archive_name in ("stage1_checkpoint.zip", "stage2_checkpoint.zip", "story.zip"):
         archive = path / archive_name

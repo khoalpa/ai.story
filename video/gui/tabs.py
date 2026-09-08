@@ -43,6 +43,7 @@ from video.gui.workspace_handoff import workspace_handoff_state
 from video.gui.workspace_source_outputs import workspace_source_outputs
 from video.handoff import read_audio_handoff
 from video.runtime_tools import collect_runtime_diagnostics
+from video.scene_timeline import build_scene_segments, resolve_slideshow_timeline_mode
 from video.slideshow_concat import (
     append_outro_segment,
     build_slideshow_segments,
@@ -133,6 +134,8 @@ def validate_inputs(
     subtitle: Optional[Path],
     story_json: Optional[Path],
     zone_aware_slideshow: bool = False,
+    slideshow_timeline_mode: str = "auto",
+    visual_plan_json: Optional[Path] = None,
 ) -> list[str]:
     errors: list[str] = []
     if audio is None:
@@ -159,11 +162,17 @@ def validate_inputs(
             )
         elif not scenes_dir.is_dir():
             errors.append(f"Scenes directory not found: {scenes_dir}")
-        if zone_aware_slideshow:
+        timeline_mode = resolve_slideshow_timeline_mode(
+            "zone" if zone_aware_slideshow and slideshow_timeline_mode == "auto" else slideshow_timeline_mode,
+            visual_plan_json,
+        )
+        if timeline_mode in {"zone", "scene"}:
             if story_json is None:
                 errors.append("Zone-aware slideshow requires a story.json file.")
             if subtitle is None:
                 errors.append("Zone-aware slideshow requires a subtitle .srt file with timestamps.")
+            if timeline_mode == "scene" and (visual_plan_json is None or not visual_plan_json.is_file()):
+                errors.append("Scene-aware slideshow requires a visual_plan.json file.")
 
     if output is None:
         errors.append("Enter an output MP4 path.")
@@ -429,6 +438,10 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
     story_json_path = normalize_optional_path(st.session_state.get("video_story_json_input") or "")
     if story_json_path is None:
         story_json_path = _autodetect_story_json(settings, audio_path)
+    visual_plan_path = normalize_optional_path(st.session_state.get("video_visual_plan_input") or "")
+    if visual_plan_path is None:
+        candidate = Path(str(settings.get("input_root") or "output")) / "visual_plan.json"
+        visual_plan_path = candidate if candidate.is_file() else None
     cover_path = _resolve_cover_path(settings)
     scenes_dir = _resolve_scenes_dir(settings)
     if str(settings["mode"]) == "slideshow":
@@ -444,6 +457,7 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
         scenes_dir=scenes_dir,
         cover_first=bool(settings.get("cover_first", True)),
         outro_last=bool(settings.get("outro_last", True)),
+        visual_plan_json=visual_plan_path,
     )
 
     errors = validate_inputs(
@@ -455,6 +469,8 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
         subtitle=subtitle_path,
         story_json=story_json_path,
         zone_aware_slideshow=bool(settings.get("zone_aware_slideshow")),
+        slideshow_timeline_mode=str(settings.get("slideshow_timeline_mode", "auto")),
+        visual_plan_json=visual_plan_path,
     )
 
     errors.extend(
@@ -475,6 +491,7 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
     )
     summary["cover_source"] = "input"
     summary["scenes_source"] = "input"
+    summary["visual_plan_json"] = str(visual_plan_path or "")
     summary["image_readiness"] = _image_readiness_summary(image_readiness)
     return {
         "audio": audio_path,
@@ -483,6 +500,7 @@ def _collect_inputs(settings: dict[str, Any]) -> dict[str, Any]:
         "scenes_dir": scenes_dir,
         "subtitle": subtitle_path,
         "story_json": story_json_path,
+        "visual_plan_json": visual_plan_path,
         "image_readiness": image_readiness,
         "errors": errors,
         "summary": summary,
@@ -542,6 +560,10 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
     story_json_path = normalize_optional_path(str(st.session_state.get("video_story_json_input") or ""))
     if story_json_path is None:
         story_json_path = _autodetect_story_json(settings, audio_path)
+    visual_plan_path = normalize_optional_path(str(st.session_state.get("video_visual_plan_input") or ""))
+    if visual_plan_path is None:
+        candidate = Path(str(settings.get("input_root") or "output")) / "visual_plan.json"
+        visual_plan_path = candidate if candidate.is_file() else None
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Mode", str(settings.get("mode") or "-"))
@@ -565,6 +587,7 @@ def render_doctor_tab(settings: dict[str, Any]) -> None:
             scenes_dir=scenes_dir,
             cover_first=bool(settings.get("cover_first", True)),
             outro_last=bool(settings.get("outro_last", True)),
+            visual_plan_json=visual_plan_path,
         )
     )
     render_runtime_diagnostics_block({
@@ -641,6 +664,10 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
         st.text_input(
             "Timeline JSON (leave empty = autodetect)",
             key="video_story_json_input",
+        )
+        st.text_input(
+            "Visual plan JSON (required for SCENE timing)",
+            key="video_visual_plan_input",
         )
         st.text_input("Output MP4", key="video_output_input")
     with col_right:
@@ -761,6 +788,7 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     subtitle=inputs["subtitle"],
                     show_subtitles=bool(settings.get("show_subtitles", True)),
                     story_json=inputs["story_json"],
+                    visual_plan_json=inputs["visual_plan_json"],
                     cover=inputs["cover"],
                     scenes_dir=inputs["scenes_dir"],
                     cover_first=bool(settings.get("cover_first", True)),
@@ -782,6 +810,7 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                     video_movflags=settings.get("video_movflags"),
                     slideshow_match_audio=settings.get("slideshow_match_audio"),
                     zone_aware_slideshow=settings.get("zone_aware_slideshow"),
+                    slideshow_timeline_mode=str(settings.get("slideshow_timeline_mode", "auto")),
                     environment_overlays=bool(settings.get("environment_overlays", True)),
                     environment_overlay_intensity=str(settings.get("environment_overlay_intensity", "normal")),
                     environment_overlay_fade=float(settings.get("environment_overlay_fade", 0.6)),
@@ -961,15 +990,30 @@ def _build_test_slideshow_segments(
         outro_last=bool(settings.get("outro_last", True)),
     )
     try:
-        if bool(settings.get("zone_aware_slideshow")):
+        timeline_mode = resolve_slideshow_timeline_mode(
+            "zone" if settings.get("zone_aware_slideshow") and settings.get("slideshow_timeline_mode", "auto") == "auto" else str(settings.get("slideshow_timeline_mode", "auto")),
+            inputs.get("visual_plan_json"),
+        )
+        if timeline_mode in {"zone", "scene"}:
             story_json = inputs.get("story_json")
             subtitle = inputs.get("subtitle")
             if story_json and subtitle and Path(story_json).is_file() and Path(subtitle).is_file():
-                segments = build_zone_segments(
-                    timeline_json=Path(story_json),
-                    subtitle=Path(subtitle),
-                    scenes_dir=Path(scenes_dir),
-                )
+                if timeline_mode == "scene":
+                    visual_plan = inputs.get("visual_plan_json")
+                    if visual_plan is None:
+                        return [], "Scene-aware slideshow requires visual_plan.json."
+                    segments = build_scene_segments(
+                        timeline_json=Path(story_json),
+                        visual_plan_json=Path(visual_plan),
+                        subtitle=Path(subtitle),
+                        scenes_dir=Path(scenes_dir),
+                    )
+                else:
+                    segments = build_zone_segments(
+                        timeline_json=Path(story_json),
+                        subtitle=Path(subtitle),
+                        scenes_dir=Path(scenes_dir),
+                    )
                 segments = prepend_cover_segment(
                     segments,
                     cover if cover and Path(cover).is_file() else None,

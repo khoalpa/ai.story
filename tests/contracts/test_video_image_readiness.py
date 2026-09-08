@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from PIL import Image
@@ -208,3 +209,34 @@ def test_readiness_assets_follow_slideshow_image_order(tmp_path: Path) -> None:
         "farewell.png",
         "outro.png",
     ]
+
+
+def test_scene_plan_uses_planned_images_without_zone_warnings(tmp_path: Path) -> None:
+    scenes_dir = tmp_path / "scene_images"
+    scenes_dir.mkdir()
+    for name in ("cover.png", "scene_0001.png", "scene_0002.png", "outro.png"):
+        _write_image(scenes_dir / name)
+    plan = tmp_path / "visual_plan.json"
+    plan.write_text(json.dumps({
+        "resolved_mode": "SCENE",
+        "assets": [
+            {"basename": "cover.png", "role": "COVER"},
+            {"basename": "scene_0001.png", "role": "SCENE", "script_item_start": 0, "script_item_end": 2},
+            {"basename": "scene_0002.png", "role": "SCENE", "script_item_start": 3, "script_item_end": 5},
+            {"basename": "outro.png", "role": "OUTRO"},
+        ],
+    }), encoding="utf-8")
+
+    report = inspect_video_image_readiness(
+        mode="slideshow", aspect="9x16", scenes_dir=scenes_dir, visual_plan_json=plan,
+        cover_first=True, outro_last=True,
+    )
+
+    assert report.ready is True
+    assert report.scene_count == 2
+    assert report.missing_zones == ()
+    assert report.unmatched_files == ()
+    assert [asset.path.name for asset in report.assets] == [
+        "cover.png", "scene_0001.png", "scene_0002.png", "outro.png",
+    ]
+    assert not any("known story zone" in warning or "zone images are missing" in warning for warning in report.warnings)

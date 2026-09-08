@@ -223,7 +223,15 @@ def _resolved_registry(text: str, name: str) -> Mapping[str, Any]:
         if isinstance(value, str) and re.fullmatch(r"[A-Z][A-Z0-9_]*", value) and f"- {value} =" in text:
             if value in stack:
                 raise ValueError(f"Circular prompt literal reference: {' -> '.join((*stack, value))}")
-            return resolve(_parsed_literal(text, value), (*stack, value))
+            # Some enum values also have human-readable policy explanations
+            # (for example ``- OBSERVED = đọc trực tiếp ...``).  Those lines
+            # are not machine-readable aliases.  Only follow a reference when
+            # its right-hand side is itself a valid bounded literal.
+            try:
+                referenced = _parsed_literal(text, value)
+            except ValueError:
+                return value
+            return resolve(referenced, (*stack, value))
         if isinstance(value, dict):
             return {key: resolve(child, stack) for key, child in value.items()}
         if isinstance(value, list):
@@ -245,14 +253,22 @@ def load_prompt_contract(path: Path | None = None) -> PromptContract:
     resolved = (path or canonical_prompt_path()).resolve()
     raw = resolved.read_bytes()
     text = raw.decode("utf-8-sig")
-    basenames_match = re.search(r"`IMAGE_BASENAME_SET\s*=\s*\[([^]]+)\]`", text)
-    environment_match = re.search(
-        r"SHARED ENVIRONMENT WHITELIST:\s*\n- (?P<values>[^\n]+)", text
-    )
-    if basenames_match is None or environment_match is None:
-        raise ValueError("Prompt thiếu IMAGE_BASENAME_SET hoặc SHARED ENVIRONMENT WHITELIST")
-    basenames = tuple(value.strip() for value in basenames_match.group(1).split(","))
-    environments = tuple(re.findall(r'"([^"]+)"', environment_match.group("values")))
+    # Read machine-readable canonical literals instead of depending on the
+    # presentation of their human-readable views. Prompt 3.14.9 deliberately
+    # makes the registries authoritative and no longer wraps IMAGE_BASENAME_SET
+    # in inline-code backticks.
+    image_basename_literal = _literal(text, "IMAGE_BASENAME_SET")
+    if image_basename_literal.startswith("["):
+        basenames = tuple(_LiteralParser(image_basename_literal).parse())
+    else:
+        # Prompt 3.15 makes IMAGE_BASENAME_SET a runtime alias whose SCENE
+        # cardinality depends on visual_plan.json.  This static compatibility
+        # projection remains the stable ZONE set; SCENE consumers resolve the
+        # active names from the visual plan itself.
+        basenames = tuple(_parsed_literal(text, "ZONE_IMAGE_BASENAME_SET"))
+    environments = tuple(_parsed_literal(text, "SCRIPT_ENVIRONMENT_ENUM"))
+    if not basenames or not environments:
+        raise ValueError("Prompt thiếu IMAGE_BASENAME_SET hoặc SCRIPT_ENVIRONMENT_ENUM")
     return PromptContract(
         path=resolved,
         version=_version(resolved),
