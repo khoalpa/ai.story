@@ -388,7 +388,10 @@ def _render_slideshow_behavior_settings() -> dict[str, Any]:
     with st.expander("Slideshow behavior", expanded=False):
         slideshow_match_audio = st.checkbox("Match slideshow length to audio", value=bool(config.SLIDESHOW_MATCH_AUDIO))
         timeline_options = ["auto", "scene", "zone", "fixed"]
-        default_timeline = "zone" if config.SLIDESHOW_ZONE_AWARE else "auto"
+        # Automatic selects SCENE only when a compatible visual plan is
+        # available and otherwise retains the ordinary slideshow behavior.
+        # An explicit value already stored in the session remains untouched.
+        default_timeline = "auto"
         slideshow_timeline_mode = st.selectbox(
             "Image timing",
             options=timeline_options,
