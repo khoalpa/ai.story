@@ -55,6 +55,7 @@ def test_story_reader_centers_zone_thumbnail_at_half_content_width() -> None:
 
 def test_story_content_images_share_landscape_display_frame() -> None:
     source = __import__("pathlib").Path("studio/story_report.py").read_text(encoding="utf-8")
-    assert source.count("frame_ratio=(16, 9)") >= 2
+    assert "_render_context_gallery" in source
+    assert "frame_ratio=(16, 9)" in source
     repetition = __import__("pathlib").Path("studio/story_repetition.py").read_text(encoding="utf-8")
     assert "frame_ratio=(16, 9)" in repetition

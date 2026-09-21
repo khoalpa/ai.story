@@ -7,7 +7,8 @@ from typing import Any, Optional
 
 import streamlit as st
 
-from video.app_api import RenderVideoRequest, VideoQualityGateError
+from video.app_api import ConcatClipsRequest, RenderVideoRequest, VideoQualityGateError
+from video.clip_concat import discover_clips
 from video.error_handling import (
     USER_FACING_EXCEPTIONS,
     format_unexpected_error,
@@ -24,7 +25,7 @@ from video.gui.panel_utils import (
 )
 from video.gui.progress_details import format_duration, format_progress_text
 from video.gui.runtime_usage import render_runtime_usage_compact
-from video.gui.service import run_video_job
+from video.gui.service import run_concat_job, run_video_job
 from video.gui.shared_state import (
     append_global_run_event,
     get_workspace_target_field,
@@ -544,9 +545,99 @@ def _preview_image_for_progress(images: list[Path], percent: float) -> tuple[int
 
 
 
+def render_concat_tab(settings: dict[str, Any]) -> None:
+    st.subheader("Ghép nhiều clip")
+    st.caption(
+        "Tự tìm clip_0001.mp4, clip_0002.mp4, ...; ghép nhanh khi tương thích "
+        "hoặc tự chuẩn hóa khi thông số khác nhau."
+    )
+    clips_dir_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
+    clips_dir_value = clips_dir_cols[0].text_input(
+        "Thư mục clip", key="concat_clips_dir", placeholder="output/clips"
+    )
+    clips_dir_cols[1].button(
+        "Chọn thư mục",
+        key="concat_select_clips_directory",
+        width="stretch",
+        on_click=_choose_local_path,
+        kwargs={"state_key": "concat_clips_dir", "directory": True},
+    )
+    if picker_error := st.session_state.get("video_path_picker_error"):
+        st.error(str(picker_error))
+    pattern = st.text_input("Mẫu tên file", value="clip_*", key="concat_pattern")
+    output_value = st.text_input(
+        "File MP4 đầu ra", key="concat_output", placeholder="output/final.mp4"
+    )
+    col_strategy, col_audio, col_aspect = st.columns(3)
+    with col_strategy:
+        strategy = st.selectbox(
+            "Cách ghép", ["auto", "copy", "normalize"], key="concat_strategy"
+        )
+    with col_audio:
+        audio_mode = st.selectbox(
+            "Âm thanh", ["keep", "mute"], key="concat_audio_mode"
+        )
+    with col_aspect:
+        aspect = st.selectbox(
+            "Tỷ lệ khi chuẩn hóa", ["16x9", "9x16"], key="concat_aspect"
+        )
+
+    clips: list[Path] = []
+    input_error = ""
+    if clips_dir_value.strip():
+        try:
+            clips = discover_clips(Path(clips_dir_value.strip()), pattern.strip() or "clip_*")
+        except ValueError as exc:
+            input_error = str(exc)
+    if input_error:
+        st.error(input_error)
+    elif clips_dir_value.strip():
+        st.write(f"Đã tìm thấy **{len(clips)}** clip.")
+        if clips:
+            st.dataframe(
+                [{"Thứ tự": index, "Tên clip": path.name} for index, path in enumerate(clips, 1)],
+                width="stretch",
+                hide_index=True,
+            )
+        else:
+            st.warning("Không tìm thấy clip phù hợp với mẫu tên file.")
+
+    disabled = bool(input_error or not clips or not output_value.strip())
+    if st.button("Ghép clip", type="primary", width="stretch", disabled=disabled):
+        progress = st.progress(0, text="Đang kiểm tra clip...")
+
+        def update_progress(percent: float, message: str) -> None:
+            progress.progress(max(0, min(100, int(percent))), text=message)
+
+        request = ConcatClipsRequest(
+            clips_dir=Path(clips_dir_value.strip()),
+            pattern=pattern.strip() or "clip_*",
+            output=Path(output_value.strip()),
+            strategy=str(strategy),
+            audio_mode=str(audio_mode),
+            aspect=str(aspect),
+            ffmpeg_exe=str(settings.get("ffmpeg_exe") or "") or None,
+            ffprobe_exe=str(settings.get("ffprobe_exe") or "") or None,
+        )
+        try:
+            result = run_concat_job(request, progress_callback=update_progress)
+        except USER_FACING_EXCEPTIONS as exc:
+            progress.empty()
+            st.error(format_user_facing_error(exc))
+        else:
+            progress.progress(100, text="Ghép clip hoàn tất")
+            st.success(
+                f"Đã tạo {result.output} bằng chế độ {result.strategy_used}; "
+                f"thời lượng dự kiến {format_duration(result.duration_seconds)}."
+            )
+            render_download_button_from_path(
+                "Tải video đã ghép", result.output, mime="video/mp4"
+            )
+
+
 def render_doctor_tab(settings: dict[str, Any]) -> None:
     ensure_session_defaults()
-    st.subheader("Doctor")
+    st.subheader("Kiểm tra hệ thống")
     st.caption("Check Video runtime, input, and image readiness.")
     _prepare_video_inputs(settings)
     diagnostics = collect_runtime_diagnostics(
@@ -635,18 +726,19 @@ def _render_video_focus_hint(view_name: str) -> None:
 def render_inputs_tab(settings: dict[str, Any]) -> None:
     _prepare_video_inputs(settings)
 
-    st.subheader("Inputs")
-    st.caption("Prepare and review the assets used by Video.")
+    st.subheader("Đầu vào")
+    st.caption("Chuẩn bị audio, phụ đề, hình ảnh và vị trí MP4 đầu ra.")
     _render_video_focus_hint("inputs")
     st.checkbox(
-        "Lock input to Audio handoff",
+        "Khóa đầu vào theo bản bàn giao Audio",
         key="video_lock_to_audio_handoff",
         help="When enabled, Video keeps following the newest audio/subtitle/output hints sent from Audio handoff.",
     )
     col_left, col_right = st.columns([1.15, 1.0])
     with col_left:
-        st.text_input("Audio handoff manifest", key="video_audio_handoff_manifest")
-        if st.button("Load audio handoff", key="video_load_audio_handoff", width="stretch"):
+        st.markdown("#### 1. Nguồn âm thanh")
+        st.text_input("Manifest bàn giao Audio", key="video_audio_handoff_manifest")
+        if st.button("Nạp bản bàn giao Audio", key="video_load_audio_handoff", width="stretch"):
             try:
                 audio_manifest = str(st.session_state.get("video_audio_handoff_manifest") or "").strip()
                 if audio_manifest:
@@ -656,26 +748,27 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
                 st.success("Loaded audio handoff. Direct asset inputs remain authoritative.")
             except (OSError, ValueError, json.JSONDecodeError) as exc:
                 st.error(f"Could not load handoff manifest: {exc}")
-        st.text_input("Audio file", key="video_audio_input")
+        st.text_input("Tệp audio", key="video_audio_input")
         st.text_input(
-            "Subtitle file (leave empty = autodetect from audio)",
+            "Tệp phụ đề (để trống để tự dò theo audio)",
             key="video_subtitle_input",
         )
         st.text_input(
-            "Timeline JSON (leave empty = autodetect)",
+            "Timeline JSON (để trống để tự dò)",
             key="video_story_json_input",
         )
         st.text_input(
-            "Visual plan JSON (required for SCENE timing)",
+            "Visual plan JSON (bắt buộc với timeline SCENE)",
             key="video_visual_plan_input",
         )
-        st.text_input("Output MP4", key="video_output_input")
+        st.markdown("#### 3. Đầu ra")
+        st.text_input("MP4 đầu ra", key="video_output_input")
     with col_right:
-        st.caption("Asset-driven inputs")
+        st.markdown("#### 2. Hình ảnh")
         cover_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
-        cover_cols[0].text_input("Input cover image", key="video_input_cover_path")
+        cover_cols[0].text_input("Ảnh bìa", key="video_input_cover_path")
         cover_cols[1].button(
-            "Select file",
+            "Chọn tệp",
             key="video_select_cover_file",
             width="stretch",
             on_click=_choose_local_path,
@@ -683,9 +776,9 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
         )
 
         scenes_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
-        scenes_cols[0].text_input("Input scenes directory", key="video_input_scenes_dir")
+        scenes_cols[0].text_input("Thư mục ảnh cảnh", key="video_input_scenes_dir")
         scenes_cols[1].button(
-            "Select folder",
+            "Chọn thư mục",
             key="video_select_scenes_directory",
             width="stretch",
             on_click=_choose_local_path,
@@ -700,13 +793,36 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
 
 
 def render_run_tab(settings: dict[str, Any]) -> None:
-    st.subheader("Run")
-    st.caption("Validate and render the current Video job.")
+    st.subheader("Render")
+    st.caption("Kiểm tra mức sẵn sàng, xem trước hình ảnh và render MP4.")
     inputs = _collect_inputs(settings)
     errors = inputs["errors"]
+    readiness_rows = [
+        {"Thành phần": "Audio", "Trạng thái": "Sẵn sàng" if inputs.get("audio") else "Thiếu"},
+        {"Thành phần": "Phụ đề", "Trạng thái": "Sẵn sàng" if inputs.get("subtitle") else "Tùy chọn / tự dò"},
+        {"Thành phần": "Ảnh bìa", "Trạng thái": "Sẵn sàng" if inputs.get("cover") else "Theo chế độ render"},
+        {"Thành phần": "Thư mục ảnh", "Trạng thái": "Sẵn sàng" if inputs.get("scenes_dir") else "Theo chế độ render"},
+        {"Thành phần": "MP4 đầu ra", "Trạng thái": "Sẵn sàng" if inputs.get("output") else "Thiếu"},
+    ]
+    st.markdown("#### Checklist trước khi render")
+    status_columns = st.columns(3)
+    status_columns[0].metric("Chế độ", str(settings.get("mode") or "—"))
+    status_columns[1].metric("Tỷ lệ", str(settings.get("aspect") or "—"))
+    status_columns[2].metric("Lỗi chặn", len(errors))
+    st.dataframe(readiness_rows, hide_index=True, width="stretch")
     if errors:
-        for err in errors:
-            show_missing_input("video input", hint=err, actions=["Check audio, subtitle, cover, scenes, and output path before rendering."])
+        st.error(f"Chưa thể render: {len(errors)} lỗi đầu vào cần xử lý.")
+        with st.expander("Xem lỗi cần xử lý", expanded=True):
+            for err in errors:
+                st.markdown(f"- {err}")
+
+    preview_images = _render_preview_images(inputs)
+    if preview_images:
+        preview_col, detail_col = st.columns([1, 2])
+        preview_col.image(str(preview_images[0]), caption="Ảnh đầu tiên", width="stretch")
+        detail_col.markdown("**Xem trước đầu vào**")
+        detail_col.caption(f"{len(preview_images)} ảnh khả dụng · tỷ lệ {settings.get('aspect', '—')}")
+        detail_col.caption("Thứ tự đầy đủ có thể kiểm tra ở mục Xem trước.")
 
     progress = st.progress(0.0, text=format_progress_text(0, "Not started", [f"mode={settings.get('mode')}", f"aspect={settings.get('aspect')}"]))
     status = st.empty()
@@ -716,7 +832,6 @@ def render_run_tab(settings: dict[str, Any]) -> None:
     duration_slot = st.empty()
     if st.button("Render video", type="primary", width="stretch", disabled=bool(errors)):
         total_duration = get_media_duration_seconds(inputs["audio"]) if inputs.get("audio") else None
-        preview_images = _render_preview_images(inputs)
         preview_state: dict[str, Optional[int]] = {"index": None}
 
         if total_duration:
@@ -954,17 +1069,18 @@ def render_run_tab(settings: dict[str, Any]) -> None:
 
     if st.session_state.get("video_last_summary"):
         st.divider()
-        st.subheader("Latest result")
-        st.json(st.session_state.get("video_last_summary"))
+        st.subheader("Kết quả gần nhất")
+        with st.expander("Chi tiết kỹ thuật của kết quả", expanded=False):
+            st.json(st.session_state.get("video_last_summary"))
         out = workspace_source_outputs(st.session_state).video_output
         if out and Path(out).is_file():
             st.video(out)
             out_path = Path(out)
-            render_download_button_from_path("Download MP4", out_path, mime="video/mp4", file_name=out_path.name)
+            render_download_button_from_path("Tải MP4", out_path, mime="video/mp4", file_name=out_path.name)
         quality_path = Path(str(st.session_state.get("video_last_quality_report") or ""))
         if quality_path.is_file():
             render_download_button_from_path(
-                "Download Video Quality Report",
+                "Tải báo cáo chất lượng video",
                 quality_path,
                 mime="application/json",
                 file_name=quality_path.name,
@@ -1134,8 +1250,8 @@ def _render_test_media_inputs(inputs: dict[str, Any], summary: dict[str, Any]) -
 
 
 def render_test_tab(settings: dict[str, Any]) -> None:
-    st.subheader("Test")
-    st.caption("Resolve inputs and preview the effective Video plan.")
+    st.subheader("Xem trước")
+    st.caption("Đối chiếu đầu vào, thứ tự hình ảnh và kế hoạch video thực tế.")
     inputs = _collect_inputs(settings)
     summary = dict(inputs.get("summary") or {})
 
@@ -1147,7 +1263,7 @@ def render_test_tab(settings: dict[str, Any]) -> None:
 
     _render_test_media_inputs(inputs, summary)
 
-    st.subheader("Image readiness")
+    st.subheader("Mức sẵn sàng của hình ảnh")
     _render_image_readiness_report(inputs["image_readiness"])
 
     is_slideshow = str(settings.get("mode") or "") == "slideshow"
@@ -1237,27 +1353,33 @@ def render_test_tab(settings: dict[str, Any]) -> None:
 
 def render_preview_logs_tab(settings: dict[str, Any]) -> None:
     del settings
-    st.subheader("Results & Logs")
-    st.caption("Inspect the latest Video output and runtime logs.")
+    st.subheader("Kết quả & nhật ký")
+    st.caption("Xem video đầu ra gần nhất; chỉ mở nhật ký khi cần chẩn đoán.")
     out = workspace_source_outputs(st.session_state).video_output
     if out and Path(out).is_file():
         st.video(out)
-    if st.session_state.get("video_last_stdout"):
-        st.subheader("stdout")
-        st.code(st.session_state.get("video_last_stdout") or "")
-    if st.session_state.get("video_last_stderr"):
-        st.subheader("stderr")
-        st.code(st.session_state.get("video_last_stderr") or "")
+    has_logs = any(
+        st.session_state.get(key)
+        for key in ("video_last_stdout", "video_last_stderr", "video_last_error")
+    )
+    if has_logs:
+        with st.expander("Nhật ký kỹ thuật", expanded=bool(st.session_state.get("video_last_error"))):
+            if st.session_state.get("video_last_stdout"):
+                st.caption("stdout")
+                st.code(st.session_state.get("video_last_stdout") or "")
+            if st.session_state.get("video_last_stderr"):
+                st.caption("stderr")
+                st.code(st.session_state.get("video_last_stderr") or "")
+            if st.session_state.get("video_last_error"):
+                st.caption("Lỗi")
+                st.code(st.session_state.get("video_last_error") or "")
     if st.session_state.get("video_last_result_history_file"):
-        st.caption(f"History file: {st.session_state.get('video_last_result_history_file') or ''}")
-    if st.session_state.get("video_last_error"):
-        st.subheader("error")
-        st.code(st.session_state.get("video_last_error") or "")
+        st.caption(f"Tệp lịch sử: {st.session_state.get('video_last_result_history_file') or ''}")
 
 
 def render_history_tab(settings: dict[str, Any]) -> None:
     del settings
-    st.subheader("History")
+    st.subheader("Lịch sử")
     st.caption("Review Video renders from the current session.")
     items = st.session_state.get("video_run_history", [])
     render_session_history(

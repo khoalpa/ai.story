@@ -13,7 +13,7 @@ from studio.story_images import (
     ASPECTS,
     apply_visual_plan_zone_aliases,
     discover_story_images,
-    image_for_zone,
+    image_assets_for_context,
     render_image_thumbnail,
 )
 from studio.story_repetition import render_repetition_report
@@ -113,9 +113,31 @@ def _render_header(report: Mapping[str, Any]) -> None:
     )
 
 
+def _render_context_gallery(
+    assets: tuple[dict[str, Any], ...], *, caption: str, key_prefix: str,
+) -> None:
+    """Render planned SCENE slots in story order, including missing slots."""
+    import streamlit as st
+
+    columns = st.columns(min(3, max(1, len(assets))))
+    for ordinal, (column, asset) in enumerate(zip(columns * ((len(assets) + 2) // 3), assets), start=1):
+        with column:
+            span = ""
+            if asset["start"] is not None:
+                span = f" · Mục {asset['start'] + 1}–{asset['end'] + 1}"
+            label = f"Cảnh {ordinal}{span}" if asset["scene"] else caption
+            if asset["path"] is None:
+                st.warning(f"Thiếu ảnh · {asset['basename']} · {label}")
+            else:
+                render_image_thumbnail(
+                    asset["path"], caption=f"{caption} · {label}",
+                    key=f"{key_prefix}_{ordinal}", frame_ratio=(16, 9),
+                )
+
+
 def _render_reader(
     report: Mapping[str, Any], *, image_catalog: Mapping[str, Mapping[str, Path]] | None = None,
-    image_aspect: str = "landscape",
+    image_aspect: str = "landscape", images_root: Path | None = None,
 ) -> None:
     import streamlit as st
 
@@ -142,14 +164,10 @@ def _render_reader(
         f"đang hiển thị {start + 1}–{min(start + page_size, len(indexed))}"
     )
     if image_catalog is not None:
-        image = image_for_zone(image_catalog, image_aspect, zone)
+        assets = image_assets_for_context(image_catalog, images_root, aspect=image_aspect, zone=zone, item_indexes=[index for index, _item in visible])
         _left_space, image_column, _right_space = st.columns([1, 2, 1])
         with image_column:
-            render_image_thumbnail(
-                image, caption=f"{ZONE_LABELS.get(zone, zone)} · {image_aspect.title()}",
-                key=f"story_reader_{image_aspect}_{zone}",
-                frame_ratio=(16, 9),
-            )
+            _render_context_gallery(assets, caption=f"{ZONE_LABELS.get(zone, zone)} · {image_aspect.title()}", key_prefix=f"story_reader_{image_aspect}_{zone}")
 
     for index, item in visible:
         voice = str(item.get("voice") or "NARRATOR")
@@ -171,7 +189,7 @@ def _render_reader(
 
 def _render_outline(
     report: Mapping[str, Any], *, image_catalog: Mapping[str, Mapping[str, Path]] | None = None,
-    image_aspect: str = "landscape",
+    image_aspect: str = "landscape", images_root: Path | None = None,
 ) -> None:
     import streamlit as st
 
@@ -179,6 +197,7 @@ def _render_outline(
     if not outline:
         st.info("Truyện chưa có dàn ý.")
         return
+    script = _script_items(report)
     for key, label in OUTLINE_KEYS.items():
         if key in outline:
             text_col, image_col = st.columns([2, 1]) if image_catalog is not None else (st.container(), st.container())
@@ -188,12 +207,11 @@ def _render_outline(
             if image_catalog is not None:
                 with image_col:
                     zone = key.upper()
-                    render_image_thumbnail(
-                        image_for_zone(image_catalog, image_aspect, zone),
-                        caption=f"{label} · {image_aspect.title()}",
-                        key=f"story_outline_{image_aspect}_{key}",
-                        frame_ratio=(16, 9),
+                    assets = image_assets_for_context(
+                        image_catalog, images_root, aspect=image_aspect, zone=zone,
+                        item_indexes=[index for index, item in enumerate(script) if item.get("zone") == zone],
                     )
+                    _render_context_gallery(assets, caption=f"{label} · {image_aspect.title()}", key_prefix=f"story_outline_{image_aspect}_{key}")
             st.divider()
 
 
@@ -234,7 +252,7 @@ def _render_characters(report: Mapping[str, Any], *, images_root: Path | None = 
             try:
                 digest, dimensions = file_facts(path)
                 st.caption(f"{relative} · {dimensions} · " + ("SHA-256 khớp hồ sơ" if digest == asset.get("file_sha256") else "SHA-256 chưa khớp hoặc chưa có giá trị đối chiếu"))
-            except (OSError, ValueError):
+            except (OSError, ValueError, SyntaxError):
                 st.warning("Không đọc được ảnh tham chiếu.")
     age_min = selected.get("canonical_age_min")
     age_max = selected.get("canonical_age_max")
@@ -256,7 +274,7 @@ def _render_characters(report: Mapping[str, Any], *, images_root: Path | None = 
             "Tầm quan trọng": str(item.get("visual_story_importance", "—")).title(),
         } for item in characters],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -293,16 +311,16 @@ def _render_statistics(report: Mapping[str, Any]) -> None:
             [{"Giọng": VOICE_LABELS.get(key, key.title()), "Số mục": count, "Tỷ lệ": f"{count / total:.1%}"}
              for key, count in voice_counts.most_common()],
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
     with environment_tab:
-        st.dataframe(_counter_rows(environment_counts, total, "Môi trường"), hide_index=True, use_container_width=True)
+        st.dataframe(_counter_rows(environment_counts, total, "Môi trường"), hide_index=True, width="stretch")
     with zone_tab:
         st.dataframe(
             [{"Vùng": ZONE_LABELS.get(key, key.title()), "Số mục": count, "Tỷ lệ": f"{count / total:.1%}"}
              for key, count in zone_counts.most_common()],
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -322,7 +340,7 @@ def _render_technical(report: Mapping[str, Any]) -> None:
         {"Thuộc tính": "Cuốn hút", "Giá trị": quality.get("engagement_score", "—")},
         {"Thuộc tính": "Final script digest", "Giá trị": _short_digest(commitment.get("final_script_text_digest_sha256"))},
     ]
-    st.dataframe(rows, hide_index=True, use_container_width=True)
+    st.dataframe(rows, hide_index=True, width="stretch")
     with st.expander("Xem JSON gốc"):
         st.json(report, expanded=False)
 
@@ -366,13 +384,13 @@ def render_story_report(
     tabs = st.tabs(labels)
     reader, outline, characters, repetition, statistics = tabs[:5]
     with reader:
-        _render_reader(report, image_catalog=image_catalog, image_aspect=image_aspect)
+        _render_reader(report, image_catalog=image_catalog, image_aspect=image_aspect, images_root=images_root)
     with outline:
-        _render_outline(report, image_catalog=image_catalog, image_aspect=image_aspect)
+        _render_outline(report, image_catalog=image_catalog, image_aspect=image_aspect, images_root=images_root)
     with characters:
         _render_characters(report, images_root=images_root)
     with repetition:
-        render_repetition_report(report, image_catalog=image_catalog, image_aspect=image_aspect)
+        render_repetition_report(report, image_catalog=image_catalog, image_aspect=image_aspect, images_root=images_root)
     with statistics:
         _render_statistics(report)
     if include_technical:

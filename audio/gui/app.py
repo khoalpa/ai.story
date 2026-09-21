@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import streamlit as st
 
+from studio.ui_components import render_workspace_header
+
 from .main_panel import render_audio_main_panel
 from .settings import get_audio_settings
 from .view_models import build_audio_run_summary
 
 
 def render_audio_workspace(*, embedded: bool = False) -> None:
+    if embedded:
+        render_workspace_header(
+            "Âm thanh",
+            "Chuẩn bị kịch bản, chọn giọng đọc, nghe thử và render audio cùng phụ đề.",
+            eyebrow="Sản xuất",
+        )
     settings = get_audio_settings()
     # Widget-owned values can disappear when another Studio workspace is
     # rendered.  Keep a plain snapshot so Overview can always show the current

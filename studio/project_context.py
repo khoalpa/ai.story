@@ -35,6 +35,8 @@ def project_path_defaults(directory: Path, *, aspect: str = "landscape") -> dict
         "video_auto_scenes_dir": str(scenes),
         "video_output_input": str(root / video_name),
         "video_auto_output_path": str(root / video_name),
+        "concat_clips_dir": str(root / "clips"),
+        "concat_output": str(root / "final.mp4"),
     }
 
 

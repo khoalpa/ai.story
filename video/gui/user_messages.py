@@ -60,7 +60,7 @@ def render_user_message(message: UserMessage, *, show_details: bool = False) -> 
 
     _render_actions(message.actions)
     if show_details and message.technical_details:
-        with st.expander("Technical details"):
+        with st.expander("Chi tiết kỹ thuật"):
             st.code(message.technical_details)
 
 
@@ -71,18 +71,18 @@ def show_missing_input(
     actions: Sequence[str] | Sequence[GuidanceAction] | None = None,
     stop: bool = False,
 ) -> None:
-    body = f"Please provide **{field_label}** before continuing."
+    body = f"Cần bổ sung **{field_label}** trước khi tiếp tục."
     if hint:
         body = f"{body} {hint.strip()}"
     render_user_message(
         UserMessage(
             level="warning",
-            title="Missing required input",
+            title="Thiếu đầu vào bắt buộc",
             body=body,
             actions=_normalize_actions(actions)
             or (
-                GuidanceAction("Fill in the missing field or choose a valid source."),
-                GuidanceAction("Try the action again after the input is ready."),
+                GuidanceAction("Điền trường còn thiếu hoặc chọn một nguồn hợp lệ."),
+                GuidanceAction("Thử lại sau khi đầu vào đã sẵn sàng."),
             ),
         )
     )
@@ -102,17 +102,17 @@ def show_provider_error(
     body = (
         problem.strip()
         if problem and problem.strip()
-        else f"{provider_name} is currently unavailable or not configured correctly."
+        else f"{provider_name} chưa khả dụng hoặc chưa được cấu hình đúng."
     )
     render_user_message(
         UserMessage(
             level="error",
-            title=f"{provider_name} is not ready",
+            title=f"{provider_name} chưa sẵn sàng",
             body=body,
             actions=_normalize_actions(actions)
             or (
-                GuidanceAction("Check the model name, API base, or authentication settings."),
-                GuidanceAction("Use the Test or Refresh action in the sidebar before running again."),
+                GuidanceAction("Kiểm tra tên model, API base hoặc thông tin xác thực."),
+                GuidanceAction("Dùng Kiểm tra hoặc Làm mới trước khi chạy lại."),
             ),
             technical_details=technical_details,
         ),
@@ -128,18 +128,18 @@ def show_preview_warning(
     reason: str | None = None,
     actions: Sequence[str] | Sequence[GuidanceAction] | None = None,
 ) -> None:
-    body = f"The {subject.strip()} is not available yet."
+    body = f"Chưa có {subject.strip()} để hiển thị."
     if reason and reason.strip():
         body = f"{body} {reason.strip()}"
     render_user_message(
         UserMessage(
             level="info",
-            title="Nothing to preview yet",
+            title="Chưa có nội dung xem trước",
             body=body,
             actions=_normalize_actions(actions)
             or (
-                GuidanceAction("Run the previous step in the pipeline first."),
-                GuidanceAction("Refresh the page after new output is generated."),
+                GuidanceAction("Hoàn tất bước trước trong quy trình."),
+                GuidanceAction("Làm mới sau khi đầu ra mới được tạo."),
             ),
         )
     )
@@ -153,12 +153,12 @@ def show_empty_result(
     render_user_message(
         UserMessage(
             level="info",
-            title="No result yet",
-            body=f"No {result_name.strip()} is available yet.",
+            title="Chưa có kết quả",
+            body=f"Chưa có {result_name.strip()}.",
             actions=_normalize_actions(actions)
             or (
-                GuidanceAction("Complete the run step first."),
-                GuidanceAction("Check the run log if you expected output here."),
+                GuidanceAction("Hoàn tất bước render trước."),
+                GuidanceAction("Kiểm tra nhật ký nếu bạn đang chờ một đầu ra tại đây."),
             ),
         )
     )
@@ -170,18 +170,18 @@ def show_path_warning(
     path_value: str | None = None,
     actions: Sequence[str] | Sequence[GuidanceAction] | None = None,
 ) -> None:
-    body = f"The configured path for **{path_label}** is missing or invalid."
+    body = f"Đường dẫn cấu hình cho **{path_label}** đang thiếu hoặc không hợp lệ."
     if path_value:
-        body = f"{body} Current value: `{path_value}`."
+        body = f"{body} Giá trị hiện tại: `{path_value}`."
     render_user_message(
         UserMessage(
             level="warning",
-            title="Path needs attention",
+            title="Cần kiểm tra đường dẫn",
             body=body,
             actions=_normalize_actions(actions)
             or (
-                GuidanceAction("Verify that the file or folder exists."),
-                GuidanceAction("Update the setting and try the action again."),
+                GuidanceAction("Xác minh tệp hoặc thư mục vẫn tồn tại."),
+                GuidanceAction("Cập nhật thiết lập rồi thử lại."),
             ),
         )
     )

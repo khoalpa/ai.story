@@ -9,7 +9,7 @@ import streamlit as st
 from video import config
 from video.encoding_profiles import PROFILE_CHOICES
 from video.gui.diagnostics_blocks import render_runtime_diagnostics_block
-from video.gui.sidebar_sections import SidebarSection
+from video.gui.sidebar_sections import SIDEBAR_SECTION_ORDER, SidebarSection
 from video.providers.base import VideoProviderDescriptor
 from video.providers.registry import (
     get_video_provider_descriptors,
@@ -540,7 +540,8 @@ def get_video_settings() -> dict[str, Any]:
 
     prepare_project_path_defaults()
     with st.sidebar:
-        with st.expander(SidebarSection.PROVIDER, expanded=False):
+        sidebar_slots = {section: st.empty() for section in SIDEBAR_SECTION_ORDER}
+        with sidebar_slots[SidebarSection.PROVIDER].container(), st.expander(SidebarSection.PROVIDER, expanded=False):
             provider_descriptors = get_video_provider_descriptors()
             provider_options = list(provider_descriptors)
             selected_provider = normalize_video_provider(st.session_state.get("video_provider"))
@@ -558,11 +559,11 @@ def get_video_settings() -> dict[str, Any]:
             provider_settings = provider_descriptor.render_sidebar()
             provider_values = provider_settings.as_dict()
 
-        with st.expander(SidebarSection.INPUTS_OUTPUTS, expanded=False):
+        with sidebar_slots[SidebarSection.INPUTS_OUTPUTS].container(), st.expander(SidebarSection.INPUTS_OUTPUTS, expanded=False):
             input_root = st.text_input("Input root", value="output", key="video_input_root")
             output_dir = st.text_input("Output directory", value="output", key="video_output_dir")
 
-        with st.expander(SidebarSection.RENDER, expanded=False):
+        with sidebar_slots[SidebarSection.RENDER].container(), st.expander(SidebarSection.RENDER, expanded=False):
             render_modes = ["static", "slideshow"]
             mode = st.radio(
                 "Mode",
@@ -580,16 +581,18 @@ def get_video_settings() -> dict[str, Any]:
             duration_per_image = st.number_input(
                 "Duration per image (slideshow)", min_value=1.0, value=60.0, step=1.0
             )
-        advanced_settings = {
-            **_render_advanced_encoding_settings(),
-            **_render_subtitle_style_settings(mode, aspect),
-            **_render_slideshow_behavior_settings(),
-            **_render_environment_overlay_settings(mode),
-            **_render_ffmpeg_debug_settings(),
-            **_render_persistent_history_settings(),
-        }
+        with sidebar_slots[SidebarSection.ADVANCED].container():
+            advanced_settings = {
+                **_render_advanced_encoding_settings(),
+                **_render_subtitle_style_settings(mode, aspect),
+                **_render_slideshow_behavior_settings(),
+                **_render_environment_overlay_settings(mode),
+                **_render_ffmpeg_debug_settings(),
+                **_render_persistent_history_settings(),
+            }
 
-        _render_dependency_diagnostics(provider_descriptor, provider_values)
+        with sidebar_slots[SidebarSection.RUNTIME].container():
+            _render_dependency_diagnostics(provider_descriptor, provider_values)
 
     return {
         **provider_values,

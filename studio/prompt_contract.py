@@ -117,6 +117,24 @@ def canonical_prompt_path(directory: Path | None = None) -> Path:
     )
 
 
+def prompt_contract_for_version(version_label: str, *, directory: Path | None = None) -> PromptContract:
+    """Load the exact prompt contract declared by a package manifest.
+
+    New work uses :func:`canonical_prompt_path`, but reopening an existing
+    package must not reinterpret it through a newer prompt merely because one
+    was added to the library later.
+    """
+    expected = tuple(int(part) for part in version_label.split("."))
+    if len(expected) != 3:
+        raise ValueError(f"Prompt version không hợp lệ: {version_label}")
+    directories = ((directory.resolve(),) if directory is not None else prompt_directories())
+    for candidate in directories:
+        for path in discover_canonical_prompts(candidate):
+            if _version(path) == expected:
+                return load_prompt_contract(path)
+    raise FileNotFoundError(f"Không tìm thấy prompt contract v{version_label} cho package")
+
+
 def _literal(text: str, name: str) -> str:
     match = re.search(rf"^- {re.escape(name)}\s*=\s*([^\r\n]+)$", text, re.MULTILINE)
     if match is None:
@@ -325,5 +343,5 @@ def load_prompt_contract(path: Path | None = None) -> PromptContract:
 
 __all__ = [
     "DEFAULT_PROMPTS_DIRECTORY", "PROJECT_ROOT", "PROMPT_FILE_ENV", "PromptContract", "canonical_prompt_path",
-    "discover_canonical_prompts", "load_prompt_contract", "prompt_directories",
+    "discover_canonical_prompts", "load_prompt_contract", "prompt_contract_for_version", "prompt_directories",
 ]

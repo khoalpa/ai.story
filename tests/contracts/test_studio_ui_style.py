@@ -7,9 +7,13 @@ from studio.ui_style import STUDIO_STYLE
 
 def test_shared_style_defines_common_tokens_and_surfaces() -> None:
     for token in (
+        "--studio-font-size-sm",
         "--studio-space-1",
+        "--studio-control-min-height",
         "--studio-radius-control",
         "--studio-radius-surface",
+        "--studio-primary",
+        "--studio-focus",
         "--studio-border",
     ):
         assert token in STUDIO_STYLE
@@ -36,3 +40,17 @@ def test_metric_values_wrap_instead_of_showing_ellipsis() -> None:
     assert "overflow-wrap: anywhere" in STUDIO_STYLE
     assert "-webkit-line-clamp: unset !important" in STUDIO_STYLE
     assert "max-width: none !important" in STUDIO_STYLE
+
+
+def test_shared_style_includes_accessible_focus_and_reusable_patterns() -> None:
+    assert ":focus-visible" in STUDIO_STYLE
+    assert "--studio-control-min-height: 2.75rem" in STUDIO_STYLE
+    for pattern in (
+        ".studio-workspace-header",
+        ".studio-status-badge",
+        ".studio-empty-state",
+        ".studio-summary-card",
+        ".studio-action-bar",
+        ".studio-progress",
+    ):
+        assert pattern in STUDIO_STYLE

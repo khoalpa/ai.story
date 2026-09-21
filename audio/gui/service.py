@@ -105,6 +105,8 @@ def normalize_vieneu_core(value: object) -> str:
 def resolve_vieneu_ui_mode(core: object, mode: object, device: object | None = None) -> str:
     _ = core, device
     selected_mode = normalize_vieneu_mode(mode)
+    if selected_mode == "v4":
+        return "remote"
     return "standard" if selected_mode == "standard" else "turbo"
 
 

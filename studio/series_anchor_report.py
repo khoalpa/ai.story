@@ -90,7 +90,7 @@ def _render_overview(report: Mapping[str, Any]) -> None:
             "Cập nhật ở tập": item.get("last_updated_episode", "—"),
         } for item in sorted(threads, key=lambda row: row.get("status") != "open")],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
     mystery = _object(canon.get("master_mystery"))
@@ -104,7 +104,7 @@ def _render_overview(report: Mapping[str, Any]) -> None:
                 "Trạng thái": _status_text(item.get("status")),
             } for item in milestones],
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -151,7 +151,7 @@ def _render_canon(report: Mapping[str, Any]) -> None:
                 "Dấu hiệu thị giác": item.get("visual_signature", "—"),
             } for item in locations],
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     world_rules = _object(canon.get("world_rules"))
@@ -161,7 +161,7 @@ def _render_canon(report: Mapping[str, Any]) -> None:
             [{"Quy tắc": key.replace("_", " ").title(), "Nội dung": value}
              for key, value in world_rules.items()],
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -188,7 +188,7 @@ def _render_continuity(report: Mapping[str, Any]) -> None:
             "Trạng thái": _status_text(item.get("status")),
         } for item in consequences],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
     st.subheader("Sổ đầu mối")
@@ -203,7 +203,7 @@ def _render_continuity(report: Mapping[str, Any]) -> None:
             "Trạng thái": _status_text(item.get("state")),
         } for item in visible],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -255,7 +255,7 @@ def _render_history(report: Mapping[str, Any]) -> None:
             "Revision": item.get("anchor_revision", "—"),
         } for item in _items(report.get("episode_ledger"))],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
     st.subheader("Canon change log")
     st.dataframe(
@@ -266,7 +266,7 @@ def _render_history(report: Mapping[str, Any]) -> None:
             "Lý do": item.get("reason", "—"),
         } for item in _items(report.get("canon_change_log"))],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -285,7 +285,7 @@ def _render_technical(report: Mapping[str, Any]) -> None:
             {"Thuộc tính": "Tập mới nhất", "Giá trị": continuity.get("latest_episode", "—")},
         ],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
     with st.expander("Xem JSON gốc"):
         st.json(report, expanded=False)

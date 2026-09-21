@@ -149,7 +149,7 @@ def _render_scenes(report: Mapping[str, Any]) -> None:
         "Thay đổi vật chất": len(scene.get("material_delta_ids", [])),
     } for scene in scenes]
     st.caption("Bản đồ vùng/cảnh theo báo cáo; số bản ghi không phải số ảnh sản xuất hoặc số cảnh tự tính lại.")
-    st.dataframe(rows, hide_index=True, use_container_width=True)
+    st.dataframe(rows, hide_index=True, width="stretch")
 
     scene_ids = [str(scene.get("scene_id") or "—") for scene in scenes]
     selected_id = st.selectbox("Xem chi tiết cảnh", scene_ids)
@@ -197,7 +197,7 @@ def _render_gates(report: Mapping[str, Any]) -> None:
             "Vị trí bằng chứng": len(gate.get("evidence_locators", gate.get("locators", []))),
         } for gate in visible],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
     for index, gate in enumerate(visible):
@@ -253,7 +253,7 @@ def _render_technical(report: Mapping[str, Any]) -> None:
         {"Thuộc tính": "Commitment digest", "Giá trị": _short_digest(report.get("story_quality_commitment_digest_sha256"))},
         {"Thuộc tính": "Evidence graph digest", "Giá trị": _short_digest(graph.get("graph_digest_sha256"))},
     ]
-    st.dataframe(rows, hide_index=True, use_container_width=True)
+    st.dataframe(rows, hide_index=True, width="stretch")
     with st.expander("Xem JSON gốc"):
         st.json(report, expanded=False)
 

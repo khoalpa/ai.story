@@ -17,12 +17,24 @@ VOICE_PLAN_FIELDS = ("mode", "language", "segments", "allow_paraphrase", "source
 VOICE_SEGMENT_FIELDS = ("speaker_id", "role", "text", "emotion", "pace")
 
 DEFAULT_PROFILES = (
-    {"voice_id": "narrator", "role": "NARRATOR", "language": "vi-VN",
-     "identity_prompt": "A warm Vietnamese narrator with a gentle medium-low pitch, clear standard Vietnamese pronunciation, natural children's-story pacing, and calm emotional expression."},
-    {"voice_id": "female_character", "role": "FEMALE", "language": "vi-VN",
-     "identity_prompt": "The same young Vietnamese female character voice, soft, clear, emotionally expressive, and age-appropriate."},
-    {"voice_id": "male_character", "role": "MALE", "language": "vi-VN",
-     "identity_prompt": "The same young Vietnamese male character voice, gentle, clear, emotionally expressive, and age-appropriate."},
+    {"speaker_id": "narrator", "role": "NARRATOR", "character_id": None,
+     "voice_gender": "NEUTRAL", "age_band": "ADULT", "locale": "vi-VN",
+     "accent": "SOUTHERN_VIETNAMESE", "provider_voice_id": None,
+     "fallback_level": "PROVIDER_DEFAULT_VI_VN",
+     "selection_basis": "Warm source-faithful Vietnamese narrator",
+     "capability_status": "NOT_VERIFIED"},
+    {"speaker_id": "female_character", "role": "FEMALE", "character_id": "female_character",
+     "voice_gender": "FEMALE", "age_band": "PRETEEN", "locale": "vi-VN",
+     "accent": "SOUTHERN_VIETNAMESE", "provider_voice_id": None,
+     "fallback_level": "SAME_GENDER_SOUTHERN",
+     "selection_basis": "Young female character role",
+     "capability_status": "NOT_VERIFIED"},
+    {"speaker_id": "male_character", "role": "MALE", "character_id": "male_character",
+     "voice_gender": "MALE", "age_band": "PRETEEN", "locale": "vi-VN",
+     "accent": "SOUTHERN_VIETNAMESE", "provider_voice_id": None,
+     "fallback_level": "SAME_GENDER_SOUTHERN",
+     "selection_basis": "Young male character role",
+     "capability_status": "NOT_VERIFIED"},
 )
 
 
@@ -30,6 +42,13 @@ def default_voice_strategy() -> dict[str, Any]:
     return {
         "audio_mode": "NATIVE_GENERATED_VOICE",
         "language": "vi-VN",
+        "preferred_locale": "vi-VN",
+        "preferred_accent": "SOUTHERN_VIETNAMESE",
+        "selection_priority": [
+            "CHARACTER_VOICE_GENDER",
+            "CHARACTER_CANONICAL_AGE_BAND",
+            "SOUTHERN_VIETNAMESE_ACCENT",
+        ],
         "voice_profiles": [dict(item) for item in DEFAULT_PROFILES],
         "global_instructions": [
             "Keep each speaker's vocal identity, accent, pitch, timbre, pacing, and recording character consistent across clips.",
@@ -74,7 +93,7 @@ def build_voice_plan(script: list[Any], source: Mapping[str, Any]) -> dict[str, 
 
 
 def native_audio_prompt(voice_plan: Mapping[str, Any], strategy: Mapping[str, Any], ambience: str) -> str:
-    profiles = {p.get("voice_id"): p for p in strategy.get("voice_profiles", []) if isinstance(p, dict)}
+    profiles = {p.get("speaker_id"): p for p in strategy.get("voice_profiles", []) if isinstance(p, dict)}
     lines = ["Native Vietnamese voice; keep the same speaker identity across clips."]
     for segment in voice_plan.get("segments", []):
         if not isinstance(segment, dict):

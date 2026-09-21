@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from studio.audio_delivery_report import format_duration, inspect_audio_delivery
+from studio.navigation import navigate_to
 from studio.package_quality_report import _items, _object, package_quality_summary
 from studio.project_context import (
     OVERVIEW_DIRECTORY_KEY,
@@ -19,7 +20,6 @@ from studio.report_semantics import (
     gate_summary,
 )
 from studio.story_images import (
-    EXPECTED_IMAGE_STEMS,
     inspect_story_images,
     render_aspect_cover_gallery,
     stage_applicable_aspects,
@@ -31,6 +31,7 @@ from studio.story_studio import (
     load_effective_package,
     render_source_provenance,
 )
+from studio.ui_components import render_empty_state
 from studio.video_delivery_report import build_video_delivery_summary
 from studio.workflow_views import render_workflow_summary
 
@@ -408,17 +409,10 @@ def render_overview() -> None:
     if subtitle:
         st.caption(subtitle)
     getattr(st, model["verdict_kind"])(f"**{model['verdict']}** · Dữ liệu tại `{model['output_dir']}`")
-    render_workflow_summary(model["workflow"])
-    source_comparison = model["workflow"].get("source_comparison")
-    if source_comparison:
-        (st.success if source_comparison["status"] == "PASS" else st.error)(source_comparison["detail"])
-
-    st.subheader("Hành động ưu tiên")
+    st.subheader("Việc cần làm tiếp theo")
 
     def open_workspace(workspace: str, story_section: str | None = None) -> None:
-        st.session_state["studio_workspace"] = workspace
-        if story_section:
-            st.session_state["story_studio_section"] = story_section
+        navigate_to(st.session_state, workspace, story_section=story_section)
 
     for index, action in enumerate(model["actions"]):
         text_col, button_col = st.columns([5, 1])
@@ -441,15 +435,27 @@ def render_overview() -> None:
                 args=(action["workspace"], story_section),
             )
 
+    with st.expander("Quy trình và bằng chứng kiểm định", expanded=False):
+        render_workflow_summary(model["workflow"])
+        source_comparison = model["workflow"].get("source_comparison")
+        if source_comparison:
+            (st.success if source_comparison["status"] == "PASS" else st.error)(source_comparison["detail"])
+
     render_source_provenance(output_dir, reports, statuses)
     if model["workflow"]["stage"] == "STAGE2":
         visual_status = statuses.get("visual_bible", "Thiếu")
         icon = "✓" if visual_status.startswith("Có dữ liệu") else "!"
         st.caption("ARTIFACT THEO STAGE")
         st.metric("Visual Bible", f"{icon} {visual_status}")
-    columns = [*st.columns(4), *st.columns(3)]
-    for column, (label, value) in zip(columns, model["metrics"]):
+    primary_metrics = model["metrics"][:5]
+    for column, (label, value) in zip(st.columns(len(primary_metrics)), primary_metrics):
         column.metric(label, value)
+
+    if len(model["metrics"]) > len(primary_metrics):
+        with st.expander("Chỉ số bổ sung"):
+            extra_columns = st.columns(len(model["metrics"]) - len(primary_metrics))
+            for column, (label, value) in zip(extra_columns, model["metrics"][len(primary_metrics):]):
+                column.metric(label, value)
 
     st.caption(model["gate_summary"] + " · Số cảnh do báo cáo khai báo; không phải số ảnh sản xuất.")
     st.subheader("Sản xuất audio/video · độc lập với stage gói truyện")
@@ -475,7 +481,11 @@ def render_overview() -> None:
     st.subheader("Video đầu ra")
     video_deliveries = model["video_deliveries"]
     if not video_deliveries:
-        st.info("Chưa phát hiện result manifest hoặc báo cáo chất lượng video.")
+        render_empty_state(
+            "Chưa có video đầu ra",
+            "Hoàn tất audio và mở Video Studio để cấu hình hình ảnh trước khi render MP4.",
+            icon="▶",
+        )
     else:
         video_columns = st.columns(min(4, len(video_deliveries)))
         for column, item in zip(video_columns, video_deliveries):
@@ -503,12 +513,12 @@ def render_overview() -> None:
                 st.markdown(f"**{heading}**")
                 st.table([{"Thông số": key, "Giá trị": value} for key, value in values.items()])
     
-    st.subheader("Tài nguyên và đầu ra")
-    st.dataframe(
-        [{"Thành phần": name, "Trạng thái": status, "Thông tin": info, "Đường dẫn": path} for name, status, info, path in model["resources"]],
-        width="stretch",
-        hide_index=True,
-    )
+    with st.expander("Tài nguyên, đường dẫn và trạng thái kỹ thuật", expanded=False):
+        st.dataframe(
+            [{"Thành phần": name, "Trạng thái": status, "Thông tin": info, "Đường dẫn": path} for name, status, info, path in model["resources"]],
+            width="stretch",
+            hide_index=True,
+        )
 
 
 

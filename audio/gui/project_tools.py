@@ -250,7 +250,7 @@ def render_project_tools_workspace(*, embedded: bool = False) -> None:
     if not embedded:
         st.set_page_config(page_title="Project Tools", page_icon=":material/build:", layout="wide")
     st.header("Project Tools")
-    cleanup_tab, models_tab, qa_tab = st.tabs(["Cleanup", "Models", "QA / Release"])
+    qa_tab, cleanup_tab, models_tab = st.tabs(["QA / Release", "Cleanup", "Models"])
     with cleanup_tab:
         _render_cleanup_tool()
     with models_tab:

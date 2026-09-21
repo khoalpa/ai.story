@@ -7,7 +7,9 @@ from video.gui.shared_state import (
     sync_embedded_view_selection,
 )
 
+from .models import render_models_tab
 from .tabs import (
+    render_concat_tab,
     render_doctor_tab,
     render_history_tab,
     render_inputs_tab,
@@ -25,10 +27,12 @@ from .view_registry import (
 _VIDEO_RENDERERS = {
     "inputs": render_inputs_tab,
     "run": render_run_tab,
+    "concat": render_concat_tab,
     "doctor": render_doctor_tab,
     "test": render_test_tab,
     "results_logs": render_preview_logs_tab,
     "history": render_history_tab,
+    "models": render_models_tab,
 }
 
 

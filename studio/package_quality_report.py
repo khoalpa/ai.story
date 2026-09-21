@@ -195,7 +195,7 @@ def _render_gates(report: Mapping[str, Any]) -> None:
             "Phương pháp": row.get("detector_method", "Dimension report"),
         } for row in rows],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -226,7 +226,7 @@ def _render_assets(report: Mapping[str, Any]) -> None:
             "Kết quả": _status_text(row.get("gate_status") or row.get("validation_status")),
         } for row in sorted(assets, key=lambda row: (str(row.get("orientation")), str(row.get("path"))))],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -270,7 +270,7 @@ def _render_technical(report: Mapping[str, Any]) -> None:
             {"Thuộc tính": "Report digest", "Giá trị": _short_digest(validation.get("report_digest_sha256"))},
         ],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
     with st.expander("Xem JSON gốc"):
         st.json(report, expanded=False)

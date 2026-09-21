@@ -144,10 +144,11 @@ def render_repetition_report(
     story: Mapping[str, Any], *,
     image_catalog: Mapping[str, Mapping[str, Path]] | None = None,
     image_aspect: str = "landscape",
+    images_root: Path | None = None,
 ) -> None:
     import streamlit as st
 
-    from studio.story_images import image_for_zone, render_image_thumbnail
+    from studio.story_images import image_assets_for_context, render_image_thumbnail
 
     threshold_percent = st.slider(
         "Ngưỡng gần trùng", min_value=82, max_value=98, value=82, step=1,
@@ -211,12 +212,20 @@ def render_repetition_report(
         for column, side, label in zip(context_columns, ("left", "right"), ("Câu gốc", "Câu lặp")):
             item = context[side]
             with column:
-                render_image_thumbnail(
-                    image_for_zone(image_catalog, image_aspect, item["zone"]),
-                    caption=f"{label} · {item['zone']} · {image_aspect.title()}",
-                    key=f"repetition_{image_aspect}_{side}_{item['sentence_number']}",
-                    frame_ratio=(16, 9),
+                assets = image_assets_for_context(
+                    image_catalog, images_root, aspect=image_aspect, zone=item["zone"],
+                    item_indexes=[int(item["sentence_number"]) - 1],
                 )
+                for ordinal, asset in enumerate(assets, start=1):
+                    span = f" · Mục {asset['start'] + 1}–{asset['end'] + 1}" if asset["start"] is not None else ""
+                    if asset["path"] is None:
+                        st.warning(f"Thiếu ảnh · {asset['basename']} · Cảnh {ordinal}{span}")
+                    else:
+                        render_image_thumbnail(
+                            asset["path"], caption=f"{label} · {item['zone']} · Cảnh {ordinal}{span}",
+                            key=f"repetition_{image_aspect}_{side}_{item['sentence_number']}_{ordinal}",
+                            frame_ratio=(16, 9),
+                        )
     for index, item in enumerate(visible[:30], start=1):
         with st.expander(f"{index}. Câu {item['left']['sentence_number']} ↔ {item['right']['sentence_number']} · {item['similarity']:.0%}"):
             left_col, right_col = st.columns(2)

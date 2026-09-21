@@ -6,7 +6,7 @@ from typing import Sequence
 
 from video import __version__
 
-MAPPING = {"render-video"}
+MAPPING = {"render-video", "concat-clips"}
 DEFAULT_COMMAND = "render-video"
 
 
@@ -48,9 +48,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         parser.print_help()
         return
 
-    from video import cli_entry
+    if command == "concat-clips":
+        from video import cli_concat_entry
 
-    cli_entry.main(normalized)
+        cli_concat_entry.main(normalized)
+    else:
+        from video import cli_entry
+
+        cli_entry.main(normalized)
 
 
 if __name__ == "__main__":

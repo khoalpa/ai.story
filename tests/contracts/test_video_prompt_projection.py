@@ -7,6 +7,7 @@ from io import BytesIO
 
 import pytest
 
+from scripts.resegment_native_voice import _sentence_spans
 from studio.prompt_contract import load_prompt_contract
 from studio.video_prompt_adapters import get_adapter
 from studio.video_prompt_projection import (
@@ -17,6 +18,8 @@ from studio.video_prompt_projection import (
     validate_projection,
 )
 from studio.video_prompt_validation import (
+    CLIP_FIELDS,
+    VALIDATION_FIELDS,
     canonical_output_digest,
     normalize_video_prompt_plan,
     semantic_continuity_gate,
@@ -48,6 +51,48 @@ def test_native_voice_plan_preserves_exact_source_text_and_removes_legacy_voice_
     assert voice_plan["allow_paraphrase"] is False
     assert "says exactly" in audio
     assert "no generated narration" not in audio
+
+
+def test_sentence_resegmenter_splits_terminals_inside_one_script_item() -> None:
+    script = [{
+        "voice": "NARRATOR",
+        "speed": "SLOW",
+        "text": "Câu chào đầu tiên. Đây là câu giới thiệu dài hơn!",
+    }]
+    clip = {"source_script": {
+        "start_item_index": 0,
+        "start_word_offset": 0,
+        "end_item_index": 0,
+        "end_word_offset": 11,
+    }}
+
+    spans = _sentence_spans(script, [clip])
+
+    assert [(span["start_word"], span["end_word"], span["text"]) for span in spans] == [
+        (0, 4, "Câu chào đầu tiên."),
+        (4, 11, "Đây là câu giới thiệu dài hơn!"),
+    ]
+
+
+def test_native_voice_export_contains_exact_spoken_text() -> None:
+    strategy = default_voice_strategy()
+    source_text = "Đây là lời thoại phải được đọc nguyên văn."
+    voice_plan = build_voice_plan(
+        [{"voice": "NARRATOR", "speed": "NORMAL", "text": source_text}],
+        {"start_item_index": 0, "start_word_offset": 0,
+         "end_item_index": 0, "end_word_offset": len(source_text.split())},
+    )
+    plan = export_plan()
+    plan["voice_strategy"] = strategy
+    plan["clips"][0]["voice_plan"] = voice_plan
+    plan["clips"][0]["audio_prompt"] = native_audio_prompt(
+        voice_plan, strategy, "Quiet room tone"
+    )
+
+    exported = prompt_text(plan, "FLOW").decode("utf-8")
+
+    assert f'Narrator says exactly: "{source_text}"' in exported
+    assert '"voice_plan":{' in exported
 
 
 def test_normalizer_repairs_native_voice_metadata_and_global_lock_types() -> None:
@@ -135,6 +180,101 @@ def test_normalizer_repairs_ratio_source_digest_and_output_digest_without_claimi
     assert normalized["validation"]["schema_status"] == "NOT_VERIFIED"
     assert normalized["validation"]["output_digest_sha256"] == canonical_output_digest(normalized)
     assert plan["clips"][0]["aspect_ratio"] == "16:9"
+
+
+def test_normalizer_allows_ordered_gaps_for_key_scenes() -> None:
+    story = {"script": [
+        {"text": "one two"},
+        {"text": "unselected scene"},
+        {"text": "three four"},
+    ]}
+    plan = {
+        "project": {"coverage_mode": "KEY_SCENES"},
+        "clips": [
+            {"source_script": {
+                "start_item_index": 0, "start_word_offset": 0,
+                "end_item_index": 0, "end_word_offset": 2,
+                "pause_only": False, "source_text_digest_sha256": "wrong",
+            }},
+            {"source_script": {
+                "start_item_index": 2, "start_word_offset": 0,
+                "end_item_index": 2, "end_word_offset": 2,
+                "pause_only": False, "source_text_digest_sha256": "wrong",
+            }},
+        ],
+        "validation": {"output_digest_sha256": "wrong"},
+    }
+
+    normalized = normalize_video_prompt_plan(plan, story)
+
+    assert normalized["clips"][1]["source_script"]["source_text_digest_sha256"] != "wrong"
+
+
+def test_normalizer_removes_known_legacy_stage4_fields_and_restores_order() -> None:
+    story = {"script": [{"text": "one two"}]}
+    clip = {
+        "clip_id": "clip_0001",
+        "utterance_segmentation": {"legacy": True},
+        "source_script": {
+            "start_item_index": 0, "start_word_offset": 0,
+            "end_item_index": 0, "end_word_offset": 2,
+            "pause_only": False, "source_text_digest_sha256": "wrong",
+        },
+        "aspect_ratio": "LANDSCAPE_16_9",
+    }
+    validation = {
+        "schema_status": "PASS",
+        "long_utterance_status": "PASS",
+        "output_digest_sha256": "wrong",
+    }
+    plan = {
+        "project": {"coverage_mode": "KEY_SCENES"},
+        "clips": [clip],
+        "validation": validation,
+    }
+
+    normalized = normalize_video_prompt_plan(plan, story)
+
+    assert "utterance_segmentation" not in normalized["clips"][0]
+    assert "long_utterance_status" not in normalized["validation"]
+    assert list(normalized["clips"][0]) == [
+        key for key in CLIP_FIELDS if key in normalized["clips"][0]
+    ]
+    assert list(normalized["validation"]) == [
+        key for key in VALIDATION_FIELDS if key in normalized["validation"]
+    ]
+
+
+def test_normalizer_rejects_overlapping_key_scenes() -> None:
+    story = {"script": [{"text": "one two three four"}]}
+    plan = {
+        "project": {"coverage_mode": "KEY_SCENES"},
+        "clips": [
+            {"source_script": {
+                "start_item_index": 0, "start_word_offset": 0,
+                "end_item_index": 0, "end_word_offset": 3,
+            }},
+            {"source_script": {
+                "start_item_index": 0, "start_word_offset": 2,
+                "end_item_index": 0, "end_word_offset": 4,
+            }},
+        ],
+        "validation": {"output_digest_sha256": None},
+    }
+
+    with pytest.raises(ValueError, match="Clip 2: source span"):
+        normalize_video_prompt_plan(plan, story)
+
+
+def test_validator_accepts_non_applicable_voice_gate_without_voice_strategy() -> None:
+    plan = export_plan()
+    plan["validation"] = {key: "PASS" for key in VALIDATION_FIELDS}
+    plan["validation"]["voice_selection_status"] = "NOT_APPLICABLE"
+    plan["validation"]["output_digest_sha256"] = canonical_output_digest(plan)
+
+    errors = validate_video_prompt_plan(plan)["errors"]
+
+    assert "validation components/aggregate phải PASS." not in errors
 
 
 def test_chained_previous_clip_resets_at_scene_boundary() -> None:
@@ -300,7 +440,7 @@ def test_semantic_continuity_gate_compares_adjacent_state_in_same_scene() -> Non
     assert failures == ["clip_0001 → clip_0002"]
 
 
-@pytest.mark.parametrize("target", ["VEO", "FLOW", "GENERIC"])
+@pytest.mark.parametrize("target", ["VEO", "FLOW", "GEMINI", "GENERIC"])
 def test_prompt_package_is_deterministic_and_self_verifying(target: str) -> None:
     plan = export_plan()
     source = canonical_json_bytes(plan)
@@ -327,6 +467,15 @@ def test_flow_projection_contains_last_frame_dependency() -> None:
         "to": "clip_0002",
         "binding": "last_frame_to_first_frame",
     }]
+
+
+def test_gemini_projection_preserves_order_prompt_and_references() -> None:
+    _, raw = project_video_prompts(export_plan(), "GEMINI")
+    payload = json.loads(raw)["projection"]["target_payload"]
+    assert payload["target"] == "GEMINI"
+    assert payload["generation_order"] == ["clip_0001", "clip_0002"]
+    assert payload["clips"][0]["prompt"]
+    assert payload["clips"][0]["reference_images"] == ["characters/hero.png"]
 
 
 def test_text_export_keeps_prompt_avoid_and_references() -> None:

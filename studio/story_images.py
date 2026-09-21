@@ -24,6 +24,15 @@ ZONE_IMAGE_STEMS = {
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
 
 
+def is_project_image(path: Path) -> bool:
+    """Return whether a directory entry is a completed project image."""
+    return (
+        path.is_file()
+        and path.suffix.lower() in IMAGE_SUFFIXES
+        and not path.stem.casefold().endswith(".tmp")
+    )
+
+
 def visual_plan_image_stems(output_dir: Path) -> tuple[str, ...]:
     """Return the persisted active image set, falling back to legacy ZONE names."""
     path = output_dir / "visual_plan.json"
@@ -69,6 +78,78 @@ def apply_visual_plan_zone_aliases(
                 images.setdefault(zone_stem, images[scene_stem])
 
 
+def scene_assets_for_items(
+    output_dir: Path, item_indexes: list[int],
+) -> tuple[dict[str, Any], ...]:
+    """Return planned SCENE assets that cover the supplied script indexes.
+
+    Reader views use this to describe an absent image as a missing *scene*,
+    rather than incorrectly implying that every script item needs its own
+    ZONE image. Older plans without item spans retain the zone association.
+    """
+    try:
+        document = json.loads((output_dir / "visual_plan.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
+        return ()
+    if not isinstance(document, dict):
+        return ()
+    mode = document.get("resolved_mode") or document.get("resolved_image_generation_mode")
+    assets = document.get("assets")
+    if mode != "SCENE" or not isinstance(assets, list) or not item_indexes:
+        return ()
+
+    first, last = min(item_indexes), max(item_indexes)
+    selected: list[dict[str, Any]] = []
+    for asset in assets:
+        if not isinstance(asset, dict) or str(asset.get("role") or "").upper() != "SCENE":
+            continue
+        basename = asset.get("basename")
+        start, end = asset.get("script_item_start"), asset.get("script_item_end")
+        if not isinstance(basename, str) or not isinstance(start, int) or not isinstance(end, int):
+            continue
+        if start <= last and end >= first:
+            selected.append({"basename": basename, "start": start, "end": end})
+    return tuple(sorted(selected, key=lambda asset: (asset["start"], asset["end"], asset["basename"])))
+
+
+def image_for_context(
+    catalog: Mapping[str, Mapping[str, Path]], output_dir: Path | None, *,
+    aspect: str, zone: str, item_indexes: list[int],
+) -> tuple[Path | None, tuple[dict[str, Any], ...]]:
+    """Resolve an image for a UI context, respecting the active image mode.
+
+    The second result lists missing planned SCENE assets.  ZONE packages and
+    contexts outside a planned scene keep the established zone-image fallback.
+    """
+    assets = image_assets_for_context(catalog, output_dir, aspect=aspect, zone=zone, item_indexes=item_indexes)
+    missing = tuple(
+        {key: asset[key] for key in ("basename", "start", "end")}
+        for asset in assets if asset["path"] is None and asset["scene"]
+    )
+    return next((asset["path"] for asset in assets if asset["path"] is not None), None), missing
+
+
+def image_assets_for_context(
+    catalog: Mapping[str, Mapping[str, Path]], output_dir: Path | None, *,
+    aspect: str, zone: str, item_indexes: list[int],
+) -> tuple[dict[str, Any], ...]:
+    """Return ordered image slots for one UI context.
+
+    SCENE slots retain their planned order and remain present when their image
+    file is absent, allowing callers to render an honest gallery with gaps.
+    """
+    planned = scene_assets_for_items(output_dir, item_indexes) if output_dir else ()
+    images = catalog.get(aspect, {})
+    if planned:
+        return tuple({
+            **asset,
+            "path": images.get(Path(asset["basename"]).stem.casefold()),
+            "scene": True,
+        } for asset in planned)
+    path = image_for_zone(catalog, aspect, zone)
+    return ({"basename": f"{zone.casefold()}.png", "start": None, "end": None, "path": path, "scene": False},)
+
+
 def discover_story_images(output_dir: Path) -> dict[str, dict[str, Path]]:
     result: dict[str, dict[str, Path]] = {}
     for aspect in ASPECTS:
@@ -76,7 +157,7 @@ def discover_story_images(output_dir: Path) -> dict[str, dict[str, Path]]:
         images: dict[str, Path] = {}
         if directory.is_dir():
             for path in directory.iterdir():
-                if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES:
+                if is_project_image(path):
                     images.setdefault(path.stem.casefold(), path.resolve())
         result[aspect] = images
     return result
@@ -107,7 +188,7 @@ def inspect_story_images(output_dir: Path) -> dict[str, dict[str, Any]]:
                     wrong_size.append(
                         f"{path.name} ({metadata['width']}×{metadata['height']})"
                     )
-            except (OSError, UnidentifiedImageError):
+            except (OSError, SyntaxError, UnidentifiedImageError):
                 wrong_size.append(f"{path.name} (không đọc được)")
         summary[aspect] = {
             "directory": output_dir / aspect,
@@ -202,7 +283,7 @@ def render_image_thumbnail(
     try:
         preview = thumbnail_bytes(path, frame_ratio=frame_ratio)
         metadata = image_metadata(path)
-    except (OSError, UnidentifiedImageError) as exc:
+    except (OSError, SyntaxError, UnidentifiedImageError) as exc:
         st.error(f"Không thể đọc `{path.name}`: {exc}")
         return
     st.image(preview, caption=caption, width="stretch")
@@ -276,7 +357,7 @@ def render_aspect_cover_gallery(
 
 __all__ = [
     "ASPECTS", "EXPECTED_IMAGE_STEMS", "ZONE_IMAGE_STEMS", "apply_visual_plan_zone_aliases", "discover_story_images",
-    "image_for_zone", "image_metadata", "inspect_story_images", "render_aspect_cover_gallery",
+    "image_assets_for_context", "image_for_context", "image_for_zone", "image_metadata", "inspect_story_images", "is_project_image", "render_aspect_cover_gallery", "scene_assets_for_items",
     "visual_plan_image_stems",
     "render_image_thumbnail", "stage_applicable_aspects", "thumbnail_bytes",
 ]

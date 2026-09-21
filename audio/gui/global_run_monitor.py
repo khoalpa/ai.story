@@ -17,6 +17,8 @@ WORKSPACE_LAST_JOB_ERROR_KEY = "workspace_last_job_error"
 WORKSPACE_LAST_JOB_SUMMARY_KEY = "workspace_last_job_summary"
 WORKSPACE_JOB_TIMELINE_KEY = "workspace_job_timeline"
 WORKSPACE_NOW_OVERRIDE_KEY = "_workspace_now_override"
+CANONICAL_RUN_STATUSES = {"idle", "running", "warning", "failed", "blocked", "completed"}
+RUN_STATUS_ALIASES = {"error": "failed", "success": "completed", "done": "completed"}
 
 
 def _get_session_state(state: SessionState | None = None) -> SessionState:
@@ -55,7 +57,11 @@ class GlobalRunMonitorState:
 
     @status.setter
     def status(self, value: str) -> None:
-        self.state[WORKSPACE_LAST_JOB_STATUS_KEY] = value or "idle"
+        normalized = str(value or "idle").strip().casefold()
+        normalized = RUN_STATUS_ALIASES.get(normalized, normalized)
+        self.state[WORKSPACE_LAST_JOB_STATUS_KEY] = (
+            normalized if normalized in CANONICAL_RUN_STATUSES else "warning"
+        )
 
     @property
     def progress(self) -> int:
@@ -66,7 +72,9 @@ class GlobalRunMonitorState:
 
     @progress.setter
     def progress(self, value: int | float) -> None:
-        self.state[WORKSPACE_LAST_JOB_PROGRESS_KEY] = int(round(float(value)))
+        self.state[WORKSPACE_LAST_JOB_PROGRESS_KEY] = max(
+            0, min(100, int(round(float(value))))
+        )
 
     @property
     def output(self) -> str:

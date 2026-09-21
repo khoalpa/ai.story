@@ -108,6 +108,26 @@ def test_asset_changes_invalidate_cached_hash_and_path_escape_is_rejected(tmp_pa
     assert project_asset_path(tmp_path, "../outside.png") is None
 
 
+def test_broken_png_is_reported_without_crashing_and_temporary_png_is_ignored(tmp_path: Path) -> None:
+    directory = tmp_path / "characters"
+    directory.mkdir()
+    broken = directory / "broken.png"
+    broken.write_bytes(
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x01IDAT\x00\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    (directory / "unfinished.tmp.png").write_bytes(broken.read_bytes())
+    reports = {"story": {"characters": [{"character_id": "broken", "reference_asset": {
+        "reference_image": "characters/broken.png",
+    }}]}}
+
+    rows = inspect_project_assets(tmp_path, reports)
+
+    broken_row = next(row for row in rows if row["name"] == "characters/broken.png")
+    assert broken_row["issues"] == ["Không đọc được ảnh"]
+    assert not any(row["name"] == "characters/unfinished.tmp.png" for row in rows)
+
+
 @pytest.mark.parametrize("group", ["landscape", "portrait"])
 def test_user_replaced_cover_is_notice_not_asset_error(tmp_path: Path, group: str) -> None:
     directory = tmp_path / group

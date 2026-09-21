@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from audio.providers.base import TtsProviderDescriptor, VoiceChoice
+from audio.vieneu_voice_store import list_cloned_voices
 
 PROVIDER_ID = "vieneu"
 CORE_OPTIONS = ("local", "remote_api")
-MODE_OPTIONS = ("turbo", "standard")
+MODE_OPTIONS = ("turbo", "v3turbo", "v4", "standard")
 BACKEND_OPTIONS = ("auto", "native", "lmdeploy")
 RENDER_AUDIO_OPTIONS = ("auto", "cpu")
 DEFAULT_CORE = "local"
@@ -49,6 +50,12 @@ except Exception:  # pragma: no cover
                 ("Thùy Dung (Nữ · Nam · Tin tức)", "Thùy Dung"),
                 ("Quang Sơn (Nam · Trung · Tự nhiên)", "Quang Sơn"),
                 ("Ngọc Trân (Nữ · Trung · Tự nhiên)", "Ngọc Trân"),
+                ("Mỹ Duyên (Nữ · Nam · Sách nói)", "Mỹ Duyên"),
+                ("Quỳnh Anh (Nữ · Bắc · Sách nói)", "Quỳnh Anh"),
+                ("Đức Trí (Nam · Nam · Sách nói)", "Đức Trí"),
+                ("Kim Thanh (Nữ · Nam · Sách nói)", "Kim Thanh"),
+                ("Ngọc Huyền (Nữ · Bắc · Tự nhiên)", "Ngọc Huyền"),
+                ("Adam (Nam · Nam · Tự nhiên)", "Adam"),
             )
         return (
             ("Bich Ngoc (Nu - Mien Bac)", "Bich Ngoc"),
@@ -84,6 +91,20 @@ def _runtime_voice_choices() -> tuple[tuple[str, str], ...]:
     return tuple()
 
 
+def _merge_voice_catalogs(
+    primary: tuple[tuple[str, str], ...],
+    required: tuple[tuple[str, str], ...],
+) -> tuple[tuple[str, str], ...]:
+    merged = list(primary)
+    known_ids = {str(voice_id or "").strip().casefold() for _label, voice_id in primary}
+    for label, voice_id in required:
+        normalized_id = str(voice_id or "").strip().casefold()
+        if normalized_id and normalized_id not in known_ids:
+            merged.append((label, voice_id))
+            known_ids.add(normalized_id)
+    return tuple(merged)
+
+
 def get_voice_choices(*, lang: str, role: str) -> tuple[VoiceChoice, ...]:
     try:
         import streamlit as st  # type: ignore
@@ -94,9 +115,11 @@ def get_voice_choices(*, lang: str, role: str) -> tuple[VoiceChoice, ...]:
         vieneu_model_name = resolve_vieneu_model_name("", vieneu_mode)
 
     available = _runtime_voice_choices()
+    fallback_mode = "standard" if vieneu_mode == "standard" else "turbo"
+    fallback = tuple(_static_vieneu_sample_voices(mode=fallback_mode, model_name=vieneu_model_name))
+    supports_local_clones = vieneu_mode.strip().lower() == "v3turbo"
     if not available:
-        fallback_mode = "standard" if vieneu_mode == "standard" else "turbo"
-        available = tuple(_static_vieneu_sample_voices(mode=fallback_mode, model_name=vieneu_model_name))
+        available = fallback
 
     target_lang = str(lang or "vi").strip().lower() or "vi"
     choices: list[VoiceChoice] = []
@@ -109,6 +132,13 @@ def get_voice_choices(*, lang: str, role: str) -> tuple[VoiceChoice, ...]:
         # VieNeu voices are model capabilities, not script roles. Expose the
         # complete catalog so each script role can use any installed voice.
         choices.append(VoiceChoice(clean_voice_id, f"{label} (VieNeu)", target_lang, "narrator"))
+
+    if supports_local_clones:
+        for cloned in list_cloned_voices():
+            if cloned.model_family != "v3turbo" or cloned.language != target_lang:
+                continue
+            label = f"🎙 {cloned.name} (Giọng clone)"
+            choices.append(VoiceChoice(cloned.selection_id, label, target_lang, "narrator"))
 
     if choices:
         return tuple(choices)

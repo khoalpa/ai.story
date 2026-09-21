@@ -75,9 +75,13 @@ def set_audio_handoff(*, audio_output_path: str, srt_output_path: str = "") -> N
 
 
 def send_audio_to_video(*, audio_output_path: str, srt_output_path: str = "") -> None:
+    from studio.navigation import navigate_to
+
     set_audio_handoff(audio_output_path=audio_output_path, srt_output_path=srt_output_path)
     navigation = workspace_navigation_state(st.session_state)
     navigation.set_target_view("Video", "inputs")
+    if "studio_workspace" in st.session_state:
+        navigate_to(st.session_state, "Video Studio", view="inputs")
 
 
 def ensure_global_run_monitor_state() -> None:

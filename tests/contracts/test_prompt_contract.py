@@ -8,6 +8,7 @@ from studio.prompt_contract import (
     canonical_prompt_path,
     discover_canonical_prompts,
     load_prompt_contract,
+    prompt_contract_for_version,
 )
 from studio.story_environments import CANONICAL_STORY_ENVIRONMENTS
 from studio.story_images import EXPECTED_IMAGE_STEMS
@@ -15,7 +16,7 @@ from studio.story_images import EXPECTED_IMAGE_STEMS
 
 def test_current_registries_are_resolved_and_immutable() -> None:
     contract = load_prompt_contract()
-    assert contract.current_public_schema_registry["video_prompt"] == "1.1"
+    assert contract.current_public_schema_registry["video_prompt"] == "1.2"
     assert contract.current_enum_registry["video_audio_mode"] == (
         "AMBIENCE_ONLY", "NATIVE_DIALOGUE", "SILENT",
     )
@@ -49,10 +50,20 @@ def test_latest_prompt_is_selected_by_semantic_version(tmp_path: Path) -> None:
     assert [path.name for path in discover_canonical_prompts(tmp_path)][0] == "ChatGPT_prompt_v3.12.0.txt"
 
 
+def test_declared_prompt_version_resolves_from_its_prompt_directory() -> None:
+    current = load_prompt_contract()
+
+    resolved = prompt_contract_for_version(
+        current.version_label, directory=current.path.parent
+    )
+
+    assert resolved.path == current.path
+
+
 def test_runtime_projection_matches_latest_prompt() -> None:
     contract = load_prompt_contract()
-    assert contract.version == (3, 15, 0)
-    assert contract.path.name == "ChatGPT_prompt_v3.15.0.txt"
+    assert contract.version == (3, 16, 13)
+    assert contract.path.name == "ChatGPT_prompt_v3.16.13.txt"
     assert tuple(name.removesuffix(".png") for name in contract.image_basenames) == EXPECTED_IMAGE_STEMS
     assert contract.environment_whitelist == CANONICAL_STORY_ENVIRONMENTS
     assert contract.landscape_size == (3840, 2160)
@@ -60,15 +71,15 @@ def test_runtime_projection_matches_latest_prompt() -> None:
     assert contract.story_validation_schema_version == "2.3"
     assert contract.package_quality_schema_version == "2.0"
     assert contract.series_anchor_schema_version == "3.2.0"
-    assert contract.video_prompt_schema_version == "1.1"
-    assert contract.video_prompt_default_config["audio_mode"] == "AMBIENCE_ONLY"
+    assert contract.video_prompt_schema_version == "1.2"
+    assert contract.video_prompt_default_config["audio_mode"] == "NATIVE_DIALOGUE"
     prompt_text = contract.path.read_text(encoding="utf-8-sig")
     assert "VIDEO-PROMPT-CANONICAL-SOURCE-01:" in prompt_text
     assert "video_prompts.flow.json" in prompt_text
     assert "LITERAL-REACHABILITY-01:" in prompt_text
     assert "VEO_VIDEO_PROMPT_SCHEMA_VERSION" not in prompt_text
     assert "VIDEO_SENTENCE_USABLE_SPAN_MAX_SECONDS = 7.950" in prompt_text
-    assert "Mỗi clip có đúng 22 field" in prompt_text
+    assert "Khi audio_mode=NATIVE_DIALOGUE, mỗi clip có đúng 23 field" in prompt_text
     assert "voice_plan" in prompt_text
     assert "VOICE_PROJECTION_LOSS" in prompt_text
     assert "BASELINE_HISTORY_" not in prompt_text
@@ -108,6 +119,15 @@ def test_runtime_projection_matches_latest_prompt() -> None:
     assert "COVER_RENDER_RECORD_ORIENTATION_ENUM" not in prompt_text
     assert "VISUAL_REALIZATION_ORIENTATION_ENUM" not in prompt_text
     assert "DEFAULT_FRAMEWORK_OPERATION_MODE" not in prompt_text
+
+
+def test_workflow_manifest_authoring_is_unambiguous() -> None:
+    prompt_text = load_prompt_contract().path.read_text(encoding="utf-8-sig")
+
+    assert "field `package_purpose` (không phải `purpose`)" in prompt_text
+    assert '`"files":[{"path":"story.json"' in prompt_text
+    assert "type(root.files)==array" in prompt_text
+    assert "array string hoặc item không phải object đều FAIL" in prompt_text
 
 
 def test_numbered_prompts_share_discovery_and_loading_with_library(tmp_path: Path) -> None:

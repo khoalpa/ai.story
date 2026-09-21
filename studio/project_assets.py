@@ -12,6 +12,7 @@ from studio.package_quality_report import _items, _object
 from studio.prompt_contract import load_prompt_contract
 from studio.story_images import (
     IMAGE_SUFFIXES,
+    is_project_image,
     render_image_thumbnail,
     stage_applicable_aspects,
     visual_plan_image_stems,
@@ -70,7 +71,7 @@ def inspect_project_assets(root: Path, reports: Mapping[str, Any]) -> list[dict[
         directory = root / group
         if directory.is_dir():
             for discovered in directory.iterdir():
-                if discovered.is_file() and discovered.suffix.lower() in IMAGE_SUFFIXES:
+                if is_project_image(discovered):
                     expected.setdefault(f"{group}/{discovered.name}", {})
     rows = []
     for name, declared in expected.items():
@@ -88,7 +89,7 @@ def inspect_project_assets(root: Path, reports: Mapping[str, Any]) -> list[dict[
             else:
                 digest, dimensions = file_facts(path)
                 size = path.stat().st_size
-        except (OSError, ValueError, UnidentifiedImageError):
+        except (OSError, ValueError, SyntaxError, UnidentifiedImageError):
             issues.append("Không đọc được ảnh")
         bindings = [declared, evidence.get(name, {})]
         hashes = [a.get("file_sha256") or a.get("sha256") for a in bindings
@@ -174,5 +175,5 @@ def render_project_assets(root: Path, reports: Mapping[str, Any]) -> None:
                     st.json(metadata, expanded=False)
                 else:
                     st.info("Không có metadata provenance để xem; không suy từ tên file hoặc kích thước.")
-        except (OSError, ValueError, UnidentifiedImageError) as exc:
+        except (OSError, ValueError, SyntaxError, UnidentifiedImageError) as exc:
             st.warning(f"Không đọc được metadata: {exc}")

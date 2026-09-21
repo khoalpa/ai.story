@@ -6,8 +6,20 @@ The shared render contract now lives in render_video.app_api so GUI and CLI use
 the same request model and execution path.
 """
 
-from video.app_api import RenderVideoRequest, execute_render_request
+from video.app_api import (
+    ConcatClipsRequest,
+    ConcatClipsResult,
+    RenderVideoRequest,
+    execute_concat_request,
+    execute_render_request,
+)
 
 
 def run_video_job(request: RenderVideoRequest, progress_callback=None) -> dict[str, str]:
     return execute_render_request(request, progress_callback=progress_callback)
+
+
+def run_concat_job(
+    request: ConcatClipsRequest, progress_callback=None
+) -> ConcatClipsResult:
+    return execute_concat_request(request, progress_callback=progress_callback)

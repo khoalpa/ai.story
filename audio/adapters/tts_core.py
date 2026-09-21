@@ -30,6 +30,7 @@ from audio.model_store import (
     provider_target_dir,
 )
 from audio.pipeline.segment_planner import Segment
+from audio.vieneu_voice_store import is_cloned_voice_id, load_cloned_voice_payload
 
 # Backward-compatible module handle for callers/tests that monkeypatch
 # ``tts_core.subprocess.run`` around time-stretch operations.
@@ -39,6 +40,7 @@ _build_atempo_filter = _vieneu_rate.build_atempo_filter
 DEFAULT_VIENEU_MODE = "standard"
 SUPPORTED_VIENEU_MODES = (
     "v3turbo",
+    "v4",
     "turbo",
     "standard",
     "remote",
@@ -50,6 +52,7 @@ SUPPORTED_VIENEU_MODES = (
 )
 DEFAULT_VIENEU_TURBO_MODEL_NAME = "pnnbao-ump/VieNeu-TTS-v2-Turbo-GGUF"
 DEFAULT_VIENEU_V3_TURBO_MODEL_NAME = "pnnbao-ump/VieNeu-TTS-v3-Turbo"
+DEFAULT_VIENEU_V4_MODEL_NAME = "VieNeu-TTS-v4"
 DEFAULT_VIENEU_STANDARD_MODEL_NAME = "pnnbao-ump/VieNeu-TTS"
 DEFAULT_VIENEU_MODEL_NAME = DEFAULT_VIENEU_STANDARD_MODEL_NAME
 DEFAULT_VIENEU_STANDARD_CODEC_REPO = "neuphonic/distill-neucodec"
@@ -80,6 +83,9 @@ def _vieneu_models_root() -> Path:
 
 def get_default_vieneu_local_target(mode: object = DEFAULT_VIENEU_MODE) -> str:
     resolved_mode = normalize_vieneu_mode(mode)
+    if resolved_mode == "v4":
+        # v4 is proprietary and is never downloaded into the local model store.
+        return "VieNeu-TTS-v4"
     if resolved_mode in {"turbo", "v3turbo"}:
         return "VieNeu-TTS-v3-Turbo"
     if resolved_mode == "standard":
@@ -686,6 +692,8 @@ def resolve_vieneu_model_for_runtime(
 
 def get_default_vieneu_model_name(mode: object = DEFAULT_VIENEU_MODE) -> str:
     resolved_mode = normalize_vieneu_mode(mode)
+    if resolved_mode == "v4":
+        return DEFAULT_VIENEU_V4_MODEL_NAME
     if resolved_mode in {"turbo", "v3turbo"}:
         return DEFAULT_VIENEU_V3_TURBO_MODEL_NAME
     if resolved_mode == "standard":
@@ -703,7 +711,7 @@ def resolve_vieneu_model_name(value: object, mode: object = DEFAULT_VIENEU_MODE)
 def is_vieneu_mode_model_compatible(mode: object, model_name: object) -> bool:
     resolved_mode = normalize_vieneu_mode(mode)
     clean_model = str(model_name or "").strip().lower()
-    if not clean_model or resolved_mode == "remote":
+    if not clean_model or resolved_mode in {"remote", "v4"}:
         return True
     if resolved_mode == "v3turbo":
         return "v3" in clean_model and "turbo" in clean_model
@@ -737,6 +745,7 @@ def normalize_vieneu_mode(value: object) -> str:
         "v3": "v3turbo",
         "v3_turbo": "v3turbo",
         "v3turbo": "v3turbo",
+        "v4": "v4",
         "local": "turbo",
         "default": "turbo",
         "turbo": "turbo",
@@ -771,7 +780,7 @@ def resolve_vieneu_effective_mode(
     selected_core = str(core or "local").strip().lower().replace("-", "_").replace(" ", "_")
     selected_mode = normalize_vieneu_mode(mode)
     _ = device, model_name
-    if selected_core in {"remote", "remote_api", "api", "remoteapi"}:
+    if selected_core in {"remote", "remote_api", "api", "remoteapi"} or selected_mode == "v4":
         return "remote"
     return selected_mode
 
@@ -914,6 +923,8 @@ def _normalize_engine_cache_inputs(
         resolved_mode = _resolve_engine_mode(requested_mode)
     clean_api_base = str(api_base or "").strip()
 
+    if resolved_mode == "v4":
+        resolved_mode = "remote"
     if resolved_mode != "remote":
         clean_api_base = ""
     elif not clean_api_base:
@@ -1017,7 +1028,31 @@ def _get_engine(
                 _configure_vieneu_standard_local_prompt(engine, backbone_repo)
         return engine
 
-    return _ENGINE_LIFECYCLE.get_or_create(cache_key, create_engine)
+    engine = _ENGINE_LIFECYCLE.get_or_create(cache_key, create_engine)
+    if resolved_mode == "v3turbo":
+        _refresh_vieneu_v3_voice_catalog(engine)
+    return engine
+
+
+def _refresh_vieneu_v3_voice_catalog(engine: Any) -> None:
+    """Bring a cached v3 engine up to date with the installed SDK voice asset."""
+    try:
+        available_ids = {
+            str(voice_id or "").strip().casefold()
+            for _label, voice_id in tuple(engine.list_preset_voices() or ())
+        }
+        required_ids = {
+            str(voice_id or "").strip().casefold()
+            for _label, voice_id in _static_vieneu_sample_voices(mode="v3turbo")
+        }
+        if required_ids.issubset(available_ids):
+            return
+        reload_voices = getattr(engine, "_load_v3_voices", None)
+        if callable(reload_voices):
+            reload_voices()
+    except Exception:
+        # Voice discovery retains its existing fallback/error reporting path.
+        return
 
 
 def get_vieneu_engine(
@@ -1132,6 +1167,12 @@ def _static_vieneu_sample_voices(
             ("Thùy Dung (Nữ · Nam · Tin tức)", "Thùy Dung"),
             ("Quang Sơn (Nam · Trung · Tự nhiên)", "Quang Sơn"),
             ("Ngọc Trân (Nữ · Trung · Tự nhiên)", "Ngọc Trân"),
+            ("Mỹ Duyên (Nữ · Nam · Sách nói)", "Mỹ Duyên"),
+            ("Quỳnh Anh (Nữ · Bắc · Sách nói)", "Quỳnh Anh"),
+            ("Đức Trí (Nam · Nam · Sách nói)", "Đức Trí"),
+            ("Kim Thanh (Nữ · Nam · Sách nói)", "Kim Thanh"),
+            ("Ngọc Huyền (Nữ · Bắc · Tự nhiên)", "Ngọc Huyền"),
+            ("Adam (Nam · Nam · Tự nhiên)", "Adam"),
         )
     return (
         ("Bích Ngọc (Nữ - Miền Bắc)", "Bích Ngọc"),
@@ -1159,9 +1200,12 @@ def list_vieneu_preset_voices(
             backend=backend,
             allow_network=allow_network,
         )
-        return voices or _static_vieneu_sample_voices(mode=mode, model_name=model_name)
+        # This is the runtime catalog: never invent preset IDs when the engine
+        # has not actually loaded them. UI callers may choose their own
+        # presentation fallback, but render-time validation must stay strict.
+        return voices
     except Exception:
-        return _static_vieneu_sample_voices(mode=mode, model_name=model_name)
+        return tuple()
 
 
 def _resolve_voice_id(seg: Segment, voice_map_vi: dict[str, str], voice_map_en: dict[str, str]) -> str:
@@ -1171,14 +1215,31 @@ def _resolve_voice_id(seg: Segment, voice_map_vi: dict[str, str], voice_map_en: 
     return str(mapping.get(role) or mapping.get("narrator") or "").strip()
 
 
-def _resolve_preset_voice(engine: Any, voice_id: str) -> Any | None:
+def _resolve_preset_voice(engine: Any, voice_id: str, *, mode: str = DEFAULT_VIENEU_MODE) -> Any | None:
     raw = str(voice_id or "").strip()
     if not raw:
         return None
+    if is_cloned_voice_id(raw):
+        resolved_mode = normalize_vieneu_mode(mode)
+        if resolved_mode != "v3turbo":
+            raise TtsError("Giọng clone hiện chỉ tương thích với VieNeu v3 Turbo.")
+        try:
+            return load_cloned_voice_payload(raw, expected_model_family="v3turbo")
+        except (OSError, ValueError) as exc:
+            raise TtsError(f"Không thể nạp giọng clone {raw!r}: {exc}") from exc
     try:
         return engine.get_preset_voice(raw)
     except Exception:
-        pass
+        # A long-lived Streamlit process may retain a v3 engine created before
+        # the bundled voice asset was updated. Reload once before resolving the
+        # label/ID and surfacing a misleading "voice not found" error.
+        reload_voices = getattr(engine, "_load_v3_voices", None)
+        if callable(reload_voices):
+            try:
+                reload_voices()
+                return engine.get_preset_voice(raw)
+            except Exception:
+                pass
 
     available_choices = tuple(engine.list_preset_voices() or ())
     normalized = _normalize_voice_token(raw)
@@ -1221,9 +1282,11 @@ def resolve_vieneu_segment_voice(
     seg: Segment,
     voice_map_vi: dict[str, str],
     voice_map_en: dict[str, str],
+    *,
+    vieneu_mode: str = DEFAULT_VIENEU_MODE,
 ) -> tuple[str, Any | None]:
     voice_id = _resolve_voice_id(seg, voice_map_vi, voice_map_en)
-    voice = _resolve_preset_voice(engine, voice_id) if voice_id else None
+    voice = _resolve_preset_voice(engine, voice_id, mode=vieneu_mode) if voice_id else None
     return voice_id, voice
 
 
@@ -1298,7 +1361,7 @@ def synthesize_segment_with_vieneu_using_engine(
     if not text:
         raise TtsError("VieNeu TTS core không thể render segment rỗng")
     voice_id = _resolve_voice_id(seg, voice_map_vi, voice_map_en)
-    voice = _resolve_preset_voice(engine, voice_id) if voice_id else None
+    voice = _resolve_preset_voice(engine, voice_id, mode=vieneu_mode) if voice_id else None
     max_chars = max(1, int(vieneu_max_chars_chunk if vieneu_max_chars_chunk is not None else 240))
     temperature = float(vieneu_temperature if vieneu_temperature is not None else 0.7)
 

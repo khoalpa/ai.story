@@ -30,6 +30,8 @@ def test_project_defaults_cover_all_related_story_audio_and_video_paths(tmp_path
     assert defaults["video_input_scenes_dir"] == str(tmp_path.resolve() / "landscape")
     assert defaults["video_input_cover_path"] == str(tmp_path.resolve() / "landscape" / "cover.png")
     assert defaults["video_output_input"] == str(tmp_path.resolve() / "video_landscape.mp4")
+    assert defaults["concat_clips_dir"] == str(tmp_path.resolve() / "clips")
+    assert defaults["concat_output"] == str(tmp_path.resolve() / "final.mp4")
 
 
 def test_portrait_project_defaults_follow_current_video_aspect(tmp_path: Path) -> None:
@@ -44,6 +46,8 @@ def test_apply_project_directory_updates_state_atomically(tmp_path: Path) -> Non
     assert selected == tmp_path.resolve()
     assert state["story_studio_directory"] == str(tmp_path.resolve())
     assert state["video_input_scenes_dir"] == str(tmp_path.resolve() / "portrait")
+    assert state["concat_clips_dir"] == str(tmp_path.resolve() / "clips")
+    assert state["concat_output"] == str(tmp_path.resolve() / "final.mp4")
     payload = state[VIDEO_PROJECT_PATH_DEFAULTS_KEY]
     assert isinstance(payload, dict)
     assert payload["project_directory"] == str(tmp_path.resolve())

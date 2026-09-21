@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from studio.story_studio import (
+    STORY_STUDIO_GROUPS,
     STORY_STUDIO_SECTION_ANCHORS,
     STORY_STUDIO_SECTION_INTROS,
     STORY_STUDIO_SECTIONS,
@@ -16,14 +17,27 @@ def test_story_studio_section_order_is_stable() -> None:
         "Nội dung",
         "Kiểm định",
         "Chất lượng",
-        "Tài nguyên",
         "Visual Bible",
+        "Tài nguyên",
         "Kế hoạch video",
         "Âm thanh & phụ đề",
         "Video đầu ra",
         "Series",
         "Công cụ",
     )
+
+
+def test_story_sections_are_grouped_into_five_user_facing_areas() -> None:
+    assert tuple(STORY_STUDIO_GROUPS) == (
+        "Tổng quan",
+        "Nội dung",
+        "Kiểm định",
+        "Sản xuất",
+        "Dữ liệu kỹ thuật",
+    )
+    grouped = tuple(section for sections in STORY_STUDIO_GROUPS.values() for section in sections)
+    assert set(grouped) == set(STORY_STUDIO_SECTIONS)
+    assert len(grouped) == len(set(grouped))
 
 
 def test_each_story_section_has_distinct_heading_and_caption() -> None:
@@ -49,6 +63,7 @@ def test_integrated_shell_renders_navigation_before_story_workspace() -> None:
     assert navigation < renderers
     assert "render_story_studio_navigation()" in shell[navigation:renderers]
     assert "show_navigation=False" in shell
+    assert "render_pipeline_progress" in shell
 
 
 def test_source_selector_is_rendered_only_for_overview() -> None:

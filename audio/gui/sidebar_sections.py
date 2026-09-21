@@ -14,3 +14,14 @@ class SidebarSection(str, Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+SIDEBAR_SECTION_ORDER = (
+    SidebarSection.INPUTS_OUTPUTS,
+    SidebarSection.PROFILES,
+    SidebarSection.PROVIDER,
+    SidebarSection.GENERATION,
+    SidebarSection.RENDER,
+    SidebarSection.ADVANCED,
+    SidebarSection.RUNTIME,
+)

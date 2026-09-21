@@ -7,6 +7,7 @@ from audio.gui.workspace_state import (
     sync_embedded_view_selection,
 )
 
+from .models import render_models_tab
 from .tabs import (
     render_batch_tab,
     render_doctor_tab,
@@ -22,6 +23,7 @@ from .view_registry import (
     AUDIO_VIEW_SPECS,
     normalize_audio_view_id,
 )
+from .voices import render_voices_tab
 
 _AUDIO_RENDERERS = {
     "inputs": render_input_tab,
@@ -31,6 +33,8 @@ _AUDIO_RENDERERS = {
     "test": render_test_tts_tab,
     "results_logs": render_preview_logs_tab,
     "history": render_history_tab,
+    "models": render_models_tab,
+    "voices": render_voices_tab,
 }
 
 

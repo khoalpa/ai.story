@@ -18,7 +18,15 @@ from studio.project_review import (
 )
 from studio.prompt_contract import load_prompt_contract
 from studio.story_studio import load_story_package
-from studio.workflow_builder import build_workflow_package, publish_package_atomic
+from studio.workflow_builder import (
+    build_workflow_package,
+    publish_package_atomic,
+    publish_stage1_checkpoint,
+    publish_stage2_checkpoint,
+    publish_stage4_release,
+    publish_story_validation_report,
+    rebuild_checkpoint_chain,
+)
 from studio.workflow_package import (
     PURPOSES,
     STAGES,
@@ -60,7 +68,18 @@ def fixture_package(stage="STAGE1", parent=None, anchor=False):
     story = {"meta": {}, "characters": [{"character_id": "hero"}], "outline": {}, "script": []}
     members = {name: b"{}" if name.endswith(".json") else b"asset bytes" for name in expected_files(stage, story, anchor)[1:]}
     members["story.json"] = encoded(story)
-    members["story_validation.json"] = encoded({"active_profile": "ADULT_STANDARD", "gates": [{"gate_id": "SAFETY", "status": "PASS"}], "summary": {}})
+    members["story_validation.json"] = encoded({
+        "schema_version": load_prompt_contract().story_validation_schema_version,
+        "prompt_version": load_prompt_contract().version_label,
+        "story_sha256": hashlib.sha256(members["story.json"]).hexdigest(),
+        "story_content_digest_sha256": "0" * 64,
+        "character_reference_set_digest_sha256": "1" * 64,
+        "story_quality_commitment_digest_sha256": "2" * 64,
+        "active_profile": "ADULT_STANDARD", "summary": {}, "scene_zone_map": [],
+        "dialogue_audio": {}, "quality": {}, "engagement": {},
+        "gates": [{"gate_id": "SAFETY", "status": "PASS"}],
+        "refinement": {}, "evidence_graph": {},
+    })
     if parent:
         for name in members:
             if name in parent and owner_stage(name) != stage:
@@ -110,6 +129,170 @@ def test_builder_creates_deterministic_reopened_current_package(tmp_path):
     assert destination.read_bytes() == first
 
 
+def test_stage1_directory_publisher_replaces_legacy_manifest_and_writes_archive(tmp_path):
+    source = fixture_package()
+    write_members(tmp_path, source)
+    (tmp_path / "workflow_manifest.json").write_bytes(encoded({
+        "schema_version": "1.0", "package_stage": "STAGE1",
+        "owned_paths": list(source),
+    }))
+
+    inspection = publish_stage1_checkpoint(tmp_path)
+
+    assert inspection["status"] == "PASS"
+    assert inspect_directory(tmp_path)["status"] == "PASS"
+    archive = read_archive(tmp_path / "story.zip")
+    assert read_json(archive["workflow_manifest.json"])["files"]
+    assert archive["story.json"] == source["story.json"]
+
+
+def test_stage1_publisher_rejects_legacy_validation_before_writing_archive(tmp_path):
+    source = fixture_package()
+    write_members(tmp_path, source)
+    (tmp_path / "story_validation.json").write_bytes(encoded({
+        "schema_version": "1.0", "profile": "ADULT_STANDARD",
+    }))
+
+    with pytest.raises(ValueError, match="story_validation.json không theo contract CURRENT"):
+        publish_stage1_checkpoint(tmp_path)
+
+    assert not (tmp_path / "story.zip").exists()
+
+
+def test_validation_report_upload_is_bound_and_published_atomically(tmp_path):
+    commitment_digest = "3" * 64
+    story = {
+        "schema_version": "2.3",
+        "meta": {"story_quality_commitment": {"commitment_digest_sha256": commitment_digest}},
+        "characters": [], "outline": {}, "script": [],
+    }
+    story_raw = encoded(story)
+    projection = story
+    def canonical(value):
+        raw = json.dumps(
+            value, ensure_ascii=False, separators=(",", ":"), sort_keys=True,
+        ).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()
+    report = {
+        "schema_version": load_prompt_contract().story_validation_schema_version,
+        "prompt_version": load_prompt_contract().version_label,
+        "story_sha256": hashlib.sha256(story_raw).hexdigest(),
+        "story_content_digest_sha256": canonical(projection),
+        "character_reference_set_digest_sha256": canonical([]),
+        "story_quality_commitment_digest_sha256": commitment_digest,
+        "active_profile": "ADULT_STANDARD", "summary": {}, "scene_zone_map": [],
+        "dialogue_audio": {}, "quality": {}, "engagement": {}, "gates": [],
+        "refinement": {}, "evidence_graph": {},
+    }
+    (tmp_path / "story.json").write_bytes(story_raw)
+    payload = encoded(report)
+
+    result = publish_story_validation_report(tmp_path, payload)
+
+    assert result["status"] == "PASS"
+    assert (tmp_path / "story_validation.json").read_bytes() == payload
+
+
+def test_validation_report_upload_does_not_replace_existing_file_on_binding_failure(tmp_path):
+    (tmp_path / "story.json").write_bytes(encoded({
+        "schema_version": "2.3", "meta": {}, "characters": [], "outline": {}, "script": [],
+    }))
+    original = b"legacy report"
+    (tmp_path / "story_validation.json").write_bytes(original)
+
+    with pytest.raises(ValueError, match="Báo cáo kiểm định không hợp lệ"):
+        publish_story_validation_report(tmp_path, encoded({"schema_version": "2.3"}))
+
+    assert (tmp_path / "story_validation.json").read_bytes() == original
+
+
+def test_stage2_directory_publisher_rebuilds_current_parent_and_checkpoint(tmp_path):
+    source = fixture_package("STAGE2")
+    write_members(tmp_path, source)
+    (tmp_path / "workflow_manifest.json").write_bytes(encoded({
+        "schema_version": "1.0", "package_stage": "STAGE2", "assets": [],
+    }))
+
+    inspection = publish_stage2_checkpoint(tmp_path)
+
+    assert inspection["status"] == "PASS"
+    assert inspect_directory(tmp_path)["status"] == "PASS"
+    parent = inspect_members(read_archive(tmp_path / "stage1_checkpoint.zip"), archive=True)
+    child = inspect_members(read_archive(tmp_path / "story.zip"), archive=True, parent=read_archive(tmp_path / "stage1_checkpoint.zip"))
+    assert parent["stage"] == "STAGE1"
+    assert child["stage"] == "STAGE2"
+    assert checks(child)["parent_binding"] == "PASS"
+
+
+def test_checkpoint_chain_rebuilds_stage3_and_publishes_stage_named_archives(tmp_path):
+    stage2_source = fixture_package("STAGE2")
+    stage3_source = fixture_package("STAGE3")
+    write_members(tmp_path, stage3_source)
+    (tmp_path / "visual_bible.json").write_bytes(stage2_source["visual_bible.json"])
+    (tmp_path / "workflow_manifest.json").write_bytes(encoded({
+        "schema_version": "1.0", "package_stage": "STAGE3", "assets": [],
+    }))
+
+    inspection = rebuild_checkpoint_chain(tmp_path, "STAGE3")
+
+    assert inspection["status"] == "PASS"
+    assert inspect_directory(tmp_path)["status"] == "PASS"
+    for name, stage in (("stage1_checkpoint.zip", "STAGE1"),
+                        ("stage2_checkpoint.zip", "STAGE2"),
+                        ("stage3_release.zip", "STAGE3")):
+        assert inspect_members(read_archive(tmp_path / name), archive=True)["stage"] == stage
+
+
+def test_stage4_publisher_rebuilds_invalid_manifest_from_authoritative_parent(tmp_path, monkeypatch):
+    stage2_source = fixture_package("STAGE2")
+    stage3_source = fixture_package("STAGE3", stage2_source)
+    stage4_source = fixture_package("STAGE4", stage3_source)
+    write_members(tmp_path, stage4_source)
+    (tmp_path / "workflow_manifest.json").write_bytes(encoded({
+        "schema_version": "1.0", "package_stage": "STAGE4", "validation": {"status": "PASS"},
+    }))
+    monkeypatch.setattr("studio.workflow_builder.normalize_video_prompt_plan", lambda plan, *_args, **_kwargs: plan)
+    monkeypatch.setattr("studio.workflow_builder.validate_video_prompt_plan", lambda *_args, **_kwargs: {"errors": []})
+
+    inspection = publish_stage4_release(tmp_path, stage3_source)
+
+    assert inspection["status"] == "PASS"
+    rebuilt = read_archive(tmp_path / "story.zip")
+    assert inspect_members(rebuilt, archive=True)["stage"] == "STAGE4"
+    assert tuple(read_json(rebuilt["workflow_manifest.json"])["validation"]) == VALIDATION_FIELDS
+    assert (tmp_path / "video_prompts.json").read_bytes() == rebuilt["video_prompts.json"]
+    assert inspect_directory(tmp_path)["integrity_status"] == "PASS"
+
+
+def test_stage4_publisher_migrates_verified_legacy_stage3_parent(tmp_path, monkeypatch):
+    stage2_source = fixture_package("STAGE2")
+    stage3_source = fixture_package("STAGE3", stage2_source)
+    stage4_source = fixture_package("STAGE4", stage3_source)
+    write_members(tmp_path, stage4_source)
+    legacy_parent = dict(stage3_source)
+    legacy_parent.pop("visual_bible.json")
+    manifest = read_json(legacy_parent["workflow_manifest.json"])
+    manifest["created_by_prompt_version"] = "3.16.11"
+    manifest["files"] = [
+        row for row in manifest["files"] if row["path"] != "visual_bible.json"
+    ]
+    manifest["file_count"] = len(legacy_parent)
+    manifest["validation"] = {
+        "status": "PASS", "package_gate": "PASS", "file_set_gate": "PASS",
+        "image_gate": "PASS", "sidecar_gate": "PASS", "quality_report_gate": "PASS",
+    }
+    legacy_parent["workflow_manifest.json"] = encoded(manifest)
+    monkeypatch.setattr("studio.workflow_builder.normalize_video_prompt_plan", lambda plan, *_args, **_kwargs: plan)
+    monkeypatch.setattr("studio.workflow_builder.validate_video_prompt_plan", lambda *_args, **_kwargs: {"errors": []})
+
+    inspection = publish_stage4_release(tmp_path, legacy_parent)
+
+    assert inspection["status"] == "PASS"
+    assert inspect_members(read_archive(tmp_path / "stage3_release.zip"), archive=True)["stage"] == "STAGE3"
+    assert inspect_members(read_archive(tmp_path / "story.zip"), archive=True)["stage"] == "STAGE4"
+    assert inspect_directory(tmp_path)["integrity_status"] == "PASS"
+
+
 def test_builder_rejects_noncanonical_file_order():
     source = fixture_package()
     files = {name: raw for name, raw in reversed(list(source.items())) if name != "workflow_manifest.json"}
@@ -130,13 +313,13 @@ def test_builder_accepts_direct_parent_when_ancestor_is_unavailable():
     assert inspection["integrity_status"] == "PASS"
 
 
-@pytest.mark.parametrize("stage,count", [("STAGE1", 4), ("STAGE2", 15), ("STAGE3", 25), ("STAGE4", 26)])
+@pytest.mark.parametrize("stage,count", [("STAGE1", 4), ("STAGE2", 15), ("STAGE3", 26), ("STAGE4", 27)])
 def test_stage_allowlists(stage, count):
     story = {"characters": [{"character_id": "hero"}]}
     files = expected_files(stage, story, False)
     assert len(files) == count
     assert len(expected_files(stage, story, True)) == count + 1
-    assert ("visual_bible.json" in files) == (stage == "STAGE2")
+    assert ("visual_bible.json" in files) == (stage in {"STAGE2", "STAGE3", "STAGE4"})
     assert ("video_prompts.json" in files) == (stage == "STAGE4")
     assert ("package_quality_report.json" in files) == (stage in {"STAGE3", "STAGE4"})
 
@@ -343,15 +526,19 @@ def test_stage1_overview_does_not_require_later_assets_or_media(tmp_path):
     assert not model["review"]["package_ready"]
 
 
-def test_stage4_labels_visual_bible_as_stage2_only_artifact(tmp_path):
+def test_stage4_retains_visual_bible_as_read_only_stage2_lineage():
     stage1 = fixture_package()
     stage2 = fixture_package("STAGE2", stage1)
     stage3 = fixture_package("STAGE3", stage2)
-    write_members(tmp_path, fixture_package("STAGE4", stage3))
-
-    _reports, statuses = load_story_package(tmp_path)
-
-    assert statuses["visual_bible"] == "Không thuộc gói Stage 4 · chỉ dùng ở Stage 2"
+    stage4 = fixture_package("STAGE4", stage3)
+    stage2_bible = stage2["visual_bible.json"]
+    assert stage3["visual_bible.json"] == stage2_bible
+    assert stage4["visual_bible.json"] == stage2_bible
+    for package in (stage3, stage4):
+        row = next(item for item in read_json(package["workflow_manifest.json"])["files"]
+                   if item["path"] == "visual_bible.json")
+        assert row["owner_stage"] == "STAGE2"
+        assert row["mutation_status"] == "READ_ONLY"
 
 
 def test_preview_and_directory_do_not_claim_archive_verification(tmp_path):

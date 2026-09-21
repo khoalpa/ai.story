@@ -41,6 +41,8 @@ VIDEO_VISUAL_PLAN_INPUT_KEY = "video_visual_plan_input"
 VIDEO_AUTO_COVER_PATH_KEY = "video_auto_cover_path"
 VIDEO_AUTO_SCENES_DIR_KEY = "video_auto_scenes_dir"
 VIDEO_AUTO_OUTPUT_PATH_KEY = "video_auto_output_path"
+VIDEO_CONCAT_CLIPS_DIR_KEY = "concat_clips_dir"
+VIDEO_CONCAT_OUTPUT_KEY = "concat_output"
 VIDEO_PROJECT_PATH_DEFAULTS_KEY = "video_project_path_defaults"
 VIDEO_PROJECT_PATH_SYNC_KEY = "video_project_path_sync_seen"
 
@@ -58,6 +60,8 @@ VIDEO_PROJECT_PATH_KEYS = (
     VIDEO_AUTO_COVER_PATH_KEY,
     VIDEO_AUTO_SCENES_DIR_KEY,
     VIDEO_AUTO_OUTPUT_PATH_KEY,
+    VIDEO_CONCAT_CLIPS_DIR_KEY,
+    VIDEO_CONCAT_OUTPUT_KEY,
 )
 
 VIDEO_INPUT_DEFAULTS: dict[str, object] = {
@@ -72,6 +76,8 @@ VIDEO_INPUT_DEFAULTS: dict[str, object] = {
     VIDEO_AUTO_COVER_PATH_KEY: "output/landscape/cover.png",
     VIDEO_AUTO_SCENES_DIR_KEY: "output/landscape",
     VIDEO_AUTO_OUTPUT_PATH_KEY: "output/video_landscape.mp4",
+    VIDEO_CONCAT_CLIPS_DIR_KEY: "output/clips",
+    VIDEO_CONCAT_OUTPUT_KEY: "output/final.mp4",
 }
 
 VIDEO_RESULT_DEFAULTS: dict[str, object] = {

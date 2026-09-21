@@ -50,7 +50,7 @@ for workspace_name, selector_key in (
     ("Audio Studio", "audio_embedded_view_selector"),
     ("Video Studio", "video_embedded_view_selector"),
 ):
-    workspace = next(radio for radio in studio.radio if radio.label == "Workspace")
+    workspace = next(radio for radio in studio.radio if radio.label == "Không gian làm việc")
     workspace.set_value(workspace_name).run()
     if studio.exception:
         raise AssertionError(

@@ -527,21 +527,14 @@ def render_run_tab(settings: dict, repository: JobRepository) -> None:
     if not st.session_state.get("run_plain_text"):
         st.session_state["run_plain_text"] = (st.session_state.get("last_plain_script") or st.session_state.get("plain_script_text") or "")
 
-    with st.expander("Run configuration summary", expanded=False):
-        st.json(build_audio_run_summary(settings))
-        diagnostics = settings.get("runtime_diagnostics")
-        if diagnostics:
-            st.caption("Runtime")
-            st.json(diagnostics.as_dict())
-
     plain_text = st.text_area(
-        "Script used for this run",
+        "Kịch bản dùng để render",
         height=340,
         key="run_plain_text",
     )
     st.session_state["last_plain_script"] = plain_text
 
-    st.caption("Final runtime voice mapping after merging GUI settings and asset profile")
+    st.caption("Giọng đọc thực tế sau khi kết hợp thiết lập và asset profile")
     runtime_voice_preview, runtime_voice_error = _resolve_runtime_voice_preview(settings)
     if runtime_voice_preview:
         provider = str(runtime_voice_preview.get("provider") or "").strip().lower()
@@ -584,15 +577,29 @@ def render_run_tab(settings: dict, repository: JobRepository) -> None:
             show_details=True,
         )
 
+    run_summary = build_audio_run_summary(settings)
+    st.markdown("#### Xác nhận trước khi render")
+    summary_columns = st.columns(4)
+    summary_columns[0].metric("Kịch bản", f"{len(plain_text.split()):,} từ" if plain_text.strip() else "Chưa có")
+    summary_columns[1].metric("Nhà cung cấp", str(run_summary.get("tts_provider") or "—"))
+    summary_columns[2].metric("Định dạng", str(run_summary.get("audio_format") or "—").upper())
+    summary_columns[3].metric("Nhịp đọc", str(run_summary.get("pacing_preset") or "—"))
+    with st.expander("Cấu hình và runtime chi tiết", expanded=False):
+        st.json(run_summary)
+        diagnostics = settings.get("runtime_diagnostics")
+        if diagnostics:
+            st.caption("Runtime")
+            st.json(diagnostics.as_dict())
+
     col1, col2 = st.columns([2, 1])
     with col1:
-        if st.button("Run pipeline", type="primary", width="stretch"):
+        if st.button("Render audio", type="primary", width="stretch", disabled=not plain_text.strip()):
             normalized_text, normalized = normalize_plain_script_text(plain_text)
             if normalized:
                 st.session_state["pending_run_plain_text"] = normalized_text
             run_single_job(normalized_text, settings, repository)
     with col2:
-        if st.button("Quick validate", width="stretch"):
+        if st.button("Kiểm tra nhanh", width="stretch", disabled=not plain_text.strip()):
             normalized_text, normalized = normalize_plain_script_text(plain_text)
             if normalized:
                 st.session_state["pending_run_plain_text"] = normalized_text
@@ -620,24 +627,25 @@ def render_run_tab(settings: dict, repository: JobRepository) -> None:
     summary = st.session_state.get("last_result_summary")
     if summary:
         st.divider()
-        st.subheader("Latest result")
+        st.subheader("Kết quả gần nhất")
         output_name = summary.get("out_file_name") or Path(str(summary.get("out_file") or "")).name
         if output_name:
             st.caption(f"Output file: {output_name}")
-        st.json(summary)
+        with st.expander("Chi tiết kỹ thuật của kết quả", expanded=False):
+            st.json(summary)
 
         handoff_cols = st.columns([1.2, 1.0])
         with handoff_cols[0]:
-            if st.button("Send to Video", width="stretch", key="send_audio_to_video_btn"):
+            if st.button("Gửi sang Video", width="stretch", key="send_audio_to_video_btn"):
                 send_audio_to_video(
                     audio_output_path=str(summary.get("out_file") or ""),
                     srt_output_path=str(summary.get("srt_path") or ""),
                 )
-                st.success("Sent Audio output to Video and enabled handoff lock.")
+                st.success("Đã gửi audio và phụ đề sang Video Studio.")
                 st.rerun()
         with handoff_cols[1]:
             st.checkbox(
-                "Lock Video to Audio handoff",
+                "Khóa Video theo bản bàn giao Audio",
                 key="video_lock_to_audio_handoff",
                 help="When enabled, Video keeps following the newest audio/subtitle sent from Audio.",
             )
@@ -650,13 +658,13 @@ def render_preview_tab() -> None:
     summary = st.session_state.get("last_result_summary")
     if summary:
         top = st.columns(4)
-        top[0].metric("Segments", summary.get("segment_count") or 0)
-        top[1].metric("Estimated duration", summary.get("estimated_duration") or "-")
-        top[2].metric("Mode", summary.get("mode") or "-")
-        top[3].metric("Audio format", str(summary.get("audio_format") or "-").upper())
+        top[0].metric("Phân đoạn", summary.get("segment_count") or 0)
+        top[1].metric("Thời lượng dự kiến", summary.get("estimated_duration") or "-")
+        top[2].metric("Chế độ", summary.get("mode") or "-")
+        top[3].metric("Định dạng", str(summary.get("audio_format") or "-").upper())
     render_preview_table()
 
     events = st.session_state.get("last_event_log", [])
     if events:
-        st.subheader("Event log")
-        st.code(json.dumps(events, ensure_ascii=False, indent=2), language="json")
+        with st.expander(f"Nhật ký sự kiện · {len(events)} mục", expanded=False):
+            st.code(json.dumps(events, ensure_ascii=False, indent=2), language="json")

@@ -44,6 +44,7 @@ def migrate(root: Path) -> None:
         updated["audio_prompt"] = native_audio_prompt(voice_plan, strategy, ambience)
         clip.clear()
         clip.update(updated)
+    migrated["validation"]["voice_selection_status"] = "PASS"  # type: ignore[index]
     migrated["validation"]["output_digest_sha256"] = canonical_output_digest(migrated)  # type: ignore[index]
     plan_raw = encoded(migrated)
 

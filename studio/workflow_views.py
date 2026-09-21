@@ -8,6 +8,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Mapping
 
+from studio.artifact_validation import validate_story_validation
 from studio.package_quality_report import _items, _object
 from studio.project_review import (
     DIRECTORY_SOURCE,
@@ -91,6 +92,11 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
     message = {"PASS": "Gói đạt các phép kiểm tra đã chạy", "FAIL": "Gói có lỗi cần xử lý",
                "NOT_VERIFIED": "Chưa đủ bằng chứng xác minh toàn bộ gói"}[status]
     (st.error if status == "FAIL" else st.success if status == "PASS" else st.warning)(message)
+    if status == "FAIL":
+        failures = [str(item.get("detail")) for item in result.get("checks", [])
+                    if isinstance(item, Mapping) and item.get("status") == "FAIL" and item.get("detail")]
+        if failures:
+            st.caption("Nguyên nhân xác định: " + failures[0])
     st.caption(f"Toàn vẹn & parent trực tiếp: {result.get('integrity_status', 'NOT_VERIFIED')} · "
                f"Toàn bộ gate của stage: {result.get('stage_gate_status', 'NOT_VERIFIED')} · "
                f"Đủ điều kiện publish: {result.get('publish_status', 'NOT_VERIFIED')}")
@@ -192,7 +198,11 @@ def render_video_plan(plan: Mapping[str, Any], *, key_prefix: str = "video_plan"
             st.dataframe(visible_rows, hide_index=True, width="stretch")
     with st.expander("Trạng thái gate và điều kiện projection"):
         st.json(model.get("gate_statuses", {}))
-        st.caption("Export yêu cầu schema, source binding và semantic continuity PASS; safety/no-invented-event là tư vấn.")
+        st.caption("Khi có story.srt, preflight audio-first đo lời thật và khóa export nếu thoại không vừa clip; safety/no-invented-event là tư vấn.")
+    if model.get("speech_timing_rows"):
+        with st.expander("Đối chiếu thời lượng thoại thật", expanded=bool(model["errors"])):
+            st.caption("Container đề xuất đã gồm 0,5 giây đệm an toàn. Giá trị trống nghĩa là phải chia lời thoại.")
+            st.dataframe(model["speech_timing_rows"], hide_index=True, width="stretch")
     with st.expander("Capability và source binding"):
         st.caption("Chỉ OBSERVED_SUPPORTED có evidence hợp lệ mới là capability đã xác minh; TARGET_DECLARED là khai báo target.")
         st.json({"capability_profile": target.get("capability_profile"), "source_binding": plan.get("source_binding")})
@@ -211,7 +221,7 @@ def render_video_plan(plan: Mapping[str, Any], *, key_prefix: str = "video_plan"
         st.json({"global_continuity_lock": plan.get("global_continuity_lock"), "validation": plan.get("validation")}, expanded=False)
     if not model["errors"]:
         from studio.prompt_contract import load_prompt_contract
-        from studio.video_prompt_adapters import get_adapter
+        from studio.video_prompt_adapters import adapter_targets, get_adapter
         from studio.video_prompt_projection import (
             build_prompt_package,
             project_video_prompts,
@@ -225,7 +235,7 @@ def render_video_plan(plan: Mapping[str, Any], *, key_prefix: str = "video_plan"
                 canonical_raw = canonical_path.read_bytes()
         st.caption("Tệp canonical vẫn là nguồn chuẩn. Các export là projection một chiều, nằm ngoài story.zip và không sửa artifact nguồn.")
         st.success("Kế hoạch canonical: PASS · cấu trúc, source binding và digest đã hợp lệ.")
-        projection_target = st.selectbox("Target export", ("VEO", "FLOW", "GENERIC"), key=f"{key_prefix}_projection_target")
+        projection_target = st.selectbox("Target export", adapter_targets(), key=f"{key_prefix}_projection_target")
         adapter = get_adapter(projection_target)
         warnings = adapter.capability_warnings(plan)
         gate_statuses = model.get("gate_statuses", {})
@@ -351,7 +361,7 @@ def render_visual_bible(document: Mapping[str, Any], *, root: Path | None = None
     import streamlit as st
 
     if not document:
-        st.info("Visual Bible chỉ thuộc checkpoint Stage 2; không yêu cầu file này trong Stage 3/4.")
+        st.info("Visual Bible là artifact lineage Stage 2 và bắt buộc được retain trong package Stage 2–4.")
         return
     st.caption("Dữ liệu nguồn chỉ đọc. Các khóa và trạng thái bên dưới là khai báo, chưa được detector độc lập xác minh.")
     summary = visual_bible_summary(document, root=root)
@@ -378,7 +388,7 @@ def render_visual_bible(document: Mapping[str, Any], *, root: Path | None = None
 def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Mapping[str, Any]) -> None:
     import streamlit as st
 
-    st.caption("ZIP được đọc trong bộ nhớ, không giải nén lên gói nguồn và không sửa file. Gói upload bên dưới chỉ là bản kiểm tra riêng.")
+    st.caption("ZIP được đọc trong bộ nhớ, không giải nén lên gói nguồn. Khi gặp manifest Stage 1 kiểu cũ, bạn có thể tạo lại manifest và story.zip từ các artifact hiện có.")
     resolved_root = str(root.resolve())
     if state.get(VERIFICATION_ROOT_KEY) != resolved_root:
         state[VERIFICATION_ROOT_KEY] = resolved_root
@@ -420,6 +430,85 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Map
         st.error(f"Không đọc được gói: {exc}")
         return
     render_workflow_summary(result)
+    check_statuses = {
+        str(item.get("check")): str(item.get("status"))
+        for item in result.get("checks", []) if isinstance(item, Mapping)
+    }
+    if result.get("stage") == "STAGE1" and check_statuses.get("manifest_schema") == "FAIL":
+        validation_result = validate_story_validation(root / "story_validation.json", root / "story.json")
+        can_rebuild = validation_result.status == "PASS"
+        if can_rebuild:
+            st.warning("Manifest Stage 1 không theo contract CURRENT; có thể tái tạo từ story, kiểm định và ảnh nhân vật đang có.")
+        else:
+            detail = "; ".join(validation_result.errors)
+            st.error("Chưa thể tạo lại checkpoint: story_validation.json không theo contract CURRENT. " + detail)
+            replacement = st.file_uploader(
+                "Nạp story_validation.json CURRENT", type=["json"],
+                key=f"workflow_stage1_validation_upload_{root.resolve()}",
+                help="Candidate được kiểm tra trong bộ nhớ và chỉ thay file hiện tại khi mọi binding đạt.",
+            )
+            if replacement is not None and st.button(
+                "Xác minh và thay báo cáo kiểm định", type="primary",
+                key=f"workflow_stage1_validation_publish_{root.resolve()}",
+            ):
+                try:
+                    from studio.workflow_builder import publish_story_validation_report
+
+                    publish_story_validation_report(root, replacement.getvalue())
+                except (OSError, ValueError) as exc:
+                    st.error(f"Không thể thay báo cáo kiểm định: {exc}")
+                else:
+                    st.success("Đã nạp story_validation.json CURRENT và xác minh binding.")
+                    st.rerun()
+        if st.button("Tạo lại checkpoint Stage 1", type="primary",
+                     key=f"workflow_rebuild_stage1_{root.resolve()}", disabled=not can_rebuild):
+            try:
+                from studio.workflow_builder import publish_stage1_checkpoint
+
+                publish_stage1_checkpoint(root)
+            except (OSError, ValueError) as exc:
+                st.error(f"Không thể tạo checkpoint Stage 1: {exc}")
+            else:
+                st.success("Đã tạo workflow_manifest.json CURRENT và story.zip đã xác minh.")
+                st.rerun()
+    elif result.get("stage") == "STAGE2" and check_statuses.get("manifest_schema") == "FAIL":
+        st.warning("Manifest Stage 2 không theo contract CURRENT; checkpoint sẽ được dựng lại cùng một parent Stage 1 sạch.")
+        if st.button("Tạo lại checkpoint Stage 2", type="primary", key=f"workflow_rebuild_stage2_{root.resolve()}"):
+            try:
+                from studio.workflow_builder import publish_stage2_checkpoint
+
+                publish_stage2_checkpoint(root)
+            except (OSError, ValueError) as exc:
+                st.error(f"Không thể tạo checkpoint Stage 2: {exc}")
+            else:
+                st.success("Đã tạo stage1_checkpoint.zip và story.zip Stage 2 đã xác minh.")
+                st.rerun()
+    elif result.get("stage") == "STAGE3" and check_statuses.get("manifest_schema") == "FAIL":
+        st.warning("Manifest Stage 3 không theo contract CURRENT; hệ thống sẽ dựng lại chuỗi Stage 1 → 2 → 3 từ các artifact nguồn.")
+        if st.button("Tạo lại chuỗi checkpoint đến Stage 3", type="primary", key=f"workflow_rebuild_stage3_{root.resolve()}"):
+            try:
+                from studio.workflow_builder import rebuild_checkpoint_chain
+
+                rebuild_checkpoint_chain(root, "STAGE3")
+            except (OSError, ValueError) as exc:
+                st.error(f"Không thể tạo chuỗi checkpoint Stage 3: {exc}")
+            else:
+                st.success("Đã tạo stage1_checkpoint.zip, stage2_checkpoint.zip và stage3_release.zip đã xác minh.")
+                st.rerun()
+    elif result.get("stage") == "STAGE4" and check_statuses.get("manifest_schema") == "FAIL":
+        st.warning("Manifest Stage 4 không theo contract CURRENT. Đính kèm đúng story.zip Stage 3 ở ô “Gói cha trực tiếp”; hệ thống sẽ byte-compare mọi member kế thừa trước khi tái tạo Stage 4.")
+        if st.button("Tái tạo gói Stage 4", type="primary", key=f"workflow_rebuild_stage4_{root.resolve()}"):
+            try:
+                if parent is None:
+                    raise ValueError("Cần đính kèm exact story.zip Stage 3 làm gói cha trực tiếp")
+                from studio.workflow_builder import publish_stage4_release
+
+                publish_stage4_release(root, parent)
+            except (OSError, ValueError) as exc:
+                st.error(f"Không thể tái tạo gói Stage 4: {exc}")
+            else:
+                st.success("Đã tạo story.zip và stage4_release.zip Stage 4 đã xác minh.")
+                st.rerun()
     comparison = result.get("source_comparison")
     if comparison:
         (st.success if comparison["status"] == "PASS" else st.error)(comparison["detail"])

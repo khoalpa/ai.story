@@ -5,14 +5,14 @@ from pathlib import Path
 from audio.gui.view_registry import AUDIO_VIEW_SPECS, normalize_audio_view_id
 from video.gui.view_registry import VIDEO_VIEW_SPECS, normalize_video_view_id
 
-COMMON_VIEW_IDS = ("inputs", "run", "doctor", "test", "results_logs", "history")
+COMMON_VIEW_IDS = ("inputs", "test", "doctor", "run", "results_logs", "history")
 COMMON_VIEW_LABELS = {
-    "inputs": "Inputs",
-    "run": "Run",
-    "doctor": "Doctor",
-    "test": "Test",
-    "results_logs": "Results & Logs",
-    "history": "History",
+    "inputs": "Đầu vào",
+    "run": "Render",
+    "doctor": "Kiểm tra",
+    "test": None,
+    "results_logs": "Kết quả & nhật ký",
+    "history": "Lịch sử",
 }
 
 
@@ -26,21 +26,38 @@ def test_common_tabs_have_shared_ids_labels_and_order() -> None:
 
     assert _ids(audio_common) == COMMON_VIEW_IDS
     assert _ids(video_common) == COMMON_VIEW_IDS
-    assert {spec.id: spec.label for spec in audio_common} == COMMON_VIEW_LABELS
-    assert {spec.id: spec.label for spec in video_common} == COMMON_VIEW_LABELS
+    audio_labels = {spec.id: spec.label for spec in audio_common}
+    video_labels = {spec.id: spec.label for spec in video_common}
+    for view_id, label in COMMON_VIEW_LABELS.items():
+        if label is not None:
+            assert audio_labels[view_id] == label
+            assert video_labels[view_id] == label
+    assert audio_labels["test"] == "Nghe thử"
+    assert video_labels["test"] == "Xem trước"
 
 
 def test_module_specific_tabs_are_explicit() -> None:
     assert _ids(AUDIO_VIEW_SPECS) == (
         "inputs",
-        "run",
-        "batch",
-        "doctor",
         "test",
+        "doctor",
+        "run",
         "results_logs",
         "history",
+        "batch",
+        "voices",
+        "models",
     )
-    assert _ids(VIDEO_VIEW_SPECS) == COMMON_VIEW_IDS
+    assert _ids(VIDEO_VIEW_SPECS) == (
+        "inputs",
+        "test",
+        "doctor",
+        "run",
+        "results_logs",
+        "history",
+        "concat",
+        "models",
+    )
 
 
 def test_legacy_labels_migrate_to_stable_ids() -> None:
@@ -83,6 +100,17 @@ def test_each_top_level_tab_has_a_consistent_intro() -> None:
     audio_tabs = Path("audio/gui/tabs.py").read_text(encoding="utf-8")
     video_tabs = Path("video/gui/tabs.py").read_text(encoding="utf-8")
 
-    for label in COMMON_VIEW_LABELS.values():
+    shared_labels = ("Đầu vào", "Kiểm tra hệ thống", "Render", "Kết quả & nhật ký", "Lịch sử")
+    for label in shared_labels:
         assert f'st.subheader("{label}")' in audio_tabs
         assert f'st.subheader("{label}")' in video_tabs
+    assert 'st.subheader("Nghe thử")' in audio_tabs
+    assert 'st.subheader("Xem trước")' in video_tabs
+
+
+def test_audio_input_and_project_tool_tabs_follow_user_workflow() -> None:
+    workspace = Path("audio/gui/workspace.py").read_text(encoding="utf-8")
+    project_tools = Path("audio/gui/project_tools.py").read_text(encoding="utf-8")
+
+    assert 'st.tabs(["Plain Script", "Canonical JSON", "Raw Text"])' in workspace
+    assert 'st.tabs(["QA / Release", "Cleanup", "Models"])' in project_tools

@@ -137,8 +137,57 @@ def test_vieneu_v3_turbo_uses_current_builtin_voices() -> None:
         "Thùy Dung",
         "Quang Sơn",
         "Ngọc Trân",
+        "Mỹ Duyên",
+        "Quỳnh Anh",
+        "Đức Trí",
+        "Kim Thanh",
+        "Ngọc Huyền",
+        "Adam",
     ]
     assert tts_core.migrate_vieneu_legacy_voice_id("vi-VN-HoaiMyNeural", voices) == "Thục Đoan"
+
+
+def test_vieneu_v3_turbo_merges_missing_voices_from_stale_runtime_catalog() -> None:
+    provider = importlib.import_module("audio.providers.vieneu")
+    current = provider._static_vieneu_sample_voices(
+        mode="turbo",
+        model_name="audio/models/vieneu/VieNeu-TTS-v3-Turbo",
+    )
+    stale = current[:14]
+
+    merged = provider._merge_voice_catalogs(stale, current)
+
+    assert len(merged) == 20
+    assert [voice_id for _label, voice_id in merged[-6:]] == [
+        "Mỹ Duyên",
+        "Quỳnh Anh",
+        "Đức Trí",
+        "Kim Thanh",
+        "Ngọc Huyền",
+        "Adam",
+    ]
+
+
+def test_vieneu_v3_turbo_refreshes_a_cached_engine_voice_catalog() -> None:
+    tts_core = importlib.import_module("audio.adapters.tts_core")
+
+    class FakeEngine:
+        def __init__(self) -> None:
+            self.voices = list(tts_core._static_vieneu_sample_voices(mode="v3turbo")[:14])
+            self.reload_count = 0
+
+        def list_preset_voices(self):
+            return self.voices
+
+        def _load_v3_voices(self) -> None:
+            self.reload_count += 1
+            self.voices = list(tts_core._static_vieneu_sample_voices(mode="v3turbo"))
+
+    engine = FakeEngine()
+    tts_core._refresh_vieneu_v3_voice_catalog(engine)
+
+    assert engine.reload_count == 1
+    assert len(engine.list_preset_voices()) == 20
 
 
 def test_vieneu_v3_turbo_keeps_its_runtime_on_cuda(monkeypatch) -> None:

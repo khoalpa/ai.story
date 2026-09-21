@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 from studio.artifact_validation import strict_json_bytes
-from studio.prompt_contract import PromptContract, load_prompt_contract
+from studio.prompt_contract import PromptContract, load_prompt_contract, prompt_contract_for_version
 
 WORKFLOW_FILES = {
     "workflow": "workflow_manifest.json",
@@ -174,7 +174,7 @@ def expected_files(stage: str, story: Mapping[str, Any], anchor: bool,
     else:
         files = [*landscape, *portrait, *base,
                  *(["visual_plan.json"] if visual_plan is not None else []),
-                 "package_quality_report.json"]
+                 "visual_bible.json", "package_quality_report.json"]
         if stage == stages[3]:
             files.append(contract.video_prompt_file_name)
     return ["workflow_manifest.json", *files, *(["series_anchor.json"] if anchor else [])]
@@ -224,6 +224,15 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
     try:
         manifest = read_json(members["workflow_manifest.json"])
         result["manifest"] = manifest
+        declared_prompt_version = manifest.get("created_by_prompt_version")
+        if isinstance(declared_prompt_version, str) and declared_prompt_version != contract.version_label:
+            try:
+                contract = prompt_contract_for_version(
+                    declared_prompt_version, directory=contract.path.parent
+                )
+                stages, purposes = _workflow_values(contract)
+            except (FileNotFoundError, ValueError) as exc:
+                check("prompt_contract", None, f"Không thể tải contract v{declared_prompt_version}: {exc}")
         stage = manifest.get("package_stage")
         if stage not in stages:
             raise ValueError("package_stage không hợp lệ")
@@ -382,7 +391,12 @@ def inspect_directory(
                 for path in [row.get("path")]
                 if isinstance(path, str)
             }
-            names.update({"story.json", "story_validation.json", "series_anchor.json", "visual_bible.json", contract.video_prompt_file_name, "package_quality_report.json"})
+            # CURRENT manifests are the authority for optional stage artifacts.
+            # Loading visual_bible/video prompts unconditionally made a valid
+            # Stage 3/4 directory fail merely because it retained a Stage 2
+            # sidecar for display.  Keep only the two files needed to diagnose
+            # a malformed legacy manifest; declared members are already above.
+            names.update({"story.json", "story_validation.json"})
             for group in ("characters", "landscape", "portrait"):
                 folder = root / group
                 if folder.is_dir():

@@ -11,12 +11,14 @@ class ViewSpec:
 
 
 VIDEO_VIEW_SPECS = (
-    ViewSpec("inputs", "Inputs", "Prepare and review the assets used by Video."),
-    ViewSpec("run", "Run", "Validate and render the current Video job."),
-    ViewSpec("doctor", "Doctor", "Check runtime, input, and image readiness."),
-    ViewSpec("test", "Test", "Resolve inputs and preview the effective Video plan."),
-    ViewSpec("results_logs", "Results & Logs", "Inspect the latest Video output and runtime logs."),
-    ViewSpec("history", "History", "Review Video renders from the current session."),
+    ViewSpec("inputs", "Đầu vào", "Chuẩn bị và kiểm tra tài nguyên dùng để tạo video."),
+    ViewSpec("test", "Xem trước", "Đối chiếu đầu vào và xem trước kế hoạch video thực tế."),
+    ViewSpec("doctor", "Kiểm tra", "Kiểm tra runtime, đầu vào và mức sẵn sàng của hình ảnh."),
+    ViewSpec("run", "Render", "Xác thực và render tác vụ video hiện tại."),
+    ViewSpec("results_logs", "Kết quả & nhật ký", "Xem video đầu ra và nhật ký chạy gần nhất."),
+    ViewSpec("history", "Lịch sử", "Xem các lần render video trong phiên hiện tại."),
+    ViewSpec("concat", "Ghép clip", "Join numbered video clips into one MP4."),
+    ViewSpec("models", "Mô hình", "Kiểm tra và bảo trì mô hình video cục bộ."),
 )
 
 VIDEO_VIEW_IDS = tuple(spec.id for spec in VIDEO_VIEW_SPECS)
@@ -26,11 +28,20 @@ _LEGACY_VIEW_IDS = {
     "Input": "inputs",
     "Inputs": "inputs",
     "Run": "run",
+    "Ghép clip": "concat",
     "Doctor": "doctor",
     "Test": "test",
     "Preview & Logs": "results_logs",
     "Results & Logs": "results_logs",
     "History": "history",
+    "Models": "models",
+    "Đầu vào": "inputs",
+    "Xem trước": "test",
+    "Kiểm tra": "doctor",
+    "Render": "run",
+    "Kết quả & nhật ký": "results_logs",
+    "Lịch sử": "history",
+    "Mô hình": "models",
 }
 
 

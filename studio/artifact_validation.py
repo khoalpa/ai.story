@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import unicodedata
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -12,6 +13,14 @@ from typing import Any, Iterable, Mapping
 from PIL import Image, UnidentifiedImageError
 
 from studio.prompt_contract import PromptContract, load_prompt_contract
+
+STORY_VALIDATION_FIELDS = (
+    "schema_version", "prompt_version", "story_sha256",
+    "story_content_digest_sha256", "character_reference_set_digest_sha256",
+    "story_quality_commitment_digest_sha256", "active_profile", "summary",
+    "scene_zone_map", "dialogue_audio", "quality", "engagement", "gates",
+    "refinement", "evidence_graph",
+)
 
 
 @dataclass
@@ -131,13 +140,7 @@ def validate_story_validation(
     path: Path, story_path: Path | None = None, contract: PromptContract | None = None
 ) -> ValidationResult:
     contract = contract or load_prompt_contract()
-    root = (
-        "schema_version", "prompt_version", "story_sha256",
-        "story_content_digest_sha256", "character_reference_set_digest_sha256",
-        "story_quality_commitment_digest_sha256", "active_profile", "summary",
-        "scene_zone_map", "dialogue_audio", "quality", "engagement", "gates",
-        "refinement", "evidence_graph",
-    )
+    root = STORY_VALIDATION_FIELDS
     result, document = _validate_json_file(
         path, required=root, exact_order=root, contract=contract,
         schema_version=contract.story_validation_schema_version,
@@ -147,6 +150,95 @@ def validate_story_validation(
         if document.get("story_sha256") != digest:
             result.fail("story_sha256 không khớp exact bytes của story.json")
         result.checks["story_sha256_binding"] = "PASS" if document.get("story_sha256") == digest else "FAIL"
+    return result
+
+
+def validate_story_validation_bytes(
+    raw: bytes, story_raw: bytes, *, character_root: Path | None = None,
+    contract: PromptContract | None = None,
+) -> ValidationResult:
+    """Validate a candidate report without publishing it to the workspace."""
+    contract = contract or load_prompt_contract()
+    result = _result("story_validation.json", contract)
+    try:
+        report = strict_json_bytes(raw)
+        story = strict_json_bytes(story_raw)
+    except (UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        result.fail(f"JSON không hợp lệ: {exc}")
+        return result
+
+    missing = [key for key in STORY_VALIDATION_FIELDS if key not in report]
+    if missing:
+        result.fail("Thiếu field: " + ", ".join(missing))
+    if tuple(report) != STORY_VALIDATION_FIELDS:
+        result.fail("Root field/order không đúng contract: " + ", ".join(report))
+    if report.get("schema_version") != contract.story_validation_schema_version:
+        result.fail(
+            f"schema_version={report.get('schema_version')!r}; "
+            f"yêu cầu {contract.story_validation_schema_version!r}"
+        )
+    if report.get("active_profile") not in {
+        "YOUTH_SAFE", "ADULT_STANDARD", "SERIAL_DETECTIVE",
+    }:
+        result.fail(f"active_profile không hợp lệ: {report.get('active_profile')!r}")
+
+    story_digest = hashlib.sha256(story_raw).hexdigest()
+    if report.get("story_sha256") != story_digest:
+        result.fail("story_sha256 không khớp exact bytes của story.json")
+
+    def canonical_digest(value: Any) -> str:
+        text = unicodedata.normalize(
+            "NFC", json.dumps(
+                value, ensure_ascii=False, separators=(",", ":"),
+                allow_nan=False, sort_keys=True,
+            )
+        )
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    characters = story.get("characters")
+    if isinstance(characters, list) and all(isinstance(item, dict) for item in characters):
+        projected_characters = [
+            {key: value for key, value in item.items() if key != "reference_asset"}
+            for item in characters
+        ]
+        projection = {
+            "schema_version": story.get("schema_version"), "meta": story.get("meta"),
+            "characters": projected_characters, "outline": story.get("outline"),
+            "script": story.get("script"),
+        }
+        if report.get("story_content_digest_sha256") != canonical_digest(projection):
+            result.fail("story_content_digest_sha256 không khớp projection của story.json")
+
+        reference_rows = []
+        for character in characters:
+            reference = character.get("reference_asset")
+            if not isinstance(reference, dict):
+                result.fail(f"Thiếu reference_asset của character {character.get('character_id')!r}")
+                continue
+            path_value = reference.get("reference_image")
+            digest_value = reference.get("file_sha256")
+            reference_rows.append([character.get("character_id"), path_value, digest_value])
+            if character_root is not None:
+                if not isinstance(path_value, str):
+                    result.fail("reference_image không hợp lệ")
+                    continue
+                image_path = (character_root / Path(path_value)).resolve()
+                if not image_path.is_relative_to(character_root.resolve()) or not image_path.is_file():
+                    result.fail(f"Không tìm thấy ảnh nhân vật hợp lệ: {path_value}")
+                elif hashlib.sha256(image_path.read_bytes()).hexdigest() != digest_value:
+                    result.fail(f"file_sha256 ảnh nhân vật không khớp: {path_value}")
+        if report.get("character_reference_set_digest_sha256") != canonical_digest(reference_rows):
+            result.fail("character_reference_set_digest_sha256 không khớp story/ảnh nhân vật")
+    else:
+        result.fail("story.characters phải là array object")
+
+    meta = story.get("meta")
+    commitment = meta.get("story_quality_commitment") if isinstance(meta, dict) else None
+    expected_commitment = commitment.get("commitment_digest_sha256") if isinstance(commitment, dict) else None
+    if not expected_commitment or report.get("story_quality_commitment_digest_sha256") != expected_commitment:
+        result.fail("story_quality_commitment_digest_sha256 không khớp story.json")
+
+    result.checks["candidate_binding"] = "PASS" if not result.errors else "FAIL"
     return result
 
 
@@ -265,7 +357,7 @@ def _validate_png(raw: bytes, name: str, expected_size: tuple[int, int], result:
                 result.fail(f"{name}: định dạng {image.format}, yêu cầu PNG")
             if image.size != expected_size:
                 result.fail(f"{name}: kích thước {image.size}, yêu cầu {expected_size}")
-    except (OSError, UnidentifiedImageError) as exc:
+    except (OSError, SyntaxError, UnidentifiedImageError) as exc:
         result.fail(f"{name}: ảnh không hợp lệ: {exc}")
 
 
@@ -387,7 +479,7 @@ def validate_project(path: Path, contract: PromptContract | None = None) -> list
 
 
 __all__ = [
-    "ValidationResult", "strict_json_bytes", "validate_archive", "validate_project",
+    "STORY_VALIDATION_FIELDS", "ValidationResult", "strict_json_bytes", "validate_archive", "validate_project",
     "validate_package_quality", "validate_series_anchor", "validate_story",
-    "validate_story_validation",
+    "validate_story_validation", "validate_story_validation_bytes",
 ]

@@ -19,6 +19,7 @@ from studio.video_voice import (
     native_audio_prompt,
     source_segments,
 )
+from studio.video_speech_timing import speech_timing_preflight
 from studio.workflow_package import safe_name
 
 ROOT_FIELDS = ("schema_version", "generator_target", "source_binding", "project", "global_continuity_lock", "clips", "validation")
@@ -146,6 +147,7 @@ def normalize_video_prompt_plan(plan: Mapping[str, Any], story: Mapping[str, Any
         total_words += count
 
     previous_end = 0
+    coverage_mode = _object(normalized.get("project")).get("coverage_mode")
     for index, clip in enumerate(clips, 1):
         if not isinstance(clip, dict) or not isinstance(clip.get("source_script"), dict):
             raise ValueError(f"Clip {index}: thiếu source_script hợp lệ")
@@ -162,7 +164,12 @@ def normalize_video_prompt_plan(plan: Mapping[str, Any], story: Mapping[str, Any
             raise ValueError(f"Clip {index}: word offset nằm ngoài story.json")
         start_global = bases[start_item] + start_word
         end_global = bases[end_item] + end_word
-        if start_global != previous_end or end_global <= start_global:
+        # FULL_STORY is an exact partition. KEY_SCENES may intentionally skip
+        # unselected source spans, but its selected spans must remain ordered,
+        # non-overlapping, and non-empty.
+        if (end_global <= start_global
+                or start_global < previous_end
+                or (coverage_mode == "FULL_STORY" and start_global != previous_end)):
             raise ValueError(f"Clip {index}: source span không liên tục hoặc rỗng")
         previous_end = end_global
 
@@ -178,12 +185,31 @@ def normalize_video_prompt_plan(plan: Mapping[str, Any], story: Mapping[str, Any
                 ambience = "Quiet source-consistent ambience and natural foley"
             clip["audio_prompt"] = native_audio_prompt(voice_plan, voice_strategy, ambience)
 
+        # Older Stage 4 drafts carried utterance_segmentation as a clip field.
+        # It is no longer part of the canonical projection; source_script and
+        # voice_plan now carry the authoritative segmentation. Preserve unknown
+        # fields so the validator still fails closed, but remove this known
+        # legacy field and restore exact canonical ordering.
+        clip.pop("utterance_segmentation", None)
+        clip_fields = VOICE_CLIP_FIELDS if isinstance(voice_strategy, dict) else CLIP_FIELDS
+        reordered_clip = {key: clip[key] for key in clip_fields if key in clip}
+        reordered_clip.update({key: value for key, value in clip.items() if key not in clip_fields})
+        clip.clear()
+        clip.update(reordered_clip)
+
     project = normalized.get("project")
     if isinstance(project, dict) and project.get("coverage_mode") == "FULL_STORY" and previous_end != total_words:
         raise ValueError("FULL_STORY không phủ toàn bộ token của story.json")
     validation = normalized.get("validation")
     if not isinstance(validation, dict):
         raise ValueError("video_prompts.validation không hợp lệ")
+    validation.pop("long_utterance_status", None)
+    reordered_validation = {key: validation[key] for key in VALIDATION_FIELDS if key in validation}
+    reordered_validation.update({
+        key: value for key, value in validation.items() if key not in VALIDATION_FIELDS
+    })
+    validation.clear()
+    validation.update(reordered_validation)
     validation["output_digest_sha256"] = canonical_output_digest(normalized)
     return normalized
 
@@ -460,7 +486,13 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
         if story_document is not None and previous_word_end != story_total_words:
             errors.append("FULL_STORY không phủ đúng toàn bộ token của story.json.")
     validation = exact(plan.get("validation"), VALIDATION_FIELDS, "validation")
-    if any(validation.get(key) != "PASS" for key in VALIDATION_FIELDS if key not in {"output_digest_sha256"}):
+    validation_statuses_ok = all(
+        validation.get(key) == "PASS"
+        or (key == "voice_selection_status" and not voice_strategy
+            and validation.get(key) == "NOT_APPLICABLE")
+        for key in VALIDATION_FIELDS if key != "output_digest_sha256"
+    )
+    if not validation_statuses_ok:
         errors.append("validation components/aggregate phải PASS.")
     try:
         if validation.get("output_digest_sha256") != canonical_output_digest(plan):
@@ -472,11 +504,25 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
         errors.append("Semantic continuity không khớp: " + ", ".join(continuity_failures[:5]))
     if errors and continuity_status == "PASS":
         continuity_status = "NOT_VERIFIED"
+    speech_timing_status = "NOT_APPLICABLE" if not voice_strategy else "NOT_VERIFIED"
+    speech_timing_rows: list[dict[str, Any]] = []
+    subtitle_raw = source_bytes("story.srt") if voice_strategy else None
+    if subtitle_raw is not None:
+        try:
+            speech_errors, speech_timing_rows = speech_timing_preflight(
+                clips, subtitle_raw.decode("utf-8-sig"), contract.video_clip_durations
+            )
+            errors.extend(speech_errors)
+            speech_timing_status = "FAIL" if speech_errors else "PASS"
+        except (UnicodeError, ValueError) as exc:
+            errors.append(f"SPEECH_TIMING_PREFLIGHT_ERROR: {exc}")
+            speech_timing_status = "FAIL"
     gate_statuses = {
         "schema": "FAIL" if errors else "PASS",
         "source_binding": "FAIL" if any(c["status"] == "FAIL" for c in checks) else
                           "NOT_VERIFIED" if any(c["status"] == "NOT_VERIFIED" for c in checks) else "PASS",
         "semantic_continuity": continuity_status,
+        "speech_timing": speech_timing_status,
         "no_invented_event": "NOT_VERIFIED",
         "safety": "NOT_VERIFIED",
     }
@@ -486,6 +532,7 @@ def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContr
             "required_export_gates": REQUIRED_EXPORT_GATES,
             "advisory_export_gates": ADVISORY_EXPORT_GATES,
             "export_eligible": export_eligible, "rows": rows, "clips": clips, "duration": total,
+            "speech_timing_rows": speech_timing_rows,
             "needs_confirmation": project.get("coverage_mode") == "FULL_STORY" and len(clips) > 120}
 
 

@@ -80,7 +80,7 @@ def _issue_rows(issues: list[LineIssue]) -> list[dict[str, object]]:
 def render_workspace_tab() -> None:
     _apply_pending_plain_script()
 
-    tab_canonical, tab_plain, tab_raw = st.tabs(["Canonical JSON", "Plain Script", "Raw Text"])
+    tab_plain, tab_canonical, tab_raw = st.tabs(["Plain Script", "Canonical JSON", "Raw Text"])
 
     with tab_plain:
         _sync_editor_state(PLAIN_SCRIPT_TEXT_KEY, "plain_script_editor")

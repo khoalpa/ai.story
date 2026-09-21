@@ -7,9 +7,11 @@ from PIL import Image
 from studio.story_images import (
     EXPECTED_IMAGE_STEMS,
     discover_story_images,
+    image_for_context,
     image_for_zone,
     image_metadata,
     inspect_story_images,
+    scene_assets_for_items,
     stage_applicable_aspects,
     thumbnail_bytes,
 )
@@ -40,6 +42,53 @@ def test_stage_image_applicability_does_not_require_portrait_in_stage2() -> None
     assert stage_applicable_aspects("STAGE1") == ()
     assert stage_applicable_aspects("STAGE2") == ("landscape",)
     assert stage_applicable_aspects("STAGE3") == ("landscape", "portrait")
+
+
+def test_scene_assets_are_resolved_by_script_span_not_by_zone_image_name(tmp_path: Path) -> None:
+    (tmp_path / "visual_plan.json").write_text(
+        '''{"resolved_mode":"SCENE","assets":[
+        {"basename":"scene_0001.png","role":"SCENE","script_item_start":0,"script_item_end":2},
+        {"basename":"scene_0002.png","role":"SCENE","script_item_start":3,"script_item_end":5}
+        ]}''',
+        encoding="utf-8",
+    )
+
+    assert scene_assets_for_items(tmp_path, [1, 2]) == (
+        {"basename": "scene_0001.png", "start": 0, "end": 2},
+    )
+    assert scene_assets_for_items(tmp_path, [3, 4]) == (
+        {"basename": "scene_0002.png", "start": 3, "end": 5},
+    )
+
+
+def test_scene_assets_are_sorted_by_story_span(tmp_path: Path) -> None:
+    (tmp_path / "visual_plan.json").write_text(
+        '''{"resolved_mode":"SCENE","assets":[
+        {"basename":"scene_0002.png","role":"SCENE","script_item_start":3,"script_item_end":5},
+        {"basename":"scene_0001.png","role":"SCENE","script_item_start":0,"script_item_end":2}
+        ]}''',
+        encoding="utf-8",
+    )
+
+    assert [asset["basename"] for asset in scene_assets_for_items(tmp_path, [0, 5])] == [
+        "scene_0001.png", "scene_0002.png",
+    ]
+
+
+def test_scene_context_reports_missing_scene_instead_of_missing_zone_image(tmp_path: Path) -> None:
+    (tmp_path / "visual_plan.json").write_text(
+        '''{"resolved_mode":"SCENE","assets":[
+        {"basename":"scene_0001.png","role":"SCENE","script_item_start":0,"script_item_end":2}
+        ]}''',
+        encoding="utf-8",
+    )
+    image, missing = image_for_context(
+        {"landscape": {}, "portrait": {}}, tmp_path,
+        aspect="landscape", zone="OPENING", item_indexes=[0, 1],
+    )
+
+    assert image is None
+    assert missing == ({"basename": "scene_0001.png", "start": 0, "end": 2},)
 
 
 def test_thumbnail_is_resized_and_metadata_keeps_original_dimensions(tmp_path: Path) -> None:
@@ -74,5 +123,5 @@ def test_related_views_use_shared_thumbnail_component() -> None:
     story = Path("studio/story_report.py").read_text(encoding="utf-8")
     video = Path("studio/video_delivery_report.py").read_text(encoding="utf-8")
     assert "render_aspect_cover_gallery" in overview
-    assert "image_for_zone" in story
+    assert "image_assets_for_context" in story
     assert "render_image_thumbnail" in video

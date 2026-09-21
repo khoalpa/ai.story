@@ -334,7 +334,13 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
                 batch_items: list[tuple[int, Segment, str, object | None]] = []
                 for idx in miss_indices:
                     seg = segments[idx]
-                    voice_id, voice = resolve_vieneu_segment_voice(engine, seg, config.voice_map_vi, config.voice_map_en)
+                    voice_id, voice = resolve_vieneu_segment_voice(
+                        engine,
+                        seg,
+                        config.voice_map_vi,
+                        config.voice_map_en,
+                        vieneu_mode=effective_mode,
+                    )
                     batch_items.append((idx, seg, voice_id, voice))
                     if len(batch_items) >= batch_size:
                         await asyncio.to_thread(_render_batch, batch_items)

@@ -16,7 +16,7 @@ from audio.adapters.tts_core import (
     resolve_vieneu_model_name,
 )
 from audio.app_config import AppConfig
-from audio.gui.sidebar_sections import SidebarSection
+from audio.gui.sidebar_sections import SIDEBAR_SECTION_ORDER, SidebarSection
 from audio.gui.user_messages import UserMessage, render_user_message
 from audio.model_store import (
     list_local_models,
@@ -453,7 +453,8 @@ def render_settings_sidebar() -> GuiConfigBundle:
     profile_defaults = ProfileConfig.defaults()
 
     with st.sidebar:
-        with _expander(SidebarSection.PROFILES, expanded=False):
+        sidebar_slots = {section: st.empty() for section in SIDEBAR_SECTION_ORDER}
+        with sidebar_slots[SidebarSection.PROFILES].container(), _expander(SidebarSection.PROFILES, expanded=False):
             profile_root = st.text_input("Profile root", value=str(DEFAULT_PROFILE_ROOT))
             discovered_profiles = list_asset_profiles(profile_root)
             profile_options = ["", *discovered_profiles]
@@ -512,7 +513,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
             )
             abbr_map = st.text_input("Abbreviation map", value=str(profile_defaults["abbr_map"]))
 
-        with _expander(SidebarSection.PROVIDER, expanded=False):
+        with sidebar_slots[SidebarSection.PROVIDER].container(), _expander(SidebarSection.PROVIDER, expanded=False):
             st.session_state.setdefault(
                 "vieneu_device",
                 _normalize_vieneu_device_choice(profile_defaults.get("vieneu_device") or app_defaults.get("vieneu_device") or "auto"),
@@ -618,7 +619,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
                     "VieNeu mode",
                     list(VIENEU_MODE_OPTIONS),
                     key="vieneu_mode",
-                    help="turbo = 4 presets; standard = 6 presets. Voice defaults change with the selected mode.",
+                    help="v4 chỉ dùng qua VieNeu API; turbo/v3turbo/standard dùng runtime local hoặc API theo core đã chọn.",
                 )
                 previous_default_model = _resolve_vieneu_mode_default_model(
                     core=str(st.session_state.get("vieneu_core") or vieneu_core or "local"),
@@ -842,7 +843,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
 
                 _render_audio_provider_status()
                 render_user_message(UserMessage(level="info", title="VieNeu runtime", body="AI-Studio calls VieNeu through the TTS core adapter. The core decides local vs. remote API, and the mode decides which preset/model family is used."))
-        with _expander(SidebarSection.INPUTS_OUTPUTS, expanded=False):
+        with sidebar_slots[SidebarSection.INPUTS_OUTPUTS].container(), _expander(SidebarSection.INPUTS_OUTPUTS, expanded=False):
             output_dir = st.text_input(
                 "Output directory", value=str(app_defaults["output_dir"]), key="audio_output_dir"
             )
@@ -886,7 +887,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
                 index=pacing_presets.index(current_pacing_preset) if current_pacing_preset in pacing_presets else 2,
                 help="Adaptive total gap between sentences: compact=350 ms, natural=550 ms, dramatic=750 ms.",
             )
-        with _expander(SidebarSection.RENDER, expanded=False):
+        with sidebar_slots[SidebarSection.RENDER].container(), _expander(SidebarSection.RENDER, expanded=False):
             validate_only = st.checkbox("Validate only", value=bool(app_defaults["validate_only"]))
             debug_mode = st.checkbox("Debug only (save segments JSON)", value=bool(app_defaults["debug"]))
             max_concurrent_tts = st.slider(
@@ -898,7 +899,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
             )
             st.caption("Batch Size (Generation) only affects VieNeu Standard/PyTorch; Turbo/GGUF will fall back to single render.")
 
-        with _expander("Render parameters", expanded=False):
+        with sidebar_slots[SidebarSection.ADVANCED].container(), _expander("Render parameters", expanded=False):
             (
                 voice_narrator,
                 voice_female,
@@ -923,7 +924,7 @@ def render_settings_sidebar() -> GuiConfigBundle:
             st.subheader("History & Batch")
             store_path = st.text_input("Job store path", value=str(DEFAULT_STORE_PATH))
 
-        with _expander(SidebarSection.RUNTIME, expanded=False):
+        with sidebar_slots[SidebarSection.RUNTIME].container(), _expander(SidebarSection.RUNTIME, expanded=False):
             ffmpeg_exe = st.text_input("ffmpeg executable", value=find_binary(str(app_defaults["ffmpeg_exe"])))
             ffprobe_exe = st.text_input("ffprobe executable", value=find_binary(str(app_defaults["ffprobe_exe"])))
             diagnostics = collect_runtime_diagnostics_for_settings(

@@ -164,7 +164,7 @@ def _render_document(document: PromptDocument) -> None:
         results = search_prompt(document, query)
         st.caption(f"{len(results)} kết quả đầu tiên" + (" (giới hạn 200)" if len(results) == 200 else ""))
         if results:
-            st.dataframe(results, hide_index=True, use_container_width=True)
+            st.dataframe(results, hide_index=True, width="stretch")
         else:
             st.info("Không tìm thấy nội dung phù hợp.")
         return
@@ -211,7 +211,7 @@ def _render_structure(document: PromptDocument) -> None:
             "Số dòng": module.line_count,
         } for module in document.modules],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -251,7 +251,7 @@ def render_prompt_library_workspace(*, embedded: bool = False) -> None:
 
     if not embedded:
         st.set_page_config(page_title="Prompts", page_icon=":material/code_blocks:", layout="wide")
-    st.header("Prompts")
+    st.header("Thông tin prompt")
     st.caption("Duyệt, tìm kiếm và so sánh các tệp ChatGPT_prompt_v*.*.*.txt theo module.")
     default_directory = str((Path.cwd() / "prompts").resolve())
     if PROMPT_LIBRARY_DIRECTORY_KEY not in st.session_state:

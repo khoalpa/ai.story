@@ -43,6 +43,32 @@ def test_new_project_overrides_previous_video_widget_values() -> None:
     assert state["video_input_root"] == r"D:\new"
 
 
+def test_new_project_updates_concat_clips_directory() -> None:
+    state: dict[str, object] = {
+        VIDEO_PROJECT_PATH_SYNC_KEY: r"D:\old",
+        "concat_clips_dir": r"D:\manual\clips",
+        VIDEO_PROJECT_PATH_DEFAULTS_KEY: {
+            "project_directory": r"D:\new",
+            "values": {"concat_clips_dir": r"D:\new\clips"},
+        },
+    }
+    prepare_project_path_defaults(state)
+    assert state["concat_clips_dir"] == r"D:\new\clips"
+
+
+def test_new_project_updates_concat_output_file() -> None:
+    state: dict[str, object] = {
+        VIDEO_PROJECT_PATH_SYNC_KEY: r"D:\old",
+        "concat_output": r"D:\manual\joined.mp4",
+        VIDEO_PROJECT_PATH_DEFAULTS_KEY: {
+            "project_directory": r"D:\new",
+            "values": {"concat_output": r"D:\new\final.mp4"},
+        },
+    }
+    prepare_project_path_defaults(state)
+    assert state["concat_output"] == r"D:\new\final.mp4"
+
+
 def test_manual_video_path_edits_are_captured_durably() -> None:
     state: dict[str, object] = {
         "video_input_root": r"D:\manual",

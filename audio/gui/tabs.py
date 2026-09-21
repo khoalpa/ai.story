@@ -33,41 +33,41 @@ def _build_repository(settings: dict) -> JobRepository:
 
 def render_input_tab(settings: dict) -> None:
     del settings
-    st.subheader("Inputs")
-    st.caption("Prepare and review the script used by Audio.")
+    st.subheader("Đầu vào")
+    st.caption("Chuẩn bị và kiểm tra kịch bản trước khi chọn giọng đọc và render.")
     _render_input_tab()
 
 
 def render_run_tab(settings: dict) -> None:
-    st.subheader("Run")
-    st.caption("Validate and render the current Audio job.")
+    st.subheader("Render")
+    st.caption("Xác thực cấu hình, kiểm tra kịch bản và render audio cùng phụ đề.")
     repository = _build_repository(settings)
     _render_run_tab(settings, repository)
 
 
 def render_test_tts_tab(settings: dict) -> None:
-    st.subheader("Test")
-    st.caption("Preview the selected TTS provider and voice before a full run.")
+    st.subheader("Nghe thử")
+    st.caption("Nghe thử nhà cung cấp và giọng đọc trước khi render toàn bộ.")
     _render_test_tts_tab(settings)
 
 
 def render_preview_logs_tab(settings: dict) -> None:
     del settings
-    st.subheader("Results & Logs")
-    st.caption("Inspect the latest Audio output, preview, and event log.")
+    st.subheader("Kết quả & nhật ký")
+    st.caption("Nghe đầu ra gần nhất; nhật ký kỹ thuật được thu gọn ở cuối trang.")
     render_preview_tab()
 
 
 def render_batch_tab(settings: dict) -> None:
-    st.subheader("Batch")
-    st.caption("Run manifests and retry eligible Audio jobs.")
+    st.subheader("Hàng loạt")
+    st.caption("Chạy nhiều tác vụ từ manifest và thử lại các tác vụ đủ điều kiện.")
     repository = _build_repository(settings)
     _render_batch_tab(settings, repository)
 
 
 def render_history_tab(settings: dict) -> None:
-    st.subheader("History")
-    st.caption("Review completed and failed Audio jobs.")
+    st.subheader("Lịch sử")
+    st.caption("Xem các tác vụ âm thanh đã hoàn tất hoặc thất bại.")
     render_run_history(_build_repository(settings), show_heading=False)
 
 
@@ -92,8 +92,8 @@ def _doctor_asset_rows(settings: dict) -> list[dict[str, str]]:
 
 
 def render_doctor_tab(settings: dict) -> None:
-    st.subheader("Doctor")
-    st.caption("Check Audio runtime, provider, asset, and configuration readiness.")
+    st.subheader("Kiểm tra hệ thống")
+    st.caption("Kiểm tra runtime, nhà cung cấp, tài nguyên và cấu hình trước khi render.")
     diagnostics = collect_runtime_diagnostics_for_settings(
         str(settings.get("ffmpeg_exe") or ""),
         str(settings.get("ffprobe_exe") or ""),

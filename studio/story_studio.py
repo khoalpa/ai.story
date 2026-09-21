@@ -43,6 +43,7 @@ from studio.story_validation_report import (
     _validate_story_report,
     render_story_validation_report,
 )
+from studio.ui_components import render_empty_state
 from studio.video_delivery_report import (
     apply_video_report_override,
     discover_video_report_names,
@@ -71,8 +72,8 @@ STORY_STUDIO_SECTIONS = (
     "Nội dung",
     "Kiểm định",
     "Chất lượng",
-    "Tài nguyên",
     "Visual Bible",
+    "Tài nguyên",
     "Kế hoạch video",
     "Âm thanh & phụ đề",
     "Video đầu ra",
@@ -80,9 +81,17 @@ STORY_STUDIO_SECTIONS = (
     "Công cụ",
 )
 
+STORY_STUDIO_GROUPS = {
+    "Tổng quan": ("Tổng quan", "Gói & quy trình"),
+    "Nội dung": ("Nội dung", "Series", "Visual Bible"),
+    "Kiểm định": ("Kiểm định", "Chất lượng"),
+    "Sản xuất": ("Tài nguyên", "Kế hoạch video", "Âm thanh & phụ đề", "Video đầu ra"),
+    "Dữ liệu kỹ thuật": ("Công cụ",),
+}
+
 STORY_STUDIO_SECTION_INTROS = {
     "Gói & quy trình": ("Gói truyện & quy trình", "Kiểm tra manifest, ZIP, bytes kế thừa và bằng chứng theo từng stage; không sửa gói nguồn."),
-    "Visual Bible": ("Visual Bible Stage 2", "Tra cứu kế hoạch hình ảnh và khóa continuity; không thuộc gói Stage 3/4."),
+    "Visual Bible": ("Visual Bible · lineage Stage 2", "Tra cứu kế hoạch hình ảnh và khóa continuity; được giữ read-only trong gói Stage 2–4."),
     "Kế hoạch video": ("Kế hoạch video Stage 4", "Xem timeline, script span, tham chiếu và prompt; không phải video đã render."),
     "Tài nguyên": ("Tài nguyên dự án", "Duyệt ảnh nhân vật, so sánh ngang/dọc và đối chiếu kích thước, SHA-256."),
     "Tổng quan": (
@@ -170,10 +179,10 @@ def load_story_package(directory: Path) -> tuple[dict[str, Any], dict[str, str]]
             statuses[key] = f"Không hợp lệ: {exc}"
     stage = _object(reports.get("workflow")).get("package_stage")
     for key, applicable in (("quality", stage in {"STAGE3", "STAGE4"}),
-                            ("visual_bible", stage == "STAGE2"), ("video_prompts", stage == "STAGE4")):
+                            ("visual_bible", stage in {"STAGE2", "STAGE3", "STAGE4"}), ("video_prompts", stage == "STAGE4")):
         if stage in {"STAGE1", "STAGE2", "STAGE3", "STAGE4"} and not applicable and statuses.get(key) == "Thiếu":
             statuses[key] = (
-                f"Không thuộc gói {stage.replace('STAGE', 'Stage ')} · chỉ dùng ở Stage 2"
+                f"Không thuộc gói {stage.replace('STAGE', 'Stage ')} · lineage Visual Bible bắt buộc từ Stage 2"
                 if key == "visual_bible"
                 else "Chưa áp dụng ở stage này"
             )
@@ -437,7 +446,6 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
 
     image_root = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
     review = review_package(image_root, reports, statuses, st.session_state)
-    render_workflow_summary(review["workflow"])
     publish_ready = review["package_ready"]
     production_ready = review["story_ready"]
     missing = [
@@ -483,6 +491,8 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
         if section:
             button_col.button(f"Mở {section}", key=f"story_priority_{index}", on_click=open_section, args=(section,))
 
+    with st.expander("Quy trình, gate và bằng chứng", expanded=False):
+        render_workflow_summary(review["workflow"])
 
     st.subheader(_story_title(reports))
     columns = [*st.columns(4), *st.columns(3)]
@@ -508,7 +518,11 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
 def _render_missing(label: str, filename: str, status: str) -> None:
     import streamlit as st
 
-    st.info(f"Chưa thể mở {label}. Hãy thêm `{filename}` vào thư mục gói hoặc chọn tệp thay thế.")
+    render_empty_state(
+        f"Chưa có dữ liệu {label.lower()}",
+        f"Thêm {filename} vào thư mục gói hoặc mở Tổng quan để chọn một tệp thay thế.",
+        icon="＋",
+    )
     if status not in {"Thiếu", ""}:
         st.error(status)
 
@@ -518,7 +532,11 @@ def _render_technical(reports: Mapping[str, Mapping[str, Any]]) -> None:
 
     st.subheader("Dữ liệu kỹ thuật")
     if not reports:
-        st.info("Chưa có báo cáo để kiểm tra.")
+        render_empty_state(
+            "Chưa có báo cáo kỹ thuật",
+            "Chọn thư mục gói ở Tổng quan; JSON nguồn và công cụ QA sẽ xuất hiện tại đây.",
+            icon="{}",
+        )
     for key, report in reports.items():
         if key not in REPORT_SPECS:
             continue
@@ -534,12 +552,38 @@ def render_story_studio_navigation() -> str:
     """Render the shared Story Studio section selector."""
     import streamlit as st
 
-    selected = st.segmented_control(
-        "Khu vực",
-        STORY_STUDIO_SECTIONS,
-        default="Tổng quan" if "story_studio_section" not in st.session_state else None,
-        key="story_studio_section",
+    current = str(st.session_state.get("story_studio_section") or "Tổng quan")
+    if current not in STORY_STUDIO_SECTIONS:
+        current = "Tổng quan"
+        st.session_state["story_studio_section"] = current
+    current_group = next(
+        group for group, sections in STORY_STUDIO_GROUPS.items() if current in sections
+    )
+    if st.session_state.get("story_studio_group") not in STORY_STUDIO_GROUPS:
+        st.session_state["story_studio_group"] = current_group
+    elif st.session_state.get("story_studio_group") != current_group:
+        # A deep link to a legacy section takes precedence over the last visible group.
+        st.session_state["story_studio_group"] = current_group
+
+    def select_group() -> None:
+        group = str(st.session_state.get("story_studio_group") or "Tổng quan")
+        st.session_state["story_studio_section"] = STORY_STUDIO_GROUPS[group][0]
+
+    group = st.segmented_control(
+        "Nhóm nội dung",
+        tuple(STORY_STUDIO_GROUPS),
+        key="story_studio_group",
+        on_change=select_group,
     ) or "Tổng quan"
+    options = STORY_STUDIO_GROUPS[group]
+    if st.session_state.get("story_studio_section") not in options:
+        st.session_state["story_studio_section"] = options[0]
+    selected = st.segmented_control(
+        "Mục",
+        options,
+        key="story_studio_section",
+        label_visibility="collapsed" if len(options) == 1 else "visible",
+    ) or options[0]
     return selected if selected in STORY_STUDIO_SECTIONS else "Tổng quan"
 
 
@@ -584,7 +628,7 @@ def _render_story_studio_section(section: str) -> None:
         render_workflow_workspace(directory, reports, st.session_state)
     elif section == "Visual Bible":
         stage = _object(reports.get("workflow")).get("package_stage")
-        if stage != "STAGE2":
+        if stage not in {"STAGE2", "STAGE3", "STAGE4"}:
             st.info("Visual Bible không áp dụng ở stage này.")
             if reports.get("visual_bible"):
                 st.warning("Phát hiện visual_bible.json ngoài phạm vi manifest của stage hiện tại; kiểm tra lại thư mục giải nén.")
@@ -626,6 +670,7 @@ def _render_story_studio_section(section: str) -> None:
 __all__ = [
     "REPORT_SPECS",
     "STORY_STUDIO_SECTION_ANCHORS",
+    "STORY_STUDIO_GROUPS",
     "STORY_STUDIO_SECTION_INTROS",
     "STORY_STUDIO_SECTIONS",
     "load_story_package",

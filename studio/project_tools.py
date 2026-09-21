@@ -26,8 +26,8 @@ def render_project_tools_workspace(*, embedded: bool = False) -> None:
 
     if not embedded:
         st.set_page_config(page_title="Project Tools", page_icon=":material/build:", layout="wide")
-    st.header("Project Tools")
-    st.caption("Repository-wide QA commands; package tools remain in each standalone app.")
+    st.header("Công cụ dự án")
+    st.caption("Các lệnh QA toàn repository; công cụ riêng của từng gói vẫn nằm trong ứng dụng tương ứng.")
     contract = load_prompt_contract()
     st.caption(
         f"Prompt chuẩn tự động: v{contract.version_label} · SHA-256 {contract.sha256[:12]}… · "
@@ -47,7 +47,7 @@ def render_project_tools_workspace(*, embedded: bool = False) -> None:
                 "Lỗi": len(item.errors), "Cảnh báo": len(item.warnings),
                 "Prompt": item.prompt_version,
             } for item in results],
-            hide_index=True, use_container_width=True,
+            hide_index=True, width="stretch",
         )
         for item in results:
             with st.expander(f"{item.artifact} · {item.status}"):

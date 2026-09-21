@@ -24,6 +24,12 @@ def render_video_studio(*args: Any, **kwargs: Any) -> None:
     render_video_workspace(*args, **kwargs)
 
 from video import config
+from video.clip_concat import (
+    ConcatClipsRequest,
+    ConcatClipsResult,
+    execute_concat_request,
+    validate_concat_request,
+)
 from video.config import get_ffmpeg_exe, get_ffprobe_exe
 from video.encoding_profiles import PROFILE_AUTO, resolve_encoding_profile
 from video.ffmpeg_runner import ensure_tools, get_media_duration_seconds
@@ -628,7 +634,9 @@ validate_request = validate_render_request
 execute_request = execute_render_request
 
 __all__ = [
-    "RenderVideoRequest", "VideoQualityGateError", "execute_render_request", "execute_request",
+    "ConcatClipsRequest", "ConcatClipsResult", "RenderVideoRequest", "VideoQualityGateError",
+    "execute_concat_request", "execute_render_request", "execute_request",
     "render_video_studio", "render_video_workspace", "request_from_args",
-    "validate_render_request", "validate_request", "read_audio_handoff", "write_result_manifest",
+    "validate_concat_request", "validate_render_request", "validate_request",
+    "read_audio_handoff", "write_result_manifest",
 ]

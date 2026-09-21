@@ -51,6 +51,18 @@ def test_audio_validator_accepts_framework_meta_extensions() -> None:
     assert validate_canonical_authoring(authoring) == []
 
 
+def test_audio_validator_accepts_multiple_sentences_in_one_script_item() -> None:
+    from audio.audio_story_spec import validate_canonical_authoring
+
+    authoring = _framework_authoring()
+    authoring["meta"]["language"] = "vi"
+    authoring["script"][0]["text"] = (
+        "Câu thứ nhất. Câu thứ hai! Đây có phải câu thứ ba không?"
+    )
+
+    assert validate_canonical_authoring(authoring) == []
+
+
 def test_audio_validator_accepts_story_quality_commitment_meta_object() -> None:
     from audio.audio_story_spec import validate_canonical_authoring
 

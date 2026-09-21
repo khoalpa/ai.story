@@ -1,17 +1,20 @@
 ﻿from __future__ import annotations
 
-import re
 from pathlib import Path
 
-SIDEBAR_SECTION_ORDER = [
+from audio.gui.sidebar_sections import SIDEBAR_SECTION_ORDER as AUDIO_SIDEBAR_ORDER
+from video.gui.sidebar_sections import SIDEBAR_SECTION_ORDER as VIDEO_SIDEBAR_ORDER
+from video.gui.sidebar_sections import SidebarSection as VideoSidebarSection
+
+SIDEBAR_SECTION_NAMES = (
+    "INPUTS_OUTPUTS",
     "PROFILES",
     "PROVIDER",
-    "INPUTS_OUTPUTS",
     "GENERATION",
     "RENDER",
     "ADVANCED",
     "RUNTIME",
-]
+)
 
 
 def test_sidebar_section_labels_are_shared_across_apps() -> None:
@@ -43,19 +46,20 @@ def test_sidebar_uses_consistent_section_vocabulary() -> None:
 
 
 def test_sidebar_sections_follow_shared_order() -> None:
-    expected_files = [
-        Path("audio/gui/settings.py"),
-        Path("video/gui/settings.py"),
-    ]
+    assert tuple(section.name for section in AUDIO_SIDEBAR_ORDER) == SIDEBAR_SECTION_NAMES
+    assert tuple(section.name for section in VIDEO_SIDEBAR_ORDER) == SIDEBAR_SECTION_NAMES
+    assert tuple(section.value for section in AUDIO_SIDEBAR_ORDER) == tuple(
+        VideoSidebarSection[section.name].value for section in VIDEO_SIDEBAR_ORDER
+    )
 
-    pattern = re.compile(r"st\.(?:header|expander)\(SidebarSection\.([A-Z_]+)")
-    order_index = {section: index for index, section in enumerate(SIDEBAR_SECTION_ORDER)}
-
-    for path in expected_files:
-        sections = pattern.findall(path.read_text(encoding="utf-8"))
-        first_seen_sections = list(dict.fromkeys(section for section in sections if section in order_index))
-        indexed_sections = [order_index[section] for section in first_seen_sections]
-        assert indexed_sections == sorted(indexed_sections), f"{path} sidebar sections are out of order: {sections}"
+    for path in (Path("audio/gui/settings.py"), Path("video/gui/settings.py")):
+        content = path.read_text(encoding="utf-8")
+        assert "sidebar_slots = {section: st.empty() for section in SIDEBAR_SECTION_ORDER}" in content
+        assert "sidebar_slots[SidebarSection.INPUTS_OUTPUTS]" in content
+        assert "sidebar_slots[SidebarSection.PROVIDER]" in content
+        assert "sidebar_slots[SidebarSection.RENDER]" in content
+        assert "sidebar_slots[SidebarSection.ADVANCED]" in content
+        assert "sidebar_slots[SidebarSection.RUNTIME]" in content
 
 
 def test_video_runtime_diagnostics_replaces_runtime_wrapper() -> None:
@@ -68,5 +72,5 @@ def test_video_runtime_diagnostics_replaces_runtime_wrapper() -> None:
 def test_audio_runtime_diagnostics_is_collapsed_by_default() -> None:
     content = Path("audio/gui/settings.py").read_text(encoding="utf-8")
 
-    assert "with _expander(SidebarSection.RUNTIME, expanded=False)" in content
+    assert "_expander(SidebarSection.RUNTIME, expanded=False)" in content
 

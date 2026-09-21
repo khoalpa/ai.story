@@ -695,8 +695,6 @@ def validate_canonical_authoring(data: Any) -> List[str]:
             errors.append(f"script[{idx}].text không được để trống.")
         elif SQUARE_BRACKET_TEXT_RE.search(text):
             errors.append(f"script[{idx}].text không được chứa '[' hoặc ']'.")
-        elif not _looks_like_single_sentence(text):
-            errors.append(f"script[{idx}].text phải chứa đúng 1 câu.")
 
     if zones_seen:
         missing_order = [z for z in ALLOWED_SCRIPT_ZONES if z not in zones_seen]

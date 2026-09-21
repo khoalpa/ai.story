@@ -10,6 +10,7 @@ import argparse
 import copy
 import hashlib
 import json
+import re
 import shutil
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -42,11 +43,42 @@ def _encoded(value: object) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
 
 
-def _sentence_durations(script: list[dict[str, Any]], total_seconds: float) -> list[float]:
+def _sentence_spans(
+    script: list[dict[str, Any]], clips: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Split only the source spans selected by the canonical plan."""
+    spans: list[dict[str, Any]] = []
+    for template in clips:
+        source = template["source_script"]
+        first = int(source["start_item_index"])
+        last = int(source["end_item_index"])
+        for item_index in range(first, last + 1):
+            item = script[item_index]
+            tokens = str(item["text"]).split()
+            left = int(source["start_word_offset"]) if item_index == first else 0
+            right = int(source["end_word_offset"]) if item_index == last else len(tokens)
+            start = left
+            for index in range(left + 1, right + 1):
+                if re.search(r"[.!?…][\"'”’»)]*$", tokens[index - 1]):
+                    spans.append({"item_index": item_index, "start_word": start,
+                                  "end_word": index, "text": " ".join(tokens[start:index]),
+                                  "template": template})
+                    start = index
+            if start < right:
+                spans.append({"item_index": item_index, "start_word": start,
+                              "end_word": right, "text": " ".join(tokens[start:right]),
+                              "template": template})
+    return spans
+
+
+def _sentence_durations(
+    script: list[dict[str, Any]], spans: list[dict[str, Any]], total_seconds: float,
+) -> list[float]:
     raw: list[float] = []
-    for item in script:
-        text = str(item["text"]).strip()
-        words = len(text.split())
+    for span in spans:
+        item = script[span["item_index"]]
+        text = span["text"]
+        words = span["end_word"] - span["start_word"]
         active = 60 * words / (200 * SPEED[str(item["speed"])])
         raw.append(active + PAUSE.get(text[-1:], 0.20))
     scaled = [value * total_seconds / sum(raw) for value in raw]
@@ -74,14 +106,6 @@ def _container_duration(usable: float) -> int:
     raise ValueError(f"Sentence span vượt container 8 giây: {usable}")
 
 
-def _template_for_item(clips: list[dict[str, Any]], item_index: int) -> dict[str, Any]:
-    for clip in clips:
-        source = clip.get("source_script", {})
-        if source.get("start_item_index", 10**9) <= item_index <= source.get("end_item_index", -1):
-            return clip
-    raise ValueError(f"Không tìm thấy clip template cho script item {item_index}")
-
-
 def resegment(root: Path) -> dict[str, Any]:
     story_path = root / "story.json"
     plan_path = root / "video_prompts.json"
@@ -90,8 +114,9 @@ def resegment(root: Path) -> dict[str, Any]:
     original = json.loads(plan_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     script = story["script"]
-    total_seconds = float(original["project"]["total_story_duration_seconds"])
-    durations = _sentence_durations(script, total_seconds)
+    spans = _sentence_spans(script, original["clips"])
+    total_seconds = float(original["project"]["planned_covered_duration_seconds"])
+    durations = _sentence_durations(script, spans, total_seconds)
     boundaries = [0.0]
     for duration in durations:
         boundaries.append(_round(boundaries[-1] + duration))
@@ -107,29 +132,30 @@ def resegment(root: Path) -> dict[str, Any]:
 
     new_clips: list[dict[str, Any]] = []
     previous_by_scene: dict[str, dict[str, Any]] = {}
-    for item_index, item in enumerate(script):
-        template = _template_for_item(original["clips"], item_index)
+    for span_index, span in enumerate(spans):
+        item_index = span["item_index"]
+        item = script[item_index]
+        template = span["template"]
         clip = copy.deepcopy(template)
-        sequence = item_index + 1
+        sequence = span_index + 1
         clip["clip_id"] = f"clip_{sequence:04d}"
         clip["sequence_index"] = sequence
         clip["zone"] = item["zone"]
-        words = len(str(item["text"]).split())
         source = {
             "start_item_index": item_index,
-            "start_word_offset": 0,
+            "start_word_offset": span["start_word"],
             "end_item_index": item_index,
-            "end_word_offset": words,
-            "start_time_seconds": boundaries[item_index],
-            "end_time_seconds": boundaries[item_index + 1],
+            "end_word_offset": span["end_word"],
+            "start_time_seconds": boundaries[span_index],
+            "end_time_seconds": boundaries[span_index + 1],
             "pause_only": False,
         }
         source["source_text_digest_sha256"] = _source_digest(script, source)
         clip["source_script"] = source
-        usable = _round(boundaries[item_index + 1] - boundaries[item_index])
+        usable = _round(boundaries[span_index + 1] - boundaries[span_index])
         clip["duration_seconds"] = _container_duration(usable)
         clip["usable_span_seconds"] = usable
-        sentence = str(item["text"]).strip()
+        sentence = span["text"]
         clip["primary_action"] = f"Visualize exactly this complete source sentence: {sentence}"
         clip["visual_delta"] = f"One sentence-bound visual beat for story item {item_index}."
         clip["terminal_handoff"] = "End after the complete sentence; hold a stable continuity frame."

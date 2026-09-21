@@ -17,11 +17,16 @@ def main() -> int:
         import streamlit as st
 
         from audio.app_api import render_audio_workspace
+        from studio.navigation import pipeline_step_for_workspace
         from studio.overview import render_overview
         from studio.prompt_library import render_prompt_library_workspace
         from studio.story_studio import (
             render_story_studio_navigation,
             render_story_studio_workspace,
+        )
+        from studio.ui_components import (
+            render_global_run_feedback,
+            render_pipeline_progress,
         )
         from studio.ui_style import render_studio_style
         from video.app_api import render_video_workspace
@@ -35,7 +40,7 @@ def main() -> int:
             return 1
         raise
 
-    app_title = "AI Audio & Video Studio"
+    app_title = "AI Story Studio"
 
     st.set_page_config(page_title=app_title, page_icon=":material/movie:", layout="wide")
 
@@ -103,11 +108,22 @@ def main() -> int:
 
     st.sidebar.caption(f"Prompt · `{active_prompt.name}`")
 
+    workspace_labels = {
+        "Overview": "Tổng quan",
+        "Story Studio": "Nội dung truyện",
+        "Audio Studio": "Âm thanh",
+        "Video Studio": "Video",
+        "Prompt Info": "Thông tin prompt",
+    }
     selected = st.sidebar.radio(
-        "Workspace",
+        "Không gian làm việc",
         ["Overview", "Story Studio", "Audio Studio", "Video Studio", "Prompt Info"],
         key="studio_workspace",
+        format_func=lambda workspace: workspace_labels[workspace],
     )
+    if selected != "Prompt Info":
+        render_pipeline_progress(pipeline_step_for_workspace(selected, st.session_state))
+        render_global_run_feedback(st.session_state)
     if selected == "Story Studio":
         render_story_studio_navigation()
     renderers = {
