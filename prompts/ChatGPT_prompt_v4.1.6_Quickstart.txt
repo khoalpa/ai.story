@@ -1,0 +1,87 @@
+CHATGPT PROMPT v4.1.6 — QUICKSTART
+Hướng dẫn sử dụng nhanh | Tài liệu r0 | 12/10/2026
+Prompt chính: ChatGPT_prompt_v4.1.6.txt
+Schema dữ liệu: 4.1.3
+
+1. CÁCH SỬ DỤNG
+
+Đính kèm ChatGPT_prompt_v4.1.6.txt vào cuộc trò chuyện, rồi sao chép lệnh phù hợp bên dưới. Khi tiếp tục truyện đã có, đính kèm thêm ZIP nguồn của đúng truyện/giai đoạn.
+
+Quickstart là tài liệu hướng dẫn, không thay thế prompt chính và không bổ sung schema hoặc điều kiện hoàn tất. Các số mục dẫn chiếu bên dưới thuộc prompt chính.
+
+2. GIAI ĐOẠN 1 — VIẾT KỊCH BẢN
+
+Đầu vào: chủ đề hoặc quyền tự chọn ý tưởng.
+Lệnh mẫu:
+“Thực hiện Giai đoạn 1. Profile YOUTH_SAFE, tuổi 7–10, tiếng Việt, 5 phút, chủ đề lòng trung thực. Tự chọn ý tưởng và nhân vật. Hoàn thành kịch bản, giao ZIP và dừng sau Giai đoạn 1.”
+
+Có thể đổi profile thành ADULT_STANDARD hoặc SERIAL_DETECTIVE. Truyện serial tiếp nối cần anchor nguồn phù hợp.
+Kết quả: story.json, validation_report.json, manifest.json; serial có thêm series_anchor.json. Chưa có ảnh/audio/video.
+Chi tiết: mục 3–7, 21–22.
+
+3. GIAI ĐOẠN 2 — TẠO ẢNH NGANG
+
+Đầu vào: ZIP Giai đoạn 1 hoặc story.json đủ điều kiện kiểm/nhập theo prompt chính.
+Lệnh mẫu:
+“Dùng gói Giai đoạn 1 đính kèm. Thực hiện Giai đoạn 2, image_mode=ZONE, kích thước MODEL_DEFAULT. Tạo đủ ảnh ngang và reference nhân vật theo khả năng công cụ, kiểm từng ảnh rồi giao ZIP.”
+
+Kết quả ZONE: 10 ảnh ngang, kế hoạch hình ảnh, visual bible và ảnh reference khi dùng IMAGE_REFERENCE, kèm dữ liệu kế thừa.
+MODEL_DEFAULT giữ kích thước đầu ra của công cụ; không yêu cầu pixel cố định hoặc tự nâng lên 4K.
+Chi tiết: mục 8, 23.
+
+4. GIAI ĐOẠN 3 — TẠO ẢNH DỌC
+
+Đầu vào: ZIP Giai đoạn 2 đã kiểm.
+Lệnh mẫu:
+“Dùng gói Giai đoạn 2 đính kèm. Thực hiện Giai đoạn 3, tạo đủ ảnh dọc tương ứng, kiểm từng cặp ngang/dọc và giữ nguyên dữ liệu kế thừa. Giao ZIP hoàn chỉnh về kịch bản và hình ảnh.”
+
+Kết quả ZONE: 10 ảnh ngang + 10 ảnh dọc, kèm reference và dữ liệu/báo cáo. Chưa có audio/video.
+Chi tiết: mục 9, 23.4.
+
+5. GIAI ĐOẠN 4 — VIẾT PROMPT VIDEO
+
+Đầu vào mặc định: ZIP Giai đoạn 3 đã kiểm.
+
+Toàn bộ lời kể:
+“Dùng gói Giai đoạn 3 đính kèm. Thực hiện Giai đoạn 4, coverage=FULL_STORY, bố cục 16:9, prompt trung lập với model. Giữ toàn bộ lời kể kể cả chào đầu/cuối; kiểm source_spans, thứ tự, độ phủ, pause và thời lượng ước tính. Giao ZIP prompt video. Không tạo audio/video.”
+
+Chỉ tuyển cảnh:
+“Dùng gói Giai đoạn 3 đính kèm. Thực hiện Giai đoạn 4, coverage=KEY_SCENES, bố cục 16:9. Chọn các cảnh chính, nêu rõ phần lời kể không được chọn, kiểm nguồn và thời lượng ước tính. Giao ZIP prompt video. Không tạo audio/video.”
+
+Kết quả: thêm video_prompts.json. FULL_STORY phủ đủ lời kể, không đồng nghĩa mọi hành động đều đã được hoạt họa. Timing chưa có audio thực là ESTIMATED. Chỉ có story vẫn có thể yêu cầu STORY_ONLY theo điều kiện của prompt chính.
+Chi tiết: mục 10, 16.4, 24.
+
+6. CHẠY THỬ AUDIO/VIDEO — TÁC VỤ RIÊNG
+
+Lệnh mẫu:
+“Dùng gói prompt video đính kèm. Chuẩn bị và thực hiện pilot ba cảnh đại diện trong phạm vi công cụ có thể dùng. Báo riêng phần chuẩn bị, audio, video và kiểm kết quả; giữ phần đã đạt khi tiếp tục.”
+
+Đây không phải Giai đoạn 5. Chỉ có TTS thì làm phần audio có thể thực hiện; chỉ có video thì làm phần thử hình đủ điều kiện. Thiếu cả hai thì chuẩn bị gói bàn giao và báo phần render bị chặn. Không coi prompt hoặc slideshow là bằng chứng đã kiểm chuyển động AI.
+Giọng mô tả chưa phải giọng đã chọn/thử. Chọn tùy chọn giọng thực của công cụ, nghe kiểm và đo audio trước khi xác nhận timing thực.
+Chi tiết: mục 2.1, 24.1.
+
+7. TIẾP TỤC VÀ SỬA LỖI
+
+Tiếp tục phần dở:
+“Tiếp tục giai đoạn đang dở từ ZIP đính kèm; chỉ xử lý phần thiếu/lỗi, giữ tài sản đã kiểm hợp lệ và báo phần còn lại.”
+
+Sửa một ảnh:
+“Sửa portrait/cover.png: [lỗi quan sát được]. Giữ nội dung truyện; kiểm lại ảnh và các phụ thuộc chịu ảnh hưởng, giao snapshot mới.”
+
+ZIP lỗi:
+“Kiểm gói đính kèm. Nếu có đủ nguồn đáng tin cậy, khôi phục và kiểm lại ZIP; không dựng lại tài sản rồi gọi là bytes kế thừa.”
+
+Chi tiết: mục 11.1, 12, 18, 25.
+
+8. ĐỌC KẾT QUẢ
+
+COMPLETE: hoàn thành đúng phạm vi đã thống nhất và các kiểm bắt buộc áp dụng đã đạt.
+PARTIAL: có đầu ra dùng được nhưng còn thiếu tệp, thao tác hoặc kiểm bắt buộc.
+BLOCKED: phần chính không thể tiếp tục vì thiếu đầu vào/công cụ cần thiết.
+
+Stage 4 COMPLETE có thể đồng thời tồn tại với pilot media BLOCKED. Chỉ xác nhận những gì đã thực hiện; MODEL_REVIEW không phải kiểm định độc lập.
+Report mới ghi version/revision và hash prompt khi lấy được theo mục 5.1; không bịa hash và không chặn chỉ vì thiếu hash prompt.
+
+Để thực hiện nhiều giai đoạn liên tiếp, nêu rõ phạm vi, ví dụ “Thực hiện đủ Giai đoạn 1–4”. Nếu chỉ muốn một giai đoạn, thêm “dừng sau Giai đoạn …”.
+
+END OF QUICKSTART v4.1.6

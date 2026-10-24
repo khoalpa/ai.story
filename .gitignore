@@ -40,3 +40,9 @@ dist/
 *.egg-info/
 archived_models/
 archived_story_assets/
+
+# Local rollback copies for AI Themes
+.theme-backups/
+
+# Locally extracted sample and rendered media; canonical ZIPs stay tracked.
+/samples/Tiệm Sửa Những Lời Hứa/

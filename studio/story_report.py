@@ -1,6 +1,7 @@
 """Friendly Streamlit viewer for canonical story.json files."""
 from __future__ import annotations
 
+import json
 from collections import Counter
 from html import escape
 from pathlib import Path
@@ -40,17 +41,6 @@ ZONE_LABELS = {
     "FAREWELL": "Tạm biệt",
 }
 
-OUTLINE_KEYS = {
-    "greeting": "Lời chào",
-    "opening": "Mở đầu",
-    "introduction": "Giới thiệu",
-    "development": "Phát triển",
-    "climax": "Cao trào",
-    "falling": "Hạ nhiệt",
-    "ending": "Kết thúc",
-    "farewell": "Tạm biệt",
-}
-
 VOICE_LABELS = {
     "NARRATOR": "Người kể",
     "FEMALE": "Giọng nữ",
@@ -63,12 +53,40 @@ def _validate_story(report: Mapping[str, Any]) -> None:
     missing = sorted(required.difference(report))
     if missing:
         raise ValueError("Tệp không đúng định dạng story.json; thiếu: " + ", ".join(missing))
-    if not isinstance(report.get("script"), list):
-        raise ValueError("Trường script phải là một danh sách.")
+    for field in ("characters", "outline", "script"):
+        if not isinstance(report.get(field), list):
+            raise ValueError(f"Trường {field} phải là một danh sách theo schema v4.1.6.")
 
 
 def _script_items(report: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return _items(report.get("script"))
+
+
+def _outline_items(report: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Return outline scenes from the v4.1.6 story schema."""
+    return _items(report.get("outline"))
+
+
+def _character_reference(images_root: Path, character_id: str) -> tuple[Path | None, str, str]:
+    """Resolve a v4.1.6 character reference through visual_plan.json."""
+    try:
+        plan = json.loads((images_root / "visual_plan.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None, "UNKNOWN", ""
+    rows = plan.get("characters") if isinstance(plan, dict) else None
+    if not isinstance(rows, list):
+        return None, "UNKNOWN", ""
+    entry = next(
+        (row for row in rows if isinstance(row, dict) and row.get("character_id") == character_id),
+        None,
+    )
+    if entry is None:
+        return None, "MISSING", ""
+    status = str(entry.get("reference_status") or "UNKNOWN")
+    relative = entry.get("reference_path")
+    if status != "READY" or not isinstance(relative, str) or not relative:
+        return None, status, ""
+    return project_asset_path(images_root, relative), status, relative
 
 
 def _zones_in_story(script: list[Mapping[str, Any]]) -> list[str]:
@@ -94,19 +112,18 @@ def _render_header(report: Mapping[str, Any]) -> None:
     import streamlit as st
 
     meta = _object(report.get("meta"))
-    commitment = _object(meta.get("story_quality_commitment"))
-    metrics = _object(commitment.get("recomputable_metrics"))
     title = escape(str(meta.get("title") or "Truyện chưa đặt tên"))
     series = escape(str(meta.get("series") or "—"))
     episode = escape(str(meta.get("episode") or "—"))
     author = escape(str(meta.get("author") or "—"))
-    duration = float(metrics.get("estimated_duration_minutes") or 0)
+    duration = meta.get("estimated_minutes")
+    duration_text = f"{float(duration):.1f} phút" if isinstance(duration, (int, float)) else "Chưa ước tính"
     st.markdown(
         f"""
         <div class="story-heading">
           <div><div class="story-eyebrow">{series} · Tập {episode}</div><h2>{title}</h2>
           <div class="story-muted">{author} · {escape(str(meta.get('channel') or '—'))}</div></div>
-          <div class="story-duration">{duration:.1f} phút</div>
+          <div class="story-duration">{duration_text}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -170,17 +187,17 @@ def _render_reader(
             _render_context_gallery(assets, caption=f"{ZONE_LABELS.get(zone, zone)} · {image_aspect.title()}", key_prefix=f"story_reader_{image_aspect}_{zone}")
 
     for index, item in visible:
-        voice = str(item.get("voice") or "NARRATOR")
+        speaker = str(item.get("speaker") or "narrator")
         text = escape(str(item.get("text") or ""))
-        environment = escape(str(item.get("environment") or "none").replace("_", " "))
-        voice_label = VOICE_LABELS.get(voice, voice.replace("_", " ").title())
-        line_class = "story-dialogue" if voice != "NARRATOR" else "story-narration"
+        ambience = escape(str(item.get("ambience") or "không ambience").replace("_", " "))
+        voice_label = "Người kể" if speaker == "narrator" else speaker
+        line_class = "story-dialogue" if speaker != "narrator" else "story-narration"
         st.markdown(
             f"""
             <div class="story-line {line_class}">
               <div class="story-line-meta"><span>{index + 1}</span><strong>{voice_label}</strong></div>
               <div><div class="story-text">{text}</div>
-              <div class="story-cue">{environment} · {escape(str(item.get('speed') or 'NORMAL').lower())}</div></div>
+              <div class="story-cue">{ambience} · {escape(str(item.get('emotion') or '—'))} · tốc độ {escape(str(item.get('speed') or '—'))}</div></div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -193,26 +210,37 @@ def _render_outline(
 ) -> None:
     import streamlit as st
 
-    outline = _object(report.get("outline"))
+    outline = _outline_items(report)
     if not outline:
         st.info("Truyện chưa có dàn ý.")
         return
     script = _script_items(report)
-    for key, label in OUTLINE_KEYS.items():
-        if key in outline:
-            text_col, image_col = st.columns([2, 1]) if image_catalog is not None else (st.container(), st.container())
-            with text_col:
-                st.markdown(f"**{label}**")
-                st.write(str(outline[key]))
-            if image_catalog is not None:
-                with image_col:
-                    zone = key.upper()
-                    assets = image_assets_for_context(
-                        image_catalog, images_root, aspect=image_aspect, zone=zone,
-                        item_indexes=[index for index, item in enumerate(script) if item.get("zone") == zone],
-                    )
-                    _render_context_gallery(assets, caption=f"{label} · {image_aspect.title()}", key_prefix=f"story_outline_{image_aspect}_{key}")
-            st.divider()
+    for position, scene in enumerate(outline, start=1):
+        scene_id = str(scene.get("scene_id") or f"Cảnh {position}")
+        indexes = [index for index, item in enumerate(script) if item.get("scene_id") == scene_id]
+        zones = [str(script[index].get("zone")) for index in indexes]
+        zone = next((value for value in zones if value in ZONE_ORDER), "UNKNOWN")
+        label = f"Cảnh {position} · {scene_id}"
+        text_col, image_col = st.columns([2, 1]) if image_catalog is not None else (st.container(), st.container())
+        with text_col:
+            st.markdown(f"**{label}**")
+            st.write(str(scene.get("summary") or "—"))
+            st.caption(f"Thay đổi: {scene.get('change') or '—'}")
+            if scene.get("setup_or_payoff") is not None:
+                st.caption(f"Thiết lập / hồi đáp: {scene['setup_or_payoff']}")
+            if zones:
+                st.caption("Vùng truyện: " + ", ".join(dict.fromkeys(ZONE_LABELS.get(value, value) for value in zones)))
+        if image_catalog is not None:
+            with image_col:
+                assets = image_assets_for_context(
+                    image_catalog, images_root, aspect=image_aspect, zone=zone,
+                    item_indexes=indexes,
+                )
+                _render_context_gallery(
+                    assets, caption=f"{label} · {image_aspect.title()}",
+                    key_prefix=f"story_outline_{image_aspect}_{scene_id}",
+                )
+        st.divider()
 
 
 def _render_characters(report: Mapping[str, Any], *, images_root: Path | None = None) -> None:
@@ -230,7 +258,7 @@ def _render_characters(report: Mapping[str, Any], *, images_root: Path | None = 
         key="story_character",
     )
     selected = next(item for item in characters if str(item.get("character_id")) == selected_id)
-    cols = st.columns([1.45, 1, 1, 1.3])
+    cols = st.columns([2, 1, 1])
     role = escape(str(selected.get("role") or "—"))
     cols[0].markdown(
         f"""
@@ -241,37 +269,40 @@ def _render_characters(report: Mapping[str, Any], *, images_root: Path | None = 
         """,
         unsafe_allow_html=True,
     )
+    age = selected.get("age")
+    cols[1].metric("Tuổi", age if age is not None else "—")
+    cols[2].metric("Mã nhân vật", selected_id)
     if images_root is not None:
-        asset = _object(selected.get("reference_asset"))
-        relative = str(asset.get("reference_image") or "")
-        path = project_asset_path(images_root, relative) if relative else None
+        path, reference_status, relative = _character_reference(images_root, selected_id)
         _space, preview, _space_right = st.columns([1, 2, 1])
         with preview:
             render_image_thumbnail(path, caption=str(selected.get("name") or selected_id), key="character_reference")
         if path is not None and path.is_file():
             try:
                 digest, dimensions = file_facts(path)
-                st.caption(f"{relative} · {dimensions} · " + ("SHA-256 khớp hồ sơ" if digest == asset.get("file_sha256") else "SHA-256 chưa khớp hoặc chưa có giá trị đối chiếu"))
+                st.caption(f"{relative} · {dimensions} · SHA-256 {digest[:12]}… · {reference_status}")
             except (OSError, ValueError, SyntaxError):
                 st.warning("Không đọc được ảnh tham chiếu.")
-    age_min = selected.get("canonical_age_min")
-    age_max = selected.get("canonical_age_max")
-    age = age_min if age_min == age_max else f"{age_min}–{age_max}"
-    cols[1].metric("Tuổi canon", age if age_min is not None else "—")
-    cols[2].metric("Tầm quan trọng", str(selected.get("visual_story_importance", "—")).title())
-    cols[3].metric("Visual eligibility", str(selected.get("adult_visual_eligibility", "—")).replace("_", " ").title())
-    traits = selected.get("identity_traits") if isinstance(selected.get("identity_traits"), list) else []
-    if traits:
-        st.subheader("Dấu hiệu nhận diện")
-        st.markdown("\n".join(f"- {trait}" for trait in traits))
+        elif reference_status == "NOT_APPLICABLE":
+            st.info("Visual plan dùng DESCRIPTION_ONLY nên không có ảnh tham chiếu nhân vật.")
+
+    detail_columns = st.columns(3)
+    for column, label, field in zip(
+        detail_columns,
+        ("Ngoại hình", "Tính cách", "Ghi chú giọng đọc"),
+        ("appearance", "personality", "voice_note"),
+    ):
+        with column:
+            st.markdown(f"**{label}**")
+            st.write(str(selected.get(field) or "—"))
 
     st.subheader("Danh sách nhân vật")
     st.dataframe(
         [{
             "Tên": item.get("name", "—"),
             "Vai trò": item.get("role", "—"),
-            "Tuổi": item.get("canonical_age_min", "—"),
-            "Tầm quan trọng": str(item.get("visual_story_importance", "—")).title(),
+            "Tuổi": item.get("age", "—"),
+            "Mã": item.get("character_id", "—"),
         } for item in characters],
         hide_index=True,
         width="stretch",

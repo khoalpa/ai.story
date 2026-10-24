@@ -97,14 +97,12 @@ def inspect_selected_workflow(root: Path, state: Mapping[str, Any], *, overridde
 
 def required_report_keys(reports: Mapping[str, Any]) -> set[str]:
     manifest = _object(reports.get("workflow"))
-    stage = manifest.get("package_stage")
+    stage_number = manifest.get("stage")
+    stage = f"STAGE{stage_number}" if type(stage_number) is int and stage_number in range(1, 5) else None
     validation = _object(reports.get("validation"))
     required = {"story", "validation"}
-    if stage not in STAGES or stage in {"STAGE3", "STAGE4"}:
-        required.add("quality")
     if stage in STAGES:
-        anchor_required = (manifest.get("active_profile") == "SERIAL_DETECTIVE"
-                           or any(row.get("path") == "series_anchor.json" for row in _items(manifest.get("files"))))
+        anchor_required = any(row.get("path") == "series_anchor.json" for row in _items(manifest.get("files")))
     else:
         anchor_required = series_required(validation)
     if anchor_required:
@@ -114,7 +112,6 @@ def required_report_keys(reports: Mapping[str, Any]) -> set[str]:
 
 def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str, str], state: Mapping[str, Any]) -> dict[str, Any]:
     validation = _object(reports.get("validation"))
-    quality = _object(reports.get("quality"))
     overrides = state.get("story_overrides", {}) if state.get("story_override_root") == str(root.resolve()) else {}
     workflow = inspect_selected_workflow(
         root, state,
@@ -143,15 +140,14 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
     workflow["video_prompt_validation"] = video_plan_result
     bindings = inspect_report_bindings(root, reports, story_bytes=overrides.get("story"))
     assets = inspect_project_assets(root, reports)
-    issues = [{"section": "Kiểm định", "text": text} for text in gate_issues(validation)]
+    issues = ([] if validation.get("prompt_version") == "4.1.6" else
+              [{"section": "Kiểm định", "text": text} for text in gate_issues(validation)])
     if video_plan_issue:
         issues.append({"section": "Kế hoạch video", "text": video_plan_issue})
     if workflow["stage"] or workflow["status"] == "FAIL":
         issues.extend({"section": "Gói & quy trình", "text": f"{c['check']}: {c['detail']}"}
                       for c in workflow["checks"]
                       if c["status"] not in {"PASS", "WARN"} and c["check"] != "video_prompt_plan")
-    if quality and _object(quality.get("summary")).get("publish_verdict") != "PASS":
-        issues.append({"section": "Chất lượng", "text": "Báo cáo chất lượng gói chưa kết luận PASS."})
     for key, label in (("story", "Nội dung"), ("validation", "Kiểm định"), ("quality", "Chất lượng"), ("anchor", "Series")):
         if statuses.get(key, "").startswith("Không hợp lệ"):
             issues.append({"section": label, "text": f"{label}: {statuses[key]}"})
@@ -161,12 +157,11 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
     if validation.get("active_profile") == "SERIAL_DETECTIVE" and not reports.get("anchor"):
         issues.append({"section": "Series", "text": "Hồ sơ SERIAL_DETECTIVE cần series_anchor.json."})
     defects = int(_object(validation.get("summary")).get("material_defect_remaining_count") or 0)
-    story_ready = bool(reports.get("story")) and gate_summary(validation)["ready"] and defects == 0 and not any(i["section"] in {"Kiểm định", "Nội dung"} for i in issues)
+    validation_ready = (validation.get("status") == "COMPLETE" if validation.get("prompt_version") == "4.1.6"
+                        else gate_summary(validation)["ready"] and defects == 0)
+    story_ready = bool(reports.get("story")) and validation_ready and not any(i["section"] in {"Kiểm định", "Nội dung"} for i in issues)
     asset_issues = [row for row in assets if row["issues"]]
-    package_ready = (
-        story_ready and bool(quality) and _object(quality.get("summary")).get("publish_verdict") == "PASS"
-        and not _items(quality.get("blockers")) and not issues and not asset_issues
-    )
+    package_ready = story_ready and not issues and not asset_issues
     locally_verified = workflow["status"] == "PASS" and not overrides
     package_ready = bool(package_ready and locally_verified)
     return {"workflow": workflow, "locally_verified": locally_verified, "story_ready": story_ready, "package_ready": package_ready, "issues": issues,

@@ -46,7 +46,7 @@ APP_CONFIG_DEFAULTS: dict[str, Any] = {
     "vieneu_mode": "standard",
     "vieneu_api_base": "",
     "vieneu_model_name": get_default_vieneu_local_target("standard"),
-    "vieneu_device": "cuda",
+    "vieneu_device": "auto",
     "vieneu_backend": "auto",
     "vieneu_preview_temperature": 0.6,
     "vieneu_preview_max_chars_chunk": 160,
@@ -98,7 +98,7 @@ class AppConfig:
     vieneu_mode: str = "standard"
     vieneu_api_base: str = ""
     vieneu_model_name: str = get_default_vieneu_local_target("standard")
-    vieneu_device: str = "cuda"
+    vieneu_device: str = "auto"
     vieneu_backend: str = "auto"
     vieneu_preview_temperature: float = 0.6
     vieneu_preview_max_chars_chunk: int = 160
@@ -141,7 +141,7 @@ class AppConfig:
         )
         object.__setattr__(self, "vieneu_api_base", str(self.vieneu_api_base or "").strip())
         object.__setattr__(self, "vieneu_model_name", resolve_vieneu_model_name(self.vieneu_model_name, self.vieneu_mode))
-        object.__setattr__(self, "vieneu_device", str(self.vieneu_device or "cuda").strip().lower() or "cuda")
+        object.__setattr__(self, "vieneu_device", str(self.vieneu_device or "auto").strip().lower() or "auto")
         object.__setattr__(self, "vieneu_backend", normalize_vieneu_backend(self.vieneu_backend))
         object.__setattr__(self, "vieneu_preview_temperature", float(self.vieneu_preview_temperature if self.vieneu_preview_temperature is not None else 0.6))
         object.__setattr__(self, "vieneu_preview_max_chars_chunk", max(1, int(self.vieneu_preview_max_chars_chunk if self.vieneu_preview_max_chars_chunk is not None else 160)))

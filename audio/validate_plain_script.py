@@ -264,6 +264,12 @@ def validate_script(lines: List[str]) -> ValidationResult:
                 # Tag lạ
                 unknown_tags_local.append(raw_tag)
 
+        # A line made only of recognized technical tags is a control directive,
+        # not dialogue.  Standalone [PAUSE=...], [BGM=...], [SFX=...] and similar
+        # lines therefore do not need a voice tag.
+        pure_text = TAG_PATTERN.sub("", line).strip()
+        technical_directive_only = bool(tags) and not pure_text and not unknown_tags_local
+
         # Thống kê voice
         if has_voice_tag:
             stats.voice_lines += 1
@@ -273,7 +279,7 @@ def validate_script(lines: List[str]) -> ValidationResult:
                 stats.voice_female += 1
             elif voice_this_line == "male":
                 stats.voice_male += 1
-        else:
+        elif not technical_directive_only:
             stats.no_voice_tag_lines += 1
             warnings.append(
                 LineIssue(
@@ -305,7 +311,6 @@ def validate_script(lines: List[str]) -> ValidationResult:
 
         # Kiểm tra câu quá dài, ít dấu câu
         # (Heuristic: > 300 char & không có .?!…)
-        pure_text = TAG_PATTERN.sub("", line).strip()
         if len(pure_text) > 300 and not re.search(r"[\.?!…]", pure_text):
             warnings.append(
                 LineIssue(

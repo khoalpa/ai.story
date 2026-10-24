@@ -7,18 +7,13 @@ from typing import Any, Mapping
 
 from studio.audio_delivery_report import format_duration, inspect_audio_delivery
 from studio.navigation import navigate_to
-from studio.package_quality_report import _items, _object, package_quality_summary
+from studio.package_quality_report import _items, _object
 from studio.project_context import (
     OVERVIEW_DIRECTORY_KEY,
     apply_project_directory,
     choose_project_directory,
 )
 from studio.project_review import required_report_keys, review_package
-from studio.report_semantics import (
-    display_coverage,
-    display_score,
-    gate_summary,
-)
 from studio.story_images import (
     inspect_story_images,
     render_aspect_cover_gallery,
@@ -117,7 +112,15 @@ def _persisted_video_summary(variants: Any, preferred_aspect: Any) -> dict[str, 
     return {key: value for key, value in values.items() if value is not None}
 
 
-_display_score = display_score
+def _validation_counts(validation: Mapping[str, Any]) -> tuple[int, int, int]:
+    checks = _items(validation.get("checks"))
+    passed = sum(row.get("status") in {"PASS", "NOT_APPLICABLE"} for row in checks)
+    failed = sum(row.get("status") == "FAIL" for row in checks)
+    return passed, failed, len(checks)
+
+
+def _story_word_count(story: Mapping[str, Any]) -> int:
+    return sum(len(str(row.get("text") or "").split()) for row in _items(story.get("script")))
 
 def build_overview_model(
     reports: Mapping[str, Mapping[str, Any]],
@@ -129,17 +132,12 @@ def build_overview_model(
     """Build a presentation-neutral overview from reports and current session state."""
     story = _object(reports.get("story"))
     validation = _object(reports.get("validation"))
-    quality = _object(reports.get("quality"))
     anchor = _object(reports.get("anchor"))
     meta = _object(story.get("meta"))
-    commitment = _object(meta.get("story_quality_commitment"))
-    metrics = _object(commitment.get("recomputable_metrics")) or _object(validation.get("summary"))
-    committed_quality = _object(commitment.get("committed_quality_metrics"))
-    validation_quality = _object(validation.get("quality"))
-    normalized_quality = package_quality_summary(quality)
     continuity = _object(anchor.get("continuity"))
-    blockers = _items(quality.get("blockers"))
-    defects = int(_object(validation.get("summary")).get("material_defect_remaining_count") or 0)
+    passed_checks, failed_checks, total_checks = _validation_counts(validation)
+    limitations = _items(validation.get("limitations"))
+    remaining_work = _items(validation.get("remaining_work"))
     repetition = analyze_story_repetition(story) if story else {"summary": {}}
     repetition_summary = _object(repetition.get("summary"))
     repetition_pairs = int(repetition_summary.get("pair_count") or 0)
@@ -212,7 +210,8 @@ def build_overview_model(
         active_stems = visual_plan_image_stems(output_dir)
         scene_count = sum(stem in available_stems for stem in active_stems)
         required_scene_images = len(active_stems)
-    expected_scenes = int(metrics.get("narrative_scene_count") or 0)
+    outline = story.get("outline")
+    expected_scenes = len(outline) if isinstance(outline, (list, dict)) else 0
 
     review = review_package(output_dir, reports, statuses, state)
     workflow = review["workflow"]
@@ -220,13 +219,16 @@ def build_overview_model(
     production_ready = review["story_ready"]
     completed = bool(delivery["ready"] and delivery["passed"] and video_deliveries and ready_videos == len(video_deliveries))
     workflow_status = workflow.get("status", "NOT_VERIFIED")
-    if workflow_status == "FAIL":
+    if not story and not validation and not reports.get("workflow"):
+        verdict = "Chưa đủ dữ liệu"
+        verdict_kind = "warning"
+    elif workflow_status == "FAIL":
         verdict, verdict_kind = workflow_verdict(workflow_status)
     elif stage and workflow_status == "NOT_VERIFIED":
         verdict, verdict_kind = workflow_verdict(workflow_status)
     elif stage and workflow_status == "PASS":
         verdict, verdict_kind = workflow_verdict(workflow_status)
-    elif blockers or review["issues"] or (validation and not production_ready):
+    elif failed_checks or remaining_work or review["issues"] or (validation and not production_ready):
         verdict = "Cần xử lý"
         verdict_kind = "error"
     elif completed:
@@ -239,7 +241,7 @@ def build_overview_model(
         verdict = "Chưa đủ dữ liệu"
         verdict_kind = "warning"
 
-    title = str(meta.get("title") or _object(quality.get("package_identity")).get("title") or "Dự án chưa đặt tên")
+    title = str(meta.get("title") or "Dự án chưa đặt tên")
     episode = meta.get("episode") or continuity.get("latest_episode")
     series = str(meta.get("series") or _object(anchor.get("series")).get("title") or "")
     project_label = title + (f" · Tập {episode}" if episode not in {None, ""} else "")
@@ -261,10 +263,10 @@ def build_overview_model(
         actions.append({"workspace": "Story Studio", "section": "Tài nguyên", "text": f"{len(asset_problems)} ảnh cần kiểm tra · {examples}"})
     if missing:
         actions.append({"workspace": "Story Studio", "text": "Bổ sung dữ liệu: " + ", ".join(missing) + "."})
-    if defects:
-        actions.append({"workspace": "Story Studio", "section": "Kiểm định", "text": f"Xử lý {defects} lỗi nội dung còn lại."})
-    if blockers:
-        actions.append({"workspace": "Story Studio", "section": "Chất lượng", "text": f"Xử lý {len(blockers)} lỗi chặn xuất bản."})
+    if failed_checks:
+        actions.append({"workspace": "Story Studio", "section": "Kiểm định", "text": f"Xử lý {failed_checks} phép kiểm tra chưa đạt."})
+    if remaining_work:
+        actions.append({"workspace": "Story Studio", "section": "Kiểm định", "text": f"Hoàn tất {len(remaining_work)} đầu việc còn lại trong validation_report.json."})
     if repetition_pairs:
         actions.append({
             "workspace": "Story Studio",
@@ -298,7 +300,8 @@ def build_overview_model(
     return {
         "review": review,
         "workflow": workflow,
-        "gate_summary": gate_summary(validation)["label"],
+        "gate_summary": (f"{passed_checks}/{total_checks} phép kiểm tra đạt hoặc không áp dụng"
+                         if total_checks else "Chưa có validation_report.json v4.1.6"),
         "has_audio_quality": bool(reports.get("audio_quality")),
         "has_handoff": bool(reports.get("handoff")),
         "project_label": project_label,
@@ -308,13 +311,13 @@ def build_overview_model(
         "verdict_kind": verdict_kind,
         "updated": datetime.fromtimestamp(last_updated).strftime("%d/%m/%Y %H:%M") if last_updated else "—",
         "metrics": [
-            ("Thời lượng dự kiến", f"{float(metrics.get('estimated_duration_minutes') or 0):.1f} phút" if metrics else "—"),
-            ("Số từ", f"{int(metrics.get('total_words') or 0):,}" if metrics else "—"),
+            ("Thời lượng dự kiến", f"{float(meta.get('estimated_minutes')):.1f} phút" if type(meta.get("estimated_minutes")) in {int, float} else "—"),
+            ("Số từ", f"{_story_word_count(story):,}" if story else "—"),
             ("Số cảnh", str(expected_scenes) if expected_scenes else "—"),
-            ("Chất lượng truyện", _display_score(committed_quality.get("final_story_quality_score", validation_quality.get("final_story_quality_score")), 10)),
-            ("Chất lượng gói", _display_score(normalized_quality["score"], 100)),
-            ("Độ phủ chấm điểm", display_coverage(normalized_quality["coverage"])),
-            ("Vấn đề cần xử lý", str(defects + len(blockers) + len(review["issues"]) + len(asset_problems))),
+            ("Kiểm định", f"{passed_checks}/{total_checks}" if total_checks else "—"),
+            ("Trạng thái báo cáo", str(validation.get("status") or "—")),
+            ("Giới hạn đã ghi nhận", str(len(limitations))),
+            ("Vấn đề cần xử lý", str(failed_checks + len(remaining_work) + len(review["issues"]) + len(asset_problems))),
             ("Câu lặp cần xem", str(repeated_sentences)),
         ],
         "pipeline": [
@@ -353,7 +356,7 @@ def build_overview_model(
             f"Ảnh · {selected_aspect.title()}": f"{scene_count}/{required_scene_images}",
         },
         "resources": [
-            ("Kịch bản", "Có dữ liệu" if story else "Thiếu", f"{int(metrics.get('total_words') or 0):,} từ" if metrics else "—", str(output_dir / "story.json") if story else ""),
+            ("Kịch bản", "Có dữ liệu" if story else "Thiếu", f"{_story_word_count(story):,} từ" if story else "—", str(output_dir / "story.json") if story else ""),
             ("Audio", "Đạt" if delivery["passed"] else ("Hoàn tất" if audio_path else "Chưa render"), format_duration(delivery["duration_seconds"]) if delivery["duration_seconds"] else str(audio_summary.get("estimated_duration") or audio_summary.get("audio_format") or "—"), str(audio_path or "")),
             ("Phụ đề", "Hoàn tất" if subtitle_path else "Chưa có", f"{delivery['cue_count']:,} câu" if delivery["cue_count"] else str(audio_summary.get("segment_count") or "—"), str(subtitle_path or "")),
             ("Handoff", "Sẵn sàng" if delivery["ready"] else ("Cần kiểm tra" if reports.get("handoff") else "Chưa có"), f"{sum(row['exists'] and row['size_matches'] for row in delivery['artifacts'])}/3 tài nguyên", str(output_dir / "audio_video_handoff.json") if reports.get("handoff") else ""),
@@ -457,7 +460,7 @@ def render_overview() -> None:
             for column, (label, value) in zip(extra_columns, model["metrics"][len(primary_metrics):]):
                 column.metric(label, value)
 
-    st.caption(model["gate_summary"] + " · Số cảnh do báo cáo khai báo; không phải số ảnh sản xuất.")
+    st.caption(model["gate_summary"] + " · Số cảnh lấy từ outline; không phải số ảnh sản xuất.")
     st.subheader("Sản xuất audio/video · độc lập với stage gói truyện")
     pipeline_columns = st.columns(len(model["pipeline"]))
     for index, (column, (label, status)) in enumerate(zip(pipeline_columns, model["pipeline"]), start=1):

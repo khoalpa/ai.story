@@ -9,17 +9,16 @@ from studio.story_studio import REPORT_SPECS, load_effective_package, load_story
 
 def test_story_package_loader_reports_present_missing_and_invalid_files(tmp_path: Path) -> None:
     (tmp_path / "story.json").write_text(
-        json.dumps({"meta": {}, "characters": [], "outline": {}, "script": []}),
+        json.dumps({"meta": {}, "characters": [], "outline": [], "script": []}),
         encoding="utf-8",
     )
-    (tmp_path / "story_validation.json").write_text("not json", encoding="utf-8")
+    (tmp_path / "validation_report.json").write_text("not json", encoding="utf-8")
 
     reports, statuses = load_story_package(tmp_path)
 
     assert set(reports) == {"story"}
     assert statuses["story"] == "Có dữ liệu"
     assert statuses["validation"].startswith("Không hợp lệ:")
-    assert statuses["quality"] == "Thiếu"
     assert statuses["anchor"] == "Thiếu"
 
 
@@ -34,8 +33,7 @@ def test_source_selector_lists_all_supported_override_files() -> None:
     source = Path("studio/story_studio.py").read_text(encoding="utf-8")
     for filename in (
         "story.json",
-        "story_validation.json",
-        "package_quality_report.json",
+        "validation_report.json",
         "series_anchor.json",
         "story.audio_quality.json",
         "story.srt",
@@ -62,21 +60,25 @@ def test_story_overview_only_maps_missing_story_report_statuses() -> None:
     source = Path("studio/story_studio.py").read_text(encoding="utf-8")
     assert "for key, (_filename, label, _validator) in REPORT_SPECS.items()" in source
     assert "REPORT_SPECS[key][1] for key, value in statuses.items()" not in source
-    assert set(REPORT_SPECS) == {"story", "validation", "quality", "anchor"}
+    assert set(REPORT_SPECS) == {"story", "validation", "anchor"}
 
 
 def test_scene_visual_plan_supplies_active_images_and_zone_reader_aliases(tmp_path: Path) -> None:
     plan = {
-        "resolved_mode": "SCENE",
+        "image_mode": "SCENE",
         "assets": [
-            {"basename": "cover.png", "zone": None},
-            {"basename": "greeting.png", "zone": "GREETING"},
-            {"basename": "scene_0001.png", "zone": "OPENING"},
-            {"basename": "scene_0002.png", "zone": "DEVELOPMENT"},
-            {"basename": "farewell.png", "zone": "FAREWELL"},
-            {"basename": "outro.png", "zone": None},
+            {"basename": "cover.png", "source_script_ids": []},
+            {"basename": "greeting.png", "source_script_ids": ["s0001"]},
+            {"basename": "scene_0001.png", "source_script_ids": ["s0002"]},
+            {"basename": "scene_0002.png", "source_script_ids": ["s0003"]},
+            {"basename": "farewell.png", "source_script_ids": ["s0004"]},
+            {"basename": "outro.png", "source_script_ids": []},
         ],
     }
+    (tmp_path / "story.json").write_text(json.dumps({"script": [
+        {"id": "s0001", "zone": "GREETING"}, {"id": "s0002", "zone": "OPENING"},
+        {"id": "s0003", "zone": "DEVELOPMENT"}, {"id": "s0004", "zone": "FAREWELL"},
+    ]}), encoding="utf-8")
     (tmp_path / "visual_plan.json").write_text(json.dumps(plan), encoding="utf-8")
     opening = tmp_path / "landscape" / "scene_0001.png"
     catalog = {"landscape": {"scene_0001": opening}, "portrait": {}}

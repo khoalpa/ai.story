@@ -13,7 +13,7 @@ from studio.prompt_contract import load_prompt_contract
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Audit story artifacts against the latest canonical prompt.")
-    parser.add_argument("path", type=Path, help="Project output directory or CURRENT story.zip; legacy checkpoints are diagnostics only")
+    parser.add_argument("path", type=Path, help="Project output directory or a v4.1.6 story package; older packages are unsupported")
     parser.add_argument("--prompt", type=Path, help="Use an explicit ChatGPT_prompt_v*.*.*.txt")
     args = parser.parse_args(argv)
     contract = load_prompt_contract(args.prompt)

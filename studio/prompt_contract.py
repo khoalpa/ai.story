@@ -13,7 +13,9 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
-PROMPT_FILENAME = re.compile(r"^(?:[0-9]+-)?ChatGPT_prompt_v(\d+)\.(\d+)\.(\d+)\.txt$", re.IGNORECASE)
+SUPPORTED_PROMPT_VERSION = (4, 1, 6)
+SUPPORTED_PROMPT_FILENAME = "ChatGPT_prompt_v4.1.6.txt"
+PROMPT_FILENAME = re.compile(r"^ChatGPT_prompt_v(\d+)\.(\d+)\.(\d+)\.txt$", re.IGNORECASE)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROMPTS_DIRECTORY = PROJECT_ROOT / "prompts"
 PROMPTS_DIRECTORY_ENV = "AI_STUDIO_PROMPTS_DIR"
@@ -78,8 +80,8 @@ def _version(path: Path) -> tuple[int, int, int]:
 def discover_canonical_prompts(directory: Path = DEFAULT_PROMPTS_DIRECTORY) -> list[Path]:
     if not directory.is_dir():
         return []
-    paths = [path for path in directory.iterdir() if path.is_file() and PROMPT_FILENAME.match(path.name)]
-    return sorted(paths, key=_version, reverse=True)
+    path = directory / SUPPORTED_PROMPT_FILENAME
+    return [path] if path.is_file() else []
 
 
 def prompt_directories() -> tuple[Path, ...]:
@@ -118,21 +120,10 @@ def canonical_prompt_path(directory: Path | None = None) -> Path:
 
 
 def prompt_contract_for_version(version_label: str, *, directory: Path | None = None) -> PromptContract:
-    """Load the exact prompt contract declared by a package manifest.
-
-    New work uses :func:`canonical_prompt_path`, but reopening an existing
-    package must not reinterpret it through a newer prompt merely because one
-    was added to the library later.
-    """
-    expected = tuple(int(part) for part in version_label.split("."))
-    if len(expected) != 3:
-        raise ValueError(f"Prompt version không hợp lệ: {version_label}")
-    directories = ((directory.resolve(),) if directory is not None else prompt_directories())
-    for candidate in directories:
-        for path in discover_canonical_prompts(candidate):
-            if _version(path) == expected:
-                return load_prompt_contract(path)
-    raise FileNotFoundError(f"Không tìm thấy prompt contract v{version_label} cho package")
+    """Load the sole supported contract; older packages are deliberately rejected."""
+    if version_label != "4.1.6":
+        raise ValueError(f"Chỉ hỗ trợ prompt v4.1.6, nhận {version_label!r}")
+    return load_prompt_contract((directory / SUPPORTED_PROMPT_FILENAME) if directory else None)
 
 
 def _literal(text: str, name: str) -> str:
@@ -269,8 +260,51 @@ def _size(text: str, name: str) -> tuple[int, int]:
 
 def load_prompt_contract(path: Path | None = None) -> PromptContract:
     resolved = (path or canonical_prompt_path()).resolve()
+    if _version(resolved) != SUPPORTED_PROMPT_VERSION:
+        raise ValueError(f"Chỉ hỗ trợ {SUPPORTED_PROMPT_FILENAME}")
     raw = resolved.read_bytes()
     text = raw.decode("utf-8-sig")
+    if not text.startswith("CHATGPT AUDIO STORY PACKAGE — v4.1.6"):
+        raise ValueError("Nội dung prompt không phải hợp đồng v4.1.6")
+    # v4.1.6 is a prose-first, self-contained contract.  These values are a
+    # typed projection of its public schema, not aliases copied from an older
+    # registry and not the result of replacing version strings.
+    basenames = (
+        "cover.png", "greeting.png", "opening.png", "introduction.png",
+        "development.png", "climax.png", "falling.png", "ending.png",
+        "farewell.png", "outro.png",
+    )
+    return PromptContract(
+        path=resolved, version=SUPPORTED_PROMPT_VERSION,
+        sha256=hashlib.sha256(raw).hexdigest(), image_basenames=basenames,
+        landscape_size=(0, 0), portrait_size=(0, 0),
+        story_validation_schema_version="4.1.3",
+        package_quality_schema_version="4.1.3",
+        series_anchor_schema_version="4.1.3",
+        story_quality_commitment_schema_version="4.1.3",
+        environment_whitelist=(
+            "GREETING", "OPENING", "INTRODUCTION", "DEVELOPMENT",
+            "CLIMAX", "FALLING", "ENDING", "FAREWELL",
+        ),
+        workflow_manifest_schema_version="4.1.3",
+        workflow_package_stages=("STAGE1", "STAGE2", "STAGE3", "STAGE4"),
+        workflow_package_purposes=(), workflow_operation_modes=(),
+        workflow_mutation_statuses=(), video_prompt_schema_version="4.1.3",
+        story_schema_version="4.1.3", video_prompt_file_name="video_prompts.json",
+        video_prompt_derivative_targets=(), video_aspect_ratios=("16:9", "9:16"),
+        video_coverage_modes=("KEY_SCENES", "FULL_STORY"),
+        video_clip_durations=(), video_audio_modes=(), video_continuity_modes=(),
+        video_generation_modes=(), video_prompt_languages=(),
+        video_capability_statuses=(), video_transition_types=(),
+        video_prompt_default_config=MappingProxyType({}),
+        artifact_path_format_registry=MappingProxyType({}),
+        current_public_schema_registry=MappingProxyType({}),
+        current_enum_registry=MappingProxyType({}),
+        current_config_registry=MappingProxyType({}),
+    )
+
+    # Parser for registry-based pre-v4 prompts intentionally remains below as
+    # dead source history until callers are migrated; v4 never enters it.
     # Read machine-readable canonical literals instead of depending on the
     # presentation of their human-readable views. Prompt 3.14.9 deliberately
     # makes the registries authoritative and no longer wraps IMAGE_BASENAME_SET

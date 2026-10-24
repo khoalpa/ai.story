@@ -15,11 +15,8 @@ from PIL import Image, UnidentifiedImageError
 from studio.prompt_contract import PromptContract, load_prompt_contract
 
 STORY_VALIDATION_FIELDS = (
-    "schema_version", "prompt_version", "story_sha256",
-    "story_content_digest_sha256", "character_reference_set_digest_sha256",
-    "story_quality_commitment_digest_sha256", "active_profile", "summary",
-    "scene_zone_map", "dialogue_audio", "quality", "engagement", "gates",
-    "refinement", "evidence_graph",
+    "schema_version", "prompt_version", "stage", "status", "input_sources",
+    "checks", "limitations", "remaining_work", "archive_validation",
 )
 
 
@@ -117,19 +114,15 @@ def validate_story(path: Path, contract: PromptContract | None = None) -> Valida
     contract = contract or load_prompt_contract()
     result, document = _validate_json_file(
         path, required=("schema_version", "meta", "characters", "outline", "script"),
-        exact_order=("schema_version", "meta", "characters", "outline", "script"), contract=contract,
+        exact_order=None, contract=contract, schema_version="4.1.3",
     )
     if document is None:
         return result
     meta = document.get("meta")
     if not isinstance(meta, dict):
         result.fail("meta phải là object")
-    else:
-        commitment = meta.get("story_quality_commitment")
-        if not isinstance(commitment, dict):
-            result.fail("Thiếu meta.story_quality_commitment hiện hành")
-        elif commitment.get("schema_version") != contract.story_quality_commitment_schema_version:
-            result.fail("story_quality_commitment.schema_version không khớp prompt")
+    elif set(meta) != {"title", "series", "episode", "author", "channel", "profile", "age_band", "language", "genre", "tone", "target_minutes", "estimated_minutes", "timing_method", "tags"}:
+        result.fail("meta không đúng closed schema 4.1.3")
     if not isinstance(document.get("characters"), list) or not isinstance(document.get("script"), list):
         result.fail("characters và script phải là array")
     result.checks["story_contract"] = "PASS" if not result.errors else "FAIL"
@@ -143,13 +136,15 @@ def validate_story_validation(
     root = STORY_VALIDATION_FIELDS
     result, document = _validate_json_file(
         path, required=root, exact_order=root, contract=contract,
-        schema_version=contract.story_validation_schema_version,
+        schema_version="4.1.3",
     )
-    if document is not None and story_path is not None and story_path.is_file():
-        digest = hashlib.sha256(story_path.read_bytes()).hexdigest()
-        if document.get("story_sha256") != digest:
-            result.fail("story_sha256 không khớp exact bytes của story.json")
-        result.checks["story_sha256_binding"] = "PASS" if document.get("story_sha256") == digest else "FAIL"
+    if document is not None:
+        if document.get("prompt_version") != "4.1.6":
+            result.fail("prompt_version phải là 4.1.6")
+        if type(document.get("stage")) is not int or document["stage"] not in range(1, 5):
+            result.fail("stage phải là integer 1..4")
+        if document.get("status") not in {"COMPLETE", "PARTIAL", "BLOCKED"}:
+            result.fail("status không hợp lệ")
     return result
 
 
@@ -159,7 +154,7 @@ def validate_story_validation_bytes(
 ) -> ValidationResult:
     """Validate a candidate report without publishing it to the workspace."""
     contract = contract or load_prompt_contract()
-    result = _result("story_validation.json", contract)
+    result = _result("validation_report.json", contract)
     try:
         report = strict_json_bytes(raw)
         story = strict_json_bytes(story_raw)
@@ -363,83 +358,21 @@ def _validate_png(raw: bytes, name: str, expected_size: tuple[int, int], result:
 
 def validate_archive(path: Path, contract: PromptContract | None = None) -> ValidationResult:
     contract = contract or load_prompt_contract()
-    # CURRENT packages are identified structurally, not merely by filename.
-    # Import locally because workflow_package reuses strict_json_bytes above.
     from studio.workflow_package import inspect_members, read_archive
-
-    try:
-        with zipfile.ZipFile(path) as probe:
-            is_current = "workflow_manifest.json" in probe.namelist()
-    except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
-        result = _result(path.name, contract)
-        result.fail(f"ZIP không hợp lệ: {exc}")
-        return result
-    if is_current:
-        try:
-            members = read_archive(path)
-        except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as exc:
-            result = _result(path.name, contract)
-            result.fail(f"ZIP không hợp lệ: {exc}")
-            return result
-        inspection = inspect_members(members, archive=True, contract=contract)
-        result = _result(path.name, contract)
-        result.status = inspection["status"]
-        result.compatibility_mode = inspection["compatibility"]
-        for item in inspection["checks"]:
-            result.checks[item["check"]] = item["status"]
-            if item["status"] == "FAIL":
-                result.errors.append(f'{item["check"]}: {item["detail"]}')
-            elif item["status"] == "NOT_VERIFIED":
-                result.warnings.append(f'{item["check"]}: {item["detail"]}')
-        return result
-
     result = _result(path.name, contract)
-    checkpoint = path.name.casefold() == "stage2_checkpoint.zip"
-    result.compatibility_mode = "MIGRATION_REQUIRED"
-    landscape = tuple(f"landscape/{name}" for name in contract.image_basenames)
-    portrait = tuple(f"portrait/{name}" for name in contract.image_basenames)
     try:
-        with zipfile.ZipFile(path) as archive:
-            bad = archive.testzip()
-            if bad:
-                result.fail(f"CRC lỗi: {bad}")
-            names = _safe_archive_names(archive.infolist(), result)
-            anchor_present = "series_anchor.json" in names
-            expected = (
-                {"story.json", "visual_bible.json", *landscape}
-                if checkpoint else
-                {"story.json", "story_validation.json", "package_quality_report.json", *landscape, *portrait}
-                | ({"series_anchor.json"} if anchor_present else set())
-            )
-            actual = set(names)
-            for missing in sorted(expected - actual):
-                result.fail(f"Thiếu file: {missing}")
-            for extra in sorted(actual - expected):
-                result.fail(f"File thừa: {extra}")
-            json_valid = True
-            for name, info in names.items():
-                if PurePosixPath(name).suffix.casefold() == ".json":
-                    try:
-                        strict_json_bytes(archive.read(info))
-                    except (UnicodeError, ValueError) as exc:
-                        json_valid = False
-                        result.fail(f"{name}: JSON không hợp lệ: {exc}")
-            result.checks["archive_json"] = "PASS" if json_valid else "FAIL"
-            for name in landscape:
-                if name in actual:
-                    _validate_png(archive.read(names[name]), name, contract.landscape_size, result)
-            if not checkpoint:
-                for name in portrait:
-                    if name in actual:
-                        _validate_png(archive.read(names[name]), name, contract.portrait_size, result)
-            result.checks["archive_file_set"] = "PASS" if actual == expected else "FAIL"
-    except (OSError, zipfile.BadZipFile, RuntimeError) as exc:
+        members = read_archive(path)
+        inspection = inspect_members(members, archive=True, contract=contract)
+    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as exc:
         result.fail(f"ZIP không hợp lệ: {exc}")
-    if not result.errors:
-        result.unverified(
-            "Gói không có workflow_manifest.json nên chỉ được đọc như LEGACY_INPUT_COMPATIBILITY; "
-            "cần migrate sang story.zip CURRENT trước khi có thể xác nhận workflow."
-        )
+        result.compatibility_mode = "UNSUPPORTED"
+        return result
+    result.status = inspection["status"]
+    result.compatibility_mode = inspection["compatibility"]
+    for item in inspection["checks"]:
+        result.checks[item["check"]] = item["status"]
+        if item["status"] == "FAIL":
+            result.errors.append(f'{item["check"]}: {item["detail"]}')
     return result
 
 
@@ -455,19 +388,13 @@ def validate_project(path: Path, contract: PromptContract | None = None) -> list
     story = path / "story.json"
     if story.is_file():
         results.append(validate_story(story, contract))
-    validation = path / "story_validation.json"
+    validation = path / "validation_report.json"
     if validation.is_file():
         results.append(validate_story_validation(validation, story if story.is_file() else None, contract))
     anchor = path / "series_anchor.json"
     if anchor.is_file():
         results.append(validate_series_anchor(anchor, contract))
-    quality = path / "package_quality_report.json"
-    if quality.is_file():
-        results.append(validate_package_quality(
-            quality, contract, story_path=story if story.is_file() else None,
-            visual_plan_path=(path / "visual_plan.json") if (path / "visual_plan.json").is_file() else None,
-        ))
-    for archive_name in ("stage1_checkpoint.zip", "stage2_checkpoint.zip", "story.zip"):
+    for archive_name in ("story_stage1.zip", "story_stage2.zip", "story.zip", "story_video_prompts.zip"):
         archive = path / archive_name
         if archive.is_file():
             results.append(validate_archive(archive, contract))

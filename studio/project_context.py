@@ -28,6 +28,7 @@ def project_path_defaults(directory: Path, *, aspect: str = "landscape") -> dict
         "video_audio_input": str(root / "story.wav"),
         "video_subtitle_input": str(root / "story.srt"),
         "video_story_json_input": str(root / "story.json"),
+        "video_story_package_input": str(root),
         "video_audio_handoff_manifest": str(root / "audio_video_handoff.json"),
         "video_input_cover_path": str(cover),
         "video_input_scenes_dir": str(scenes),

@@ -16,6 +16,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt "streamlit==1.49.0"
+      - name: Verify reference sample data
+        run: python scripts/check_reference_samples.py --require-tracked
       - name: Smoke test every Streamlit launcher at the minimum version
         run: pytest -q tests/smoke/test_streamlit_launchers.py
 
@@ -31,6 +33,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install Pillow PyYAML requests
+      - name: Verify reference sample data
+        run: python scripts/check_reference_samples.py --require-tracked
       - run: python scripts/run_audio_to_video_e2e.py --fixture --report e2e-report.json
       - run: python scripts/check_public_api.py
 
@@ -46,6 +50,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
+      - name: Verify reference sample data
+        run: python scripts/check_reference_samples.py --require-tracked
       - name: Run the full test suite on Windows
         run: pytest -q
 
@@ -62,6 +68,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
+
+      - name: Verify reference sample data
+        run: python scripts/check_reference_samples.py --require-tracked
 
       - name: Run Ruff
         run: ruff check .

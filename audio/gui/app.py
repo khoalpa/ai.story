@@ -37,4 +37,6 @@ def render_studio(*args, **kwargs):
 
 
 def main(_args=None) -> None:
+    from studio.themes.python_theme import render_streamlit
+    render_streamlit()
     render_audio_workspace()

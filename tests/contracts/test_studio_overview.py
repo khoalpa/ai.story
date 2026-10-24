@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -40,20 +41,18 @@ def test_overview_model_combines_story_reports_and_pipeline_outputs(tmp_path: Pa
     subtitle.write_text("subtitle", encoding="utf-8")
     reports = {
         "story": {
+            "schema_version": "4.1.3",
             "meta": {
                 "title": "Chuyện thử",
                 "episode": 2,
-                "story_quality_commitment": {
-                    "recomputable_metrics": {
-                        "total_words": 1200,
-                        "estimated_duration_minutes": 8.5,
-                        "narrative_scene_count": 4,
-                    },
-                    "committed_quality_metrics": {"final_story_quality_score": 92},
-                },
+                "estimated_minutes": 8.5,
             }
+            ,"outline": [{"scene_id": f"sc{i}"} for i in range(4)]
+            ,"script": [{"text": "một hai ba"}]
         },
-        "validation": {"summary": {"material_defect_remaining_count": 0}, "gates": []},
+        "validation": {"prompt_version": "4.1.6", "status": "COMPLETE", "checks": [
+            {"id": "SCHEMA_LINKS", "status": "PASS"}
+        ], "limitations": [], "remaining_work": []},
     }
     statuses = {"story": "Có dữ liệu", "validation": "Có dữ liệu", "quality": "Thiếu", "anchor": "Thiếu"}
     state = {"last_result_summary": {"out_file": str(audio), "srt_path": str(subtitle), "audio_format": "mp3"}}
@@ -61,7 +60,8 @@ def test_overview_model_combines_story_reports_and_pipeline_outputs(tmp_path: Pa
     model = build_overview_model(reports, statuses, state, output_dir=tmp_path)
 
     assert model["project_label"] == "Chuyện thử · Tập 2"
-    assert ("Chất lượng truyện", "9.2/10") in model["metrics"]
+    assert ("Kiểm định", "1/1") in model["metrics"]
+    assert ("Số cảnh", "4") in model["metrics"]
     assert model["pipeline"][1] == ("Audio", "Đã render")
     assert model["pipeline"][2] == ("Handoff", "Chưa có")
     assert model["pipeline"][3] == ("Video", "Chờ asset")
@@ -157,6 +157,9 @@ def test_overview_restores_production_settings_from_persisted_quality_reports(tm
 
 
 def test_overview_uses_current_scenes_directory_and_canonical_image_count(tmp_path: Path) -> None:
+    (tmp_path / "visual_plan.json").write_text(json.dumps({"image_mode": "ZONE", "targets": {
+        "landscape": {"size_policy": "MODEL_DEFAULT"}, "portrait": {"size_policy": "MODEL_DEFAULT"}},
+        "assets": [{"basename": f"{stem}.png"} for stem in EXPECTED_IMAGE_STEMS]}), encoding="utf-8")
     landscape = tmp_path / "landscape"
     landscape.mkdir()
     for stem in EXPECTED_IMAGE_STEMS:
@@ -185,6 +188,9 @@ def test_overview_uses_current_scenes_directory_and_canonical_image_count(tmp_pa
 
 
 def test_overview_selects_portrait_image_set_from_video_aspect(tmp_path: Path) -> None:
+    (tmp_path / "visual_plan.json").write_text(json.dumps({"image_mode": "ZONE", "targets": {
+        "landscape": {"size_policy": "MODEL_DEFAULT"}, "portrait": {"size_policy": "MODEL_DEFAULT"}},
+        "assets": [{"basename": f"{stem}.png"} for stem in EXPECTED_IMAGE_STEMS]}), encoding="utf-8")
     portrait = tmp_path / "portrait"
     portrait.mkdir()
     for stem in EXPECTED_IMAGE_STEMS[:3]:

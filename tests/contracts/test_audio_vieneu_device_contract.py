@@ -75,6 +75,7 @@ def test_vieneu_turbo_pytorch_model_selects_turbo_gpu_engine(monkeypatch) -> Non
     tts_core = importlib.import_module("audio.adapters.tts_core")
     model = "C:/models/vieneu/VieNeu-TTS-v2-Turbo"
 
+    monkeypatch.setattr(tts_core, "cuda_available", lambda: True)
     monkeypatch.setattr(
         tts_core,
         "resolve_vieneu_model_for_runtime",
@@ -469,7 +470,7 @@ def test_preview_result_context_changes_with_voice_and_runtime_model() -> None:
 def test_vieneu_auto_device_prefers_gpu_when_enabled(monkeypatch) -> None:
     tts_core = importlib.import_module("audio.adapters.tts_core")
 
-    monkeypatch.setattr(tts_core, "prefer_gpu_enabled", lambda: True)
+    monkeypatch.setattr(tts_core, "cuda_available", lambda: True)
 
     assert tts_core.normalize_vieneu_device("auto") == "auto"
     assert tts_core.resolve_vieneu_runtime_device("auto") == "cuda"
@@ -479,7 +480,7 @@ def test_vieneu_auto_device_prefers_gpu_when_enabled(monkeypatch) -> None:
 def test_vieneu_auto_device_falls_back_to_cpu_when_gpu_disabled(monkeypatch) -> None:
     tts_core = importlib.import_module("audio.adapters.tts_core")
 
-    monkeypatch.setattr(tts_core, "prefer_gpu_enabled", lambda: False)
+    monkeypatch.setattr(tts_core, "cuda_available", lambda: False)
 
     assert tts_core.resolve_vieneu_runtime_device("auto") == "cpu"
     assert tts_core.resolve_vieneu_effective_mode("local", "turbo", "auto") == "turbo"
@@ -562,7 +563,7 @@ def test_render_request_preserves_vieneu_turbo_with_auto_device(monkeypatch) -> 
     tts_core = importlib.import_module("audio.adapters.tts_core")
     render_audio_app = importlib.import_module("audio.render_audio_app")
 
-    monkeypatch.setattr(tts_core, "prefer_gpu_enabled", lambda: True)
+    monkeypatch.setattr(tts_core, "cuda_available", lambda: True)
 
     request = render_audio_app.RenderAudioAppRequest.from_mapping(
         {

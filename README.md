@@ -57,13 +57,59 @@ technical details, and repository QA tools.
 
 Video does not generate images. Pillow remains a runtime dependency because Video validates image dimensions, formats, and slideshow readiness.
 
+## Editing and production review
+
+- `open_app.bat` checks the selected interpreter against the Python and Streamlit
+  requirements in `pyproject.toml` before starting the interface.
+- In Audio's **Canonical JSON** tab, **Chỉnh từng câu thoại** edits a selected
+  line's speaker, text, emotion, speed, pause, and ambience. IDs, zones, scenes,
+  order, and the existing closed schema are preserved. Edits remain a session
+  draft, survive workspace navigation, and can be downloaded as `story.draft.json`.
+  The source package and its validation reports are never overwritten; changed
+  content needs review before replacing a published package.
+- Video prepares a separate display SRT when a cue contains several sentences.
+  Display timing is estimated from text length within the original cue. Scene
+  transitions and environment effects continue to use the original SRT, including
+  when subtitle display is disabled. Styled and very short cues remain intact.
+- Story Studio's **Âm thanh & phụ đề → Tổng quan → Audio theo phần truyện**
+  summarizes script counts and source-subtitle timing by zone or scene, with CSV
+  export. Timing is withheld when text/order does not match or cues overlap.
+  Part timing does not imply that per-part audio quality has been verified.
+- In **Tài nguyên → Lịch sử kiểm tra ảnh**, record a local inspection to track
+  image revisions, the latest inspection result, notes, and the content fingerprint
+  observed with each revision. Rechecking unchanged bytes does not increment the
+  revision or rebind the image to changed story content. History is stored in
+  `.render_audio_gui/story_asset_history_*.json`, outside the canonical package.
+  These observations are separate from image-generation provenance and semantic QA.
+
+These tools retain the four-stage package format, source JSON schemas, and
+Audio-to-Video handoff contract.
+
 ## Audio pacing
 
 Narration pacing is adaptive: the mixer measures leading and trailing silence from each synthesized segment and inserts only the amount needed to reach the selected acoustic gap. The default `natural` preset targets 550 ms between sentences, 650 ms on voice/language changes, 800 ms at paragraph breaks, and 1200 ms at zone changes. Explicit `[PAUSE]` and `[SILENCE]` tags take precedence. The `compact`, `dramatic`, and `off` presets are also available.
 
 ## Development and verification
 
+The four canonical reference archives live in `samples/Tiem_Sua_Nhung_Loi_Hua/`.
+Their exact bytes are pinned in the adjacent `SHA256SUMS` file and tracked by Git.
+Studio's sample tabs and the test fixtures use the shared definitions in
+`studio/reference_samples.py`; neither requires a populated `output/` directory.
+
+Tests that need extracted files receive a fresh temporary project from the
+fixtures in `conftest.py`. Archives are verified before extraction, and edits in
+one test cannot modify the reference files or another test's project. Missing or
+changed samples fail explicitly instead of skipping package validation.
+
+CI runs `python scripts/check_reference_samples.py --require-tracked` before
+testing. When intentionally replacing a reference archive, review its contents,
+update its pinned checksum, and rerun the existing contract tests. The loader
+never updates checksums automatically. Only the four ZIP files and their checksum
+list are required; generated audio, video and manually extracted sample folders
+are not test inputs. Reference data stays outside the Audio/Video wheels.
+
 ```bash
+python scripts/check_reference_samples.py --require-tracked
 ruff check .
 mypy
 pytest -q --cov=audio --cov=video --cov=studio --cov-report=term-missing:skip-covered --cov-report=xml

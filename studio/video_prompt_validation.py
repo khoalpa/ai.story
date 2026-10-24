@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Mapping, cast
 
 from studio.prompt_contract import PromptContract, load_prompt_contract
+from studio.video_speech_timing import speech_timing_preflight
 from studio.video_voice import (
     VOICE_PLAN_FIELDS,
     VOICE_PROFILE_FIELDS,
@@ -19,8 +20,7 @@ from studio.video_voice import (
     native_audio_prompt,
     source_segments,
 )
-from studio.video_speech_timing import speech_timing_preflight
-from studio.workflow_package import safe_name
+from studio.workflow_package import read_json, safe_name
 
 ROOT_FIELDS = ("schema_version", "generator_target", "source_binding", "project", "global_continuity_lock", "clips", "validation")
 VOICE_ROOT_FIELDS = ("schema_version", "generator_target", "source_binding", "project", "voice_strategy", "global_continuity_lock", "clips", "validation")
@@ -217,6 +217,72 @@ def normalize_video_prompt_plan(plan: Mapping[str, Any], story: Mapping[str, Any
 def validate_video_prompt_plan(plan: Mapping[str, Any], *, contract: PromptContract | None = None,
                                root: Path | None = None, members: Mapping[str, bytes] | None = None) -> dict[str, Any]:
     contract = contract or load_prompt_contract()
+    v4_fields = ("schema_version", "source_mode", "target_model", "coverage", "timing_basis", "timing_config", "clips", "limitations")
+    if set(plan) == set(v4_fields):
+        errors: list[str] = []
+        clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
+        if plan.get("schema_version") != "4.1.3":
+            errors.append("schema_version phải là 4.1.3")
+        if plan.get("source_mode") not in {"STAGE3_PACKAGE", "STORY_ONLY"}:
+            errors.append("source_mode không hợp lệ")
+        if plan.get("coverage") not in {"KEY_SCENES", "FULL_STORY"}:
+            errors.append("coverage không hợp lệ")
+        if plan.get("timing_basis") not in {"ESTIMATED", "MEASURED", "UNAVAILABLE"}:
+            errors.append("timing_basis không hợp lệ")
+        story_raw = members.get("story.json") if members else ((root / "story.json").read_bytes() if root and (root / "story.json").is_file() else None)
+        story = read_json(story_raw) if story_raw else {}
+        script = story.get("script") if isinstance(story.get("script"), list) else []
+        by_id = {row.get("id"): row for row in script if isinstance(row, Mapping)}
+        covered: dict[str, list[tuple[int, int]]] = {key: [] for key in by_id}
+        rows: list[dict[str, Any]] = []
+        for index, clip in enumerate(clips, 1):
+            if not isinstance(clip, Mapping) or clip.get("clip_id") != f"clip_{index:04d}":
+                errors.append(f"Clip {index}: clip_id không liên tục")
+                continue
+            spans, parts = clip.get("source_spans"), []
+            if not isinstance(spans, list) or not spans:
+                errors.append(f"Clip {index}: source_spans rỗng")
+                continue
+            for span in spans:
+                if not isinstance(span, Mapping) or set(span) != {"script_id", "start_char", "end_char"}:
+                    errors.append(f"Clip {index}: source span sai schema")
+                    continue
+                source = by_id.get(span.get("script_id"))
+                start, end = span.get("start_char"), span.get("end_char")
+                text = source.get("text") if isinstance(source, Mapping) else None
+                if not isinstance(text, str) or type(start) is not int or type(end) is not int or not (0 <= start < end <= len(text)):
+                    errors.append(f"Clip {index}: offset không hợp lệ")
+                    continue
+                parts.append(text[start:end])
+                covered[span["script_id"]].append((start, end))
+            if clip.get("narration") != " ".join(parts):
+                errors.append(f"Clip {index}: narration không khớp exact spans")
+            seconds = clip.get("estimated_seconds")
+            if plan.get("timing_basis") == "UNAVAILABLE":
+                if seconds is not None:
+                    errors.append(f"Clip {index}: estimated_seconds phải null")
+            elif type(seconds) not in {int, float} or seconds <= 0:
+                errors.append(f"Clip {index}: estimated_seconds không hợp lệ")
+            for path in clip.get("reference_paths", []) if isinstance(clip.get("reference_paths"), list) else []:
+                exists = path in members if members is not None else bool(root and (root / path).is_file())
+                if not safe_name(path) or not exists:
+                    errors.append(f"Clip {index}: reference_path không tồn tại: {path}")
+            rows.append({"Clip": clip.get("clip_id"), "Zone": "—", "Scene": "—", "Bắt đầu (s)": None, "Kết thúc (s)": None, "Độ dài video (s)": seconds, "Tỷ lệ": clip.get("aspect_ratio")})
+        if plan.get("coverage") == "FULL_STORY" and by_id:
+            for sid, row in by_id.items():
+                spans = sorted(covered[sid])
+                cursor = 0
+                for start, end in spans:
+                    if start != cursor:
+                        errors.append(f"FULL_STORY không phủ exact {sid}")
+                        break
+                    cursor = end
+                if cursor != len(row["text"]):
+                    errors.append(f"FULL_STORY không phủ hết {sid}")
+        duration = sum(float(c.get("estimated_seconds") or 0) for c in clips if isinstance(c, Mapping))
+        return {"errors": errors, "checks": [], "clips": rows, "duration": duration,
+                "needs_confirmation": len(clips) > 60, "continuity_status": "NOT_VERIFIED" if errors else "PASS",
+                "speech_timing_status": "NOT_APPLICABLE", "speech_timing": []}
     errors: list[str] = []
     checks: list[dict[str, str]] = []
     rows: list[dict[str, Any]] = []

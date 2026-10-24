@@ -1,4 +1,8 @@
-"""Read-only progressive package inspection. Never treats report claims as evidence."""
+"""Strict reader and inspector for ChatGPT Audio Story packages v4.1.6.
+
+The public data schema is 4.1.3 while the authoring prompt is 4.1.6. There is
+deliberately no legacy adapter: a package is either current or rejected.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -11,47 +15,27 @@ from io import BytesIO
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-from studio.artifact_validation import strict_json_bytes
-from studio.prompt_contract import PromptContract, load_prompt_contract, prompt_contract_for_version
+from PIL import Image, UnidentifiedImageError
 
-WORKFLOW_FILES = {
-    "workflow": "workflow_manifest.json",
-    "visual_bible": "visual_bible.json",
-    "video_prompts": "video_prompts.json",
-}
+from studio.artifact_validation import strict_json_bytes
+from studio.prompt_contract import PromptContract, load_prompt_contract
+
+WORKFLOW_FILES = {"workflow": "manifest.json", "visual_bible": "visual_plan.json", "video_prompts": "video_prompts.json"}
 STAGES = ("STAGE1", "STAGE2", "STAGE3", "STAGE4")
-# Compatibility exports for callers that render fixed labels. Validation loads
-# the selected prompt contract at call time and does not rely on these values.
-PURPOSES = ("WORKFLOW_CHECKPOINT", "WORKFLOW_CHECKPOINT", "AUDIO_STORY_RELEASE", "VIDEO_PRODUCTION_RELEASE")
-MANIFEST_FIELDS = tuple("schema_version package_stage package_purpose operation_mode created_by_prompt_version active_profile story_sha256 parent_package_digest_sha256 allowed_next_stage file_count files validation package_digest_sha256".split())
-FILE_FIELDS = ("path", "sha256", "size_bytes", "owner_stage", "mutation_status")
-VALIDATION_FIELDS = tuple("manifest_schema_status archive_security_status file_set_status file_digest_status stage_ownership_status parent_binding_status stage_gate_status status".split())
-MAX_MEMBER_BYTES = 64 * 1024 * 1024
+PURPOSES: tuple[str, ...] = ()
+MANIFEST_FIELDS = ("schema_version", "prompt_version", "stage", "status", "parent_package_sha256", "files")
+FILE_FIELDS = ("path", "size_bytes", "sha256", "origin_stage")
+VALIDATION_FIELDS: tuple[str, ...] = ()
+MAX_MEMBER_BYTES = 128 * 1024 * 1024
 MAX_PACKAGE_BYTES = 512 * 1024 * 1024
 MAX_JSON_BYTES = 5 * 1024 * 1024
-INTEGRITY_CHECKS = {"manifest_schema", "file_schema", "file_set", "file_digest", "package_digest",
-                    "story_binding", "stage_ownership", "archive_reopen", "strict_json"}
-USER_REPLACEABLE_COVERS = {"landscape/cover.png", "portrait/cover.png"}
+ZONE_BASENAMES = ("cover.png", "greeting.png", "opening.png", "introduction.png", "development.png", "climax.png", "falling.png", "ending.png", "farewell.png", "outro.png")
 
 
 def read_json(raw: bytes) -> dict[str, Any]:
     if len(raw) > MAX_JSON_BYTES:
         raise ValueError("JSON vượt giới hạn 5 MiB")
-    # The shared parser enforces UTF-8, finite numbers, and duplicate raw keys.
-    document = strict_json_bytes(raw)
-
-    def visit(value: Any) -> None:
-        if isinstance(value, dict):
-            keys = [unicodedata.normalize("NFC", k) for k in value]
-            if len(keys) != len(set(keys)):
-                raise ValueError("JSON có key trùng sau Unicode NFC")
-            for child in value.values():
-                visit(child)
-        elif isinstance(value, list):
-            for child in value:
-                visit(child)
-    visit(document)
-    return dict(document)
+    return dict(strict_json_bytes(raw))
 
 
 def safe_name(name: str) -> bool:
@@ -59,369 +43,234 @@ def safe_name(name: str) -> bool:
         return False
     path = PurePosixPath(name)
     return (not path.is_absolute() and path.as_posix() == name
-            and all(part not in {".", ".."} and not part.endswith((".", " ")) for part in name.split("/"))
+            and all(part not in {"", ".", ".."} and not part.endswith((".", " ")) for part in path.parts)
             and unicodedata.normalize("NFC", name) == name)
 
 
 def read_archive(source: Path | bytes) -> dict[str, bytes]:
-    """Bounded in-memory reopen, including CRC checks; never extracts user paths."""
-    if (source.stat().st_size if isinstance(source, Path) else len(source)) > MAX_PACKAGE_BYTES:
+    size = source.stat().st_size if isinstance(source, Path) else len(source)
+    if size > MAX_PACKAGE_BYTES:
         raise ValueError("ZIP vượt giới hạn 512 MiB")
+    result: dict[str, bytes] = {}
+    folded: set[str] = set()
     with zipfile.ZipFile(source if isinstance(source, Path) else BytesIO(source)) as archive:
-        entries = archive.infolist()
-        if len(entries) > 1024 or sum(item.file_size for item in entries) > MAX_PACKAGE_BYTES:
+        infos = archive.infolist()
+        if len(infos) > 1024 or sum(item.file_size for item in infos) > MAX_PACKAGE_BYTES:
             raise ValueError("ZIP vượt giới hạn số file/dung lượng giải nén")
-        seen: set[str] = set()
-        for item in entries:
-            name = item.filename
+        for item in infos:
+            if item.is_dir():
+                continue
             mode = item.external_attr >> 16
-            if (not safe_name(name) or item.orig_filename != name or not safe_name(item.orig_filename)
-                    or name.casefold() in seen or item.is_dir()
-                    or stat.S_ISLNK(mode) or (stat.S_IFMT(mode) not in {0, stat.S_IFREG})
-                    or item.flag_bits & 1 or item.file_size > MAX_MEMBER_BYTES):
-                raise ValueError(f"ZIP member không an toàn/trùng/không hỗ trợ: {name!r}")
-            seen.add(name.casefold())
-        return {item.filename: archive.read(item) for item in entries}
+            key = unicodedata.normalize("NFC", item.filename).casefold()
+            file_type = stat.S_IFMT(mode)
+            if (not safe_name(item.filename) or key in folded or stat.S_ISLNK(mode)
+                    or file_type not in {0, stat.S_IFREG} or item.file_size > MAX_MEMBER_BYTES):
+                raise ValueError(f"Thành viên ZIP không an toàn: {item.filename}")
+            folded.add(key)
+            result[item.filename] = archive.read(item)
+        bad = archive.testzip()
+        if bad:
+            raise ValueError(f"CRC lỗi: {bad}")
+    return result
 
 
-def _workflow_values(contract: PromptContract) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    stages = contract.workflow_package_stages or STAGES
-    purposes = contract.workflow_package_purposes
-    if len(stages) != 4 or len(purposes) != 3:
-        raise ValueError("Prompt phải khai báo đúng 4 workflow stages và 3 package purposes")
-    # The prompt defines Stage 1–2 as checkpoints and the last two as releases.
-    return stages, (purposes[0], purposes[0], purposes[1], purposes[2])
-
-
-def active_image_basenames(
-    visual_plan: Mapping[str, Any] | None, contract: PromptContract | None = None
-) -> tuple[str, ...]:
-    """Resolve the canonical image set persisted by prompt 3.15 visual planning.
-
-    Older packages have no visual plan and therefore retain the fixed ZONE set.
-    Current SCENE packages derive their cardinality and order from the sidecar.
-    """
-    contract = contract or load_prompt_contract()
-    if visual_plan is None:
-        return contract.image_basenames
-    # Early Stage 2 packages persisted this value under the more verbose
-    # ``resolved_image_generation_mode`` name.  Treat that spelling as a
-    # read-only legacy projection, but never silently choose between two
-    # conflicting values.
-    mode = visual_plan.get("resolved_mode")
-    legacy_mode = visual_plan.get("resolved_image_generation_mode")
-    if mode is None:
-        mode = legacy_mode
-    elif legacy_mode is not None and legacy_mode != mode:
-        raise ValueError("visual_plan có resolved mode mâu thuẫn")
-    assets = visual_plan.get("assets")
+def active_image_basenames(visual_plan: Mapping[str, Any], contract: PromptContract | None = None) -> tuple[str, ...]:
+    mode, assets = visual_plan.get("image_mode"), visual_plan.get("assets")
     if mode not in {"ZONE", "SCENE"} or not isinstance(assets, list) or not assets:
-        raise ValueError("visual_plan resolved_mode/assets không hợp lệ")
-    basenames = tuple(
-        item.get("basename") if isinstance(item, dict) else None for item in assets
-    )
-    if any(
-        not isinstance(name, str)
-        or "/" in name
-        or not safe_name(f"landscape/{name}")
-        for name in basenames
-    ) or len(set(basenames)) != len(basenames):
-        raise ValueError("visual_plan.assets basename không hợp lệ hoặc trùng")
-    if mode == "ZONE" and basenames != contract.image_basenames:
-        raise ValueError("visual_plan ZONE không khớp basename set canonical")
+        raise ValueError("visual_plan.image_mode/assets không hợp lệ")
+    names: list[str] = []
+    for row in assets:
+        name = row.get("basename") if isinstance(row, Mapping) else None
+        if not isinstance(name, str) or not safe_name(name) or "/" in name or not name.endswith(".png"):
+            raise ValueError("visual_plan.assets[].basename không hợp lệ")
+        names.append(name)
+    if len(names) != len(set(name.casefold() for name in names)):
+        raise ValueError("visual_plan có basename trùng")
+    if mode == "ZONE" and tuple(names) != ZONE_BASENAMES:
+        raise ValueError("Bộ basename ZONE không đúng v4.1.6")
     if mode == "SCENE":
-        scene_names = basenames[2:-2]
-        selected = visual_plan.get("selected_scene_count")
-        # The legacy projection did not record a cardinality.  Its ordered
-        # asset list is still deterministic, so derive it only for that exact
-        # shape; current plans must persist selected_scene_count explicitly.
-        if selected is None and "resolved_mode" not in visual_plan and legacy_mode in {"ZONE", "SCENE"}:
-            selected = len(scene_names)
-        expected_scene_names = tuple(f"scene_{index:04d}.png" for index in range(1, len(scene_names) + 1))
-        if (basenames[:2] != ("cover.png", "greeting.png")
-                or basenames[-2:] != ("farewell.png", "outro.png")
-                or type(selected) is not int or selected != len(scene_names)
-                or scene_names != expected_scene_names):
-            raise ValueError("visual_plan SCENE không khớp selected_scene_count/basename pattern")
-    return basenames  # type: ignore[return-value]
+        middle = names[2:-2]
+        if names[:2] != ["cover.png", "greeting.png"] or names[-2:] != ["farewell.png", "outro.png"]:
+            raise ValueError("Bộ basename SCENE thiếu đầu/cuối chuẩn")
+        if middle != [f"scene_{index:04d}.png" for index in range(1, len(middle) + 1)]:
+            raise ValueError("Tên ảnh SCENE không liên tục")
+    return tuple(names)
 
 
-def expected_files(stage: str, story: Mapping[str, Any], anchor: bool,
-                   contract: PromptContract | None = None,
-                   visual_plan: Mapping[str, Any] | None = None) -> list[str]:
+def _stage_label(stage: Any) -> str | None:
+    return f"STAGE{stage}" if type(stage) is int and 1 <= stage <= 4 else None
+
+
+def _expected_payload(members: Mapping[str, bytes], stage: int) -> set[str]:
+    expected = {"story.json", "validation_report.json"}
+    story = read_json(members.get("story.json", b"{}"))
+    if isinstance(story.get("meta"), Mapping) and story["meta"].get("profile") == "SERIAL_DETECTIVE":
+        expected.add("series_anchor.json")
+    story_only = False
+    if stage == 4 and "video_prompts.json" in members:
+        story_only = read_json(members["video_prompts.json"]).get("source_mode") == "STORY_ONLY"
+    if stage >= 2 and not story_only:
+        expected.update({"visual_plan.json", "visual_bible.txt"})
+        plan = read_json(members.get("visual_plan.json", b"{}"))
+        for name in active_image_basenames(plan):
+            expected.add(f"landscape/{name}")
+            if stage >= 3:
+                expected.add(f"portrait/{name}")
+        for row in plan.get("characters", []):
+            if isinstance(row, Mapping) and isinstance(row.get("reference_path"), str):
+                expected.add(row["reference_path"])
+    if stage == 4:
+        expected.add("video_prompts.json")
+    return expected
+
+
+def package_digest(rows: list[Mapping[str, Any]]) -> str:
+    canonical = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, parent: Mapping[str, bytes] | None = None,
+                    contract: PromptContract | None = None, overridden: bool = False) -> dict[str, Any]:
     contract = contract or load_prompt_contract()
-    stages, _ = _workflow_values(contract)
-    if stage not in stages:
-        raise ValueError("Stage phải lấy từ manifest hợp lệ")
-    characters = story.get("characters")
-    if not isinstance(characters, list) or not all(isinstance(c, dict) for c in characters):
-        raise ValueError("story.characters phải là array object")
-    ids = [c.get("character_id") for c in characters]
-    if any(not isinstance(c, str) or not c or not safe_name(f"characters/{c}.png") or "/" in c for c in ids):
-        raise ValueError("character_id không hợp lệ")
-    if len(set(ids)) != len(ids):
-        raise ValueError("character_id trùng")
-    refs = [f"characters/{c}.png" for c in ids]
-    names = active_image_basenames(visual_plan, contract)
-    landscape = [f"landscape/{n}" for n in names]
-    portrait = [f"portrait/{n}" for n in names]
-    base = ["story.json", "story_validation.json", *refs]
-    if stage == stages[0]:
-        files = base
-    elif stage == stages[1]:
-        files = [*base, *(["visual_plan.json"] if visual_plan is not None else []),
-                 "visual_bible.json", *landscape]
-    else:
-        files = [*landscape, *portrait, *base,
-                 *(["visual_plan.json"] if visual_plan is not None else []),
-                 "visual_bible.json", "package_quality_report.json"]
-        if stage == stages[3]:
-            files.append(contract.video_prompt_file_name)
-    return ["workflow_manifest.json", *files, *(["series_anchor.json"] if anchor else [])]
-
-
-def owner_stage(name: str, contract: PromptContract | None = None) -> str:
-    contract = contract or load_prompt_contract()
-    stages, _ = _workflow_values(contract)
-    if name.startswith("landscape/") or name in {"visual_plan.json", "visual_bible.json"}:
-        return stages[1]
-    if name.startswith("portrait/") or name == "package_quality_report.json":
-        return stages[2]
-    if name == contract.video_prompt_file_name:
-        return stages[3]
-    return stages[0]
-
-
-def package_digest(rows: list[dict[str, Any]]) -> str:
-    preimage = [{k: row[k] for k in ("path", "sha256", "size_bytes", "owner_stage")} for row in rows]
-    raw = unicodedata.normalize("NFC", json.dumps(preimage, ensure_ascii=False, separators=(",", ":"), allow_nan=False))
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
-def inspect_members(members: Mapping[str, bytes], *, archive: bool = False,
-                    parent: Mapping[str, bytes] | None = None,
-                    contract: PromptContract | None = None) -> dict[str, Any]:
-    contract = contract or load_prompt_contract()
-    stages, purposes = _workflow_values(contract)
-    result: dict[str, Any] = {"stage": None, "purpose": None, "next_stage": None,
-        "status": "NOT_VERIFIED", "checks": [], "files": [], "manifest": {},
-        "compatibility": "NATIVE_CURRENT", "expected_count": None, "actual_count": len(members),
-        "actual_package_digest_sha256": None,
-        "stage_gate_status": "NOT_VERIFIED", "integrity_status": "NOT_VERIFIED",
-        "publish_status": "NOT_VERIFIED"}
-
-    def check(name: str, passed: bool | None, detail: str) -> None:
-        result["checks"].append({"check": name, "status": "NOT_VERIFIED" if passed is None else "PASS" if passed else "FAIL",
-                                 "detector_class": "HOST_UNAVAILABLE" if passed is None else "DETERMINISTIC", "detail": detail})
-
-    def warn(name: str, detail: str) -> None:
-        result["checks"].append({"check": name, "status": "WARN", "detector_class": "DETERMINISTIC", "detail": detail})
-
-    if "workflow_manifest.json" not in members:
-        result["compatibility"] = "MIGRATION_REQUIRED"
-        check("manifest", None, "Thiếu manifest: không suy stage; legacy cần adapter đúng phiên bản.")
-        return result
+    checks: list[dict[str, str]] = []
+    def check(name: str, ok: bool, good: str, bad: str) -> None:
+        checks.append({"check": name, "status": "PASS" if ok else "FAIL", "detector_class": "DETERMINISTIC", "detail": good if ok else bad})
+    if "manifest.json" not in members:
+        check("manifest_schema", False, "", "Thiếu manifest.json v4.1.6")
+        return {"status": "FAIL", "integrity_status": "FAIL", "publish_status": "FAIL", "compatibility": "UNSUPPORTED", "stage": None, "checks": checks, "files": [], "manifest": {}, "actual_package_digest_sha256": None}
     try:
-        manifest = read_json(members["workflow_manifest.json"])
-        result["manifest"] = manifest
-        declared_prompt_version = manifest.get("created_by_prompt_version")
-        if isinstance(declared_prompt_version, str) and declared_prompt_version != contract.version_label:
-            try:
-                contract = prompt_contract_for_version(
-                    declared_prompt_version, directory=contract.path.parent
-                )
-                stages, purposes = _workflow_values(contract)
-            except (FileNotFoundError, ValueError) as exc:
-                check("prompt_contract", None, f"Không thể tải contract v{declared_prompt_version}: {exc}")
-        stage = manifest.get("package_stage")
-        if stage not in stages:
-            raise ValueError("package_stage không hợp lệ")
-        index = stages.index(stage)
-        result.update(stage=stage, purpose=purposes[index], next_stage=stages[index + 1] if index < 3 else None)
-        validation = manifest.get("validation")
-        operation = manifest.get("operation_mode")
-        def hex_digest(value: Any) -> bool:
-            return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
-        schema_ok = (tuple(manifest) == MANIFEST_FIELDS and manifest.get("schema_version") == contract.workflow_manifest_schema_version
-            and manifest.get("package_purpose") == purposes[index]
-            and operation in set(contract.workflow_operation_modes)
-            and manifest.get("created_by_prompt_version") == contract.version_label
-            and manifest.get("active_profile") in {"YOUTH_SAFE", "ADULT_STANDARD", "SERIAL_DETECTIVE"}
-            and manifest.get("allowed_next_stage") == result["next_stage"]
-            and type(manifest.get("file_count")) is int
-            and hex_digest(manifest.get("story_sha256")) and hex_digest(manifest.get("package_digest_sha256"))
-            and (manifest.get("parent_package_digest_sha256") is None
-                 or hex_digest(manifest.get("parent_package_digest_sha256")))
-            and isinstance(validation, dict) and tuple(validation) == VALIDATION_FIELDS
-            and all(value == "PASS" for value in validation.values()))
-        check("manifest_schema", schema_ok,
-              f"Exact field/order/enum; {stage} purpose canonical = {result['purpose']}.")
-        story = read_json(members["story.json"])
-        rows = manifest.get("files")
-        if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
-            raise ValueError("manifest.files phải là array object")
-        rows_ok = all(tuple(r) == FILE_FIELDS and safe_name(r.get("path")) and hex_digest(r.get("sha256"))
-            and type(r.get("size_bytes")) is int and r["size_bytes"] >= 0 and r.get("owner_stage") in stages
-            and r.get("mutation_status") in set(contract.workflow_mutation_statuses) for r in rows)
-        check("file_schema", rows_ok, "Exact member field/order/type và canonical path.")
-        if not rows_ok:
-            raise ValueError("Không thể xác minh member record sai schema")
-        visual_plan = read_json(members["visual_plan.json"]) if "visual_plan.json" in members else None
-        expected = expected_files(stage, story, "series_anchor.json" in members, contract, visual_plan)
-        result["expected_count"] = len(expected)
-        check("file_set", list(r["path"] for r in rows) == expected[1:]
-              and set(members) == set(expected) and manifest.get("file_count") == len(expected)
-              and len(rows) + 1 == len(expected) and (not archive or list(members) == expected),
-              "Exact allowlist/order/count của stage, gồm optional anchor.")
-        actual_rows = []
-        changed_paths: set[str] = set()
+        manifest = read_json(members["manifest.json"])
+    except ValueError as exc:
+        check("manifest_schema", False, "", f"manifest.json không hợp lệ: {exc}")
+        return {"status": "FAIL", "integrity_status": "FAIL", "publish_status": "FAIL", "compatibility": "UNSUPPORTED", "stage": None, "checks": checks, "files": [], "manifest": {}, "actual_package_digest_sha256": None}
+    stage, rows = manifest.get("stage"), manifest.get("files")
+    stage_label = _stage_label(stage)
+    digest_pattern = re.compile(r"[0-9a-f]{64}")
+    parent_digest = manifest.get("parent_package_sha256")
+    schema_ok = (set(manifest) == set(MANIFEST_FIELDS) and manifest.get("schema_version") == "4.1.3"
+                 and manifest.get("prompt_version") == contract.version_label and stage_label is not None
+                 and manifest.get("status") in {"COMPLETE", "PARTIAL", "BLOCKED"}
+                 and (parent_digest is None or isinstance(parent_digest, str) and digest_pattern.fullmatch(parent_digest)))
+    check("manifest_schema", schema_ok, "Manifest v4.1.6 / schema 4.1.3 hợp lệ.", "Manifest không đúng schema v4.1.6 (không hỗ trợ gói cũ).")
+    row_ok, indexed = isinstance(rows, list), {}
+    if row_ok:
+        paths = []
         for row in rows:
-            raw = members.get(row["path"])
-            digest = hashlib.sha256(raw).hexdigest() if raw is not None else None
-            matches = raw is not None and len(raw) == row["size_bytes"] and digest == row["sha256"]
-            if not matches:
-                changed_paths.add(row["path"])
-            file_status = "PASS" if matches else "WARN" if row["path"].casefold() in USER_REPLACEABLE_COVERS else "FAIL"
-            result["files"].append({**row, "status": file_status})
-            actual_rows.append({**row, "sha256": digest, "size_bytes": len(raw) if raw is not None else -1})
-        if changed_paths and changed_paths <= USER_REPLACEABLE_COVERS:
-            warn("file_digest", "Ảnh cover đã được người dùng thay đổi; SHA-256/size khác manifest nhưng không chặn sử dụng.")
-        else:
-            check("file_digest", not changed_paths, "SHA-256 và size được tính lại trên bytes đang đọc.")
-        actual_package_digest = package_digest(actual_rows)
-        result["actual_package_digest_sha256"] = actual_package_digest
-        package_matches = actual_package_digest == manifest.get("package_digest_sha256")
-        if not package_matches and changed_paths and changed_paths <= USER_REPLACEABLE_COVERS:
-            warn("package_digest", "Package digest thay đổi chỉ do ảnh cover người dùng thay thế; không chặn sử dụng.")
-        else:
-            check("package_digest", package_matches, "Canonical ordered member tuples; không hash ZIP container.")
-        documents = {name: read_json(raw) for name, raw in members.items() if name.endswith(".json")}
-        check("strict_json", True, "Mọi JSON trong gói được parse strict UTF-8, finite number, duplicate key/NFC.")
-        profile = documents["story_validation.json"].get("active_profile")
-        check("story_binding", hashlib.sha256(members["story.json"]).hexdigest() == manifest.get("story_sha256")
-              and profile == manifest.get("active_profile"), "Exact story bytes và active_profile trong kiểm định.")
-        check("stage_ownership", all(r["owner_stage"] == owner_stage(r["path"], contract)
-              and (r["mutation_status"] == "READ_ONLY" if r["owner_stage"] != stage
-                   else operation == "REPAIR" or r["mutation_status"] == "CREATED_CURRENT_STAGE") for r in rows),
-              "Owner stage và mutation status của từng member.")
-        if stage == stages[0] and operation == "CREATE":
-            check("parent_binding", manifest.get("parent_package_digest_sha256") is None, "Stage 1 CREATE không có parent.")
-        elif not manifest.get("parent_package_digest_sha256"):
-            warn("parent_binding", "Không khai báo gói cha; liên kết giữa các stage là tùy chọn.")
-        elif parent is None:
-            warn("parent_binding", "Chưa cung cấp gói nguồn để đối chiếu tùy chọn; không chặn gói hiện tại.")
-        else:
-            prior = inspect_members(parent, archive=True, contract=contract)
-            prior_manifest = prior["manifest"]
-            prior_checks = [c for c in prior["checks"] if c["check"] in INTEGRITY_CHECKS - {"parent_binding"}]
-            prior_ok = (prior["status"] != "FAIL" and {c["check"] for c in prior_checks} == INTEGRITY_CHECKS - {"parent_binding"}
-                        and all(c["status"] == "PASS" for c in prior_checks))
-            wanted_stage = stage if operation == "REPAIR" else stages[index - 1]
-            inherited = [r["path"] for r in rows if r["owner_stage"] != stage or r["mutation_status"] == "READ_ONLY"]
-            anchor_preserved = stage not in {stages[1], stages[3]} or ("series_anchor.json" in members) == ("series_anchor.json" in parent)
-            parent_base_ok = (prior_ok and prior["stage"] == wanted_stage
-                              and prior_manifest.get("package_digest_sha256") == manifest.get("parent_package_digest_sha256")
-                              and anchor_preserved)
-            changed_inherited = {name for name in inherited if members.get(name) != parent.get(name)}
-            if parent_base_ok and changed_inherited and changed_inherited <= USER_REPLACEABLE_COVERS:
-                warn("parent_binding", "Ảnh cover kế thừa đã được người dùng thay đổi; các bytes kế thừa khác vẫn khớp gói cha.")
-            elif not parent_base_ok or changed_inherited:
-                warn("parent_binding", "Gói cha hoặc bytes kế thừa không khớp; đối chiếu liên-stage là tùy chọn và không chặn gói hiện tại.")
+            valid = (isinstance(row, Mapping) and set(row) == set(FILE_FIELDS) and isinstance(row.get("path"), str)
+                     and safe_name(row["path"]) and type(row.get("size_bytes")) is int and row["size_bytes"] >= 0
+                     and (row.get("sha256") is None or (isinstance(row.get("sha256"), str)
+                          and digest_pattern.fullmatch(row["sha256"])))
+                     and type(row.get("origin_stage")) is int and 1 <= row["origin_stage"] <= 4)
+            if not valid:
+                row_ok = False
+                break
+            paths.append(row["path"])
+            indexed[row["path"]] = row
+        row_ok = row_ok and paths == sorted(paths) and len(paths) == len(set(p.casefold() for p in paths))
+    check("manifest_files", row_ok, "Danh sách manifest hợp lệ.", "manifest.files không hợp lệ.")
+    actual_payload, listed = set(members) - {"manifest.json"}, set(indexed)
+    file_set_ok = row_ok and actual_payload == listed
+    if stage_label:
+        try:
+            expected_payload = _expected_payload(members, stage)
+            required_payload = {"story.json", "validation_report.json"}
+            if stage == 4:
+                required_payload.add("video_prompts.json")
+            if manifest.get("status") == "COMPLETE":
+                file_set_ok = file_set_ok and actual_payload == expected_payload
             else:
-                check("parent_binding", True,
-                      "Đối chiếu gói cha trực tiếp và bytes kế thừa; không chứng minh toàn bộ lịch sử tổ tiên.")
-        if archive:
-            check("archive_reopen", True, "Đã đọc lại mọi ZIP member và CRC.")
-        else:
-            warn("archive_reopen", "Đang dùng thư mục đầu ra chính; kiểm tra ZIP/CRC là tùy chọn và không chặn gói.")
-        reports_to_check = [documents["story_validation.json"]]
-        if stage in {stages[2], stages[3]}:
-            reports_to_check.append(documents.get("package_quality_report.json", {}))
-        if stage == stages[3]:
-            reports_to_check.append(documents.get(contract.video_prompt_file_name, {}))
-        declared_failure = False
-        for report in reports_to_check:
-            report_validation = report.get("validation")
-            summary = report.get("summary")
-            if isinstance(report_validation, dict) and report_validation.get("status") == "FAIL":
-                declared_failure = True
-            if isinstance(summary, dict) and summary.get("publish_verdict") == "FAIL":
-                declared_failure = True
-            if isinstance(report.get("gates"), list):
-                declared_failure |= any(isinstance(g, dict) and g.get("status") == "FAIL" and g.get("severity") != "ADVISORY" for g in report["gates"])
-        if declared_failure:
-            check("reported_blocker", False, "Artifact báo cáo có blocker FAIL; không thể xác nhận gói đạt.")
-        warn("stage_gate", "Chứng nhận safety/provenance/creative độc lập là tùy chọn; chỉ các validator thực sự đã chạy mới ảnh hưởng trạng thái gói.")
-    except (KeyError, TypeError, ValueError, UnicodeError, RecursionError) as exc:
-        check("parse", False, str(exc))
-    statuses = [c["status"] for c in result["checks"]]
-    result["status"] = "FAIL" if "FAIL" in statuses else "NOT_VERIFIED" if "NOT_VERIFIED" in statuses else "PASS"
-    integrity = [c["status"] for c in result["checks"] if c["check"] in INTEGRITY_CHECKS or c["check"] == "parse"]
-    result["integrity_status"] = "FAIL" if "FAIL" in integrity else "NOT_VERIFIED" if "NOT_VERIFIED" in integrity else "PASS"
-    stage_checks = [c["status"] for c in result["checks"] if c["check"] in {"stage_gate", "reported_blocker"}]
-    result["stage_gate_status"] = "FAIL" if "FAIL" in stage_checks else "NOT_VERIFIED" if "NOT_VERIFIED" in stage_checks or not stage_checks else "PASS"
-    result["publish_status"] = ("PASS" if result["integrity_status"] == result["stage_gate_status"] == "PASS"
-                                else "FAIL" if "FAIL" in {result["integrity_status"], result["stage_gate_status"]}
-                                else "NOT_VERIFIED")
-    return result
-
-
-def inspect_directory(
-    root: Path, *, overridden: bool = False, parent: Mapping[str, bytes] | None = None
-) -> dict[str, Any]:
-    """Inspect only the package projection; production files stay outside it."""
-    members: dict[str, bytes] = {}
+                file_set_ok = file_set_ok and required_payload <= actual_payload <= expected_payload
+        except (ValueError, KeyError):
+            file_set_ok = False
+    check("file_set", file_set_ok, f"Exact file set Stage {stage} hợp lệ.", "File set không đúng stage/schema v4.1.6.")
+    digest_ok = row_ok
+    for path, row in indexed.items():
+        raw = members.get(path)
+        digest_ok = bool(digest_ok and raw is not None and len(raw) == row["size_bytes"])
+        if raw is not None and row.get("sha256") is not None:
+            digest_ok = digest_ok and hashlib.sha256(raw).hexdigest() == row["sha256"]
+    check("file_digest", digest_ok, "Size/hash mọi payload khớp manifest.", "Size/hash payload không khớp manifest.")
+    json_ok = True
+    for path, raw in members.items():
+        if path.endswith(".json"):
+            try:
+                json_ok = json_ok and read_json(raw).get("schema_version") == "4.1.3"
+            except ValueError:
+                json_ok = False
+    check("strict_json", json_ok, "Mọi JSON parse strict và dùng schema 4.1.3.", "JSON lỗi hoặc schema_version không phải 4.1.3.")
+    report_ok = False
     try:
-        contract = load_prompt_contract()
-        manifest_path = root / "workflow_manifest.json"
-        if manifest_path.is_file():
-            if not manifest_path.resolve().is_relative_to(root.resolve()):
-                raise ValueError("Manifest ngoài thư mục dự án")
-            if manifest_path.stat().st_size > MAX_JSON_BYTES:
-                raise ValueError("Manifest vượt giới hạn 5 MiB")
-            members["workflow_manifest.json"] = manifest_path.read_bytes()
-            manifest = read_json(members["workflow_manifest.json"])
-            rows = manifest.get("files", [])
-            if not isinstance(rows, list) or len(rows) > 1024:
-                raise ValueError("manifest.files không hợp lệ")
-            names: set[str] = {
-                path
-                for row in rows
-                if isinstance(row, dict)
-                for path in [row.get("path")]
-                if isinstance(path, str)
-            }
-            # CURRENT manifests are the authority for optional stage artifacts.
-            # Loading visual_bible/video prompts unconditionally made a valid
-            # Stage 3/4 directory fail merely because it retained a Stage 2
-            # sidecar for display.  Keep only the two files needed to diagnose
-            # a malformed legacy manifest; declared members are already above.
-            names.update({"story.json", "story_validation.json"})
-            for group in ("characters", "landscape", "portrait"):
-                folder = root / group
-                if folder.is_dir():
-                    names.update(p.relative_to(root).as_posix() for p in folder.iterdir() if p.is_file())
-            total = len(members["workflow_manifest.json"])
-            for name in sorted(names):
-                path = root / name
-                if not safe_name(name) or not path.resolve().is_relative_to(root.resolve()):
-                    raise ValueError(f"Member ngoài dự án: {name!r}")
-                if path.is_file():
-                    size = path.stat().st_size
-                    total += size
-                    if size > MAX_MEMBER_BYTES or total > MAX_PACKAGE_BYTES:
-                        raise ValueError("Package vượt giới hạn dung lượng")
-                    members[name] = path.read_bytes()
-        result = inspect_members(members, parent=parent, contract=contract)
-    except (OSError, ValueError, UnicodeError, RecursionError) as exc:
-        result = inspect_members({})
-        result["status"] = "FAIL"
-        result["integrity_status"] = "FAIL"
-        result["checks"].append({"check": "source", "status": "FAIL", "detector_class": "DETERMINISTIC", "detail": str(exc)})
-    if overridden:
-        result["status"] = "NOT_VERIFIED" if result["status"] != "FAIL" else "FAIL"
-        result["integrity_status"] = "NOT_VERIFIED" if result["integrity_status"] != "FAIL" else "FAIL"
-        result["publish_status"] = "NOT_VERIFIED" if result["publish_status"] != "FAIL" else "FAIL"
-        result["checks"].append({"check": "preview_override", "status": "NOT_VERIFIED", "detector_class": "HOST_UNAVAILABLE",
-                                 "detail": "Đang xem tệp thay thế: kết quả trên đĩa không xác minh bản xem thử."})
-    return result
+        report = read_json(members["validation_report.json"])
+        report_ok = (
+            set(report) == {"schema_version", "prompt_version", "stage", "status", "input_sources",
+                            "checks", "limitations", "remaining_work", "archive_validation"}
+            and report.get("schema_version") == "4.1.3"
+            and report.get("prompt_version") == "4.1.6"
+            and report.get("stage") == stage
+            and report.get("status") == manifest.get("status")
+            and isinstance(report.get("checks"), list)
+        )
+    except (KeyError, ValueError):
+        report_ok = False
+    check("validation_report", report_ok, "Report khớp schema, prompt, stage và trạng thái manifest.",
+          "validation_report.json không khớp manifest hoặc closed schema v4.1.6.")
+
+    image_ok = True
+    if stage_label and stage >= 2 and "visual_plan.json" in members:
+        try:
+            plan = read_json(members["visual_plan.json"])
+            targets = plan["targets"]
+            aspects = ("landscape",) if stage == 2 else ("landscape", "portrait")
+            image_names = active_image_basenames(plan)
+            reference_names = [
+                row.get("reference_path") for row in plan.get("characters", [])
+                if isinstance(row, Mapping) and isinstance(row.get("reference_path"), str)
+            ]
+            image_paths = [*(f"{aspect}/{name}" for aspect in aspects for name in image_names), *reference_names]
+            for path in image_paths:
+                raw = members.get(path)
+                if raw is None:
+                    image_ok = image_ok and manifest.get("status") != "COMPLETE"
+                    continue
+                with Image.open(BytesIO(raw)) as image:
+                    image.verify()
+                with Image.open(BytesIO(raw)) as image:
+                    width, height = image.size
+                    image_ok = image_ok and image.format == "PNG" and image.mode in {"RGB", "RGBA"} and not getattr(image, "is_animated", False)
+                    if path.startswith("landscape/"):
+                        image_ok = image_ok and width > height
+                    elif path.startswith("portrait/"):
+                        image_ok = image_ok and height > width
+                    if path.startswith(("landscape/", "portrait/")):
+                        aspect = path.split("/", 1)[0]
+                        target = targets.get(aspect, {})
+                        if target.get("size_policy") == "EXACT":
+                            image_ok = image_ok and (width, height) == (target.get("width"), target.get("height"))
+        except (KeyError, TypeError, ValueError, UnidentifiedImageError, OSError):
+            image_ok = False
+    check("image_files", image_ok, "PNG giải mã được và đạt orientation/size policy.",
+          "Ảnh không phải PNG hợp lệ hoặc sai orientation/size policy.")
+    success = all(row["status"] == "PASS" for row in checks)
+    payload_rows = [dict(indexed[path]) for path in sorted(indexed)] if row_ok else []
+    return {"status": "PASS" if success else "FAIL", "integrity_status": "PASS" if success else "FAIL",
+            "publish_status": "PASS" if success and manifest.get("status") == "COMPLETE" else "FAIL",
+            "compatibility": "NATIVE_CURRENT" if schema_ok else "UNSUPPORTED", "stage": stage_label,
+            "package_stage": stage_label, "checks": checks, "manifest": manifest, "files": payload_rows,
+            "actual_package_digest_sha256": package_digest(payload_rows) if row_ok else None,
+            "overridden": overridden, "archive": archive}
+
+
+def inspect_directory(root: Path, *, overridden: bool = False, parent: Mapping[str, bytes] | None = None,
+                      contract: PromptContract | None = None) -> dict[str, Any]:
+    try:
+        manifest = read_json((root / "manifest.json").read_bytes())
+        names = {"manifest.json", *(row["path"] for row in manifest.get("files", []) if isinstance(row, Mapping) and isinstance(row.get("path"), str))}
+        members = {name: (root / Path(name)).read_bytes() for name in names}
+        return inspect_members(members, parent=parent, contract=contract, overridden=overridden)
+    except (OSError, ValueError, KeyError) as exc:
+        result = inspect_members({}, contract=contract)
+        result["checks"].append({"check": "directory", "status": "FAIL", "detector_class": "DETERMINISTIC", "detail": str(exc)})
+        return result
+
+
+__all__ = ["FILE_FIELDS", "MANIFEST_FIELDS", "PURPOSES", "STAGES", "VALIDATION_FIELDS", "WORKFLOW_FILES", "active_image_basenames", "inspect_directory", "inspect_members", "package_digest", "read_archive", "read_json", "safe_name"]

@@ -71,7 +71,7 @@ def render_voices_tab(settings: dict) -> None:
                         text=preview_text,
                         output_path=Path(temp_dir) / "preview.wav",
                         model_name=str(settings.get("vieneu_model_name") or ""),
-                        device=str(settings.get("vieneu_device") or "cuda"),
+                        device=str(settings.get("vieneu_device") or "auto"),
                         backend=str(settings.get("vieneu_backend") or "auto"),
                         temperature=float(settings.get("vieneu_preview_temperature") or 0.6),
                     )
@@ -127,7 +127,7 @@ def render_voices_tab(settings: dict) -> None:
                         gender=gender,
                         keep_reference_audio=keep_audio,
                         model_name=str(settings.get("vieneu_model_name") or ""),
-                        device=str(settings.get("vieneu_device") or "cuda"),
+                        device=str(settings.get("vieneu_device") or "auto"),
                         backend=str(settings.get("vieneu_backend") or "auto"),
                         ffmpeg_exe=str(settings.get("ffmpeg_exe") or "ffmpeg"),
                     )

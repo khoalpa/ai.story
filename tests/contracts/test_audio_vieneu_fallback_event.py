@@ -77,6 +77,52 @@ def test_vieneu_batch_failure_emits_fallback_event(monkeypatch, tmp_path) -> Non
     assert (tmp_path / "seg_000.wav").read_bytes() == b"fallback-audio"
 
 
+def test_vieneu_auto_retries_unfinished_segments_on_cpu_after_gpu_failure(monkeypatch, tmp_path) -> None:
+    attempts: list[str] = []
+
+    async def fake_synthesize(_seg, out_wav, *_args, **kwargs) -> None:  # noqa: ANN001, ANN003
+        device = str(kwargs["vieneu_device"])
+        attempts.append(device)
+        if device == "cuda":
+            raise RuntimeError("CUDA out of memory")
+        out_wav.write_bytes(b"cpu-audio")
+
+    monkeypatch.setattr(tts_render, "resolve_vieneu_runtime_device", lambda value: "cuda" if value == "auto" else str(value))
+    monkeypatch.setattr(tts_render, "get_vieneu_engine", lambda **_kwargs: object())
+    monkeypatch.setattr(tts_render, "resolve_vieneu_model_for_runtime", lambda value, *_args, **_kwargs: str(value))
+    monkeypatch.setattr(tts_render, "resolve_vieneu_model_name", lambda value, _mode: str(value))
+    monkeypatch.setattr(tts_render, "synthesize_segment_with_vieneu_async", fake_synthesize)
+    monkeypatch.setattr(tts_render, "_release_cuda_after_failure", lambda: None)
+
+    events = []
+    config = tts_render.TtsRenderConfig(
+        wav_dir=tmp_path,
+        voice_map_vi={"narrator": "narrator"},
+        voice_map_en={"narrator": "narrator"},
+        abbr_map={},
+        tts_provider="vieneu",
+        vieneu_mode="standard",
+        vieneu_model_name="model",
+        vieneu_device="auto",
+        vieneu_render_use_batch=False,
+        event_sink=events.append,
+        cache_enabled=False,
+    )
+    segment = Segment(text="Xin chào", voice="narrator", rate="0%", lang="vi", lang_from_tag=True)
+
+    asyncio.run(tts_render.render_tts_segments_async([segment], config))
+
+    assert attempts == ["cuda", "cpu"]
+    assert (tmp_path / "seg_000.wav").read_bytes() == b"cpu-audio"
+    fallback_events = [event for event in events if isinstance(event, RenderProviderFallbackEvent)]
+    assert fallback_events[-1].payload == {
+        "provider": "vieneu",
+        "from_mode": "gpu",
+        "to_mode": "cpu",
+        "reason": "CUDA out of memory",
+    }
+
+
 def test_gui_progress_collector_displays_fallback_warning(monkeypatch) -> None:
     class Slot:
         def __init__(self) -> None:

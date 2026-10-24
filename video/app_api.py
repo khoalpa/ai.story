@@ -457,6 +457,7 @@ def _execute_render_request_unlocked(
                             outro_duration=request.outro_duration,
                             duration_per_image=request.duration_per_image,
                             subtitle=render_subtitle,
+                            timeline_subtitle=request.subtitle,
                             story_json=request.story_json,
                             zone_aware=bool(request.zone_aware_slideshow),
                             visual_plan_json=request.visual_plan_json,

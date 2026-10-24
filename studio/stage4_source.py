@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from studio.prompt_contract import PromptContract, load_prompt_contract
 from studio.workflow_package import inspect_members, read_archive, read_json
@@ -26,12 +26,11 @@ def validate_stage4_source(source: Path | bytes, operation: str, *,
     if inspection.get("integrity_status") != "PASS":
         errors.append("Gói nguồn chưa vượt toàn bộ kiểm tra integrity CURRENT.")
     try:
-        quality = read_json(members["package_quality_report.json"])
-        summary = quality.get("summary")
-        if not isinstance(summary, Mapping) or summary.get("publish_verdict") != "PASS":
-            errors.append("package_quality_report.publish_verdict không PASS.")
+        report = read_json(members["validation_report.json"])
+        if report.get("status") != "COMPLETE" or report.get("prompt_version") != "4.1.6":
+            errors.append("validation_report v4.1.6 chưa COMPLETE.")
     except (KeyError, TypeError, ValueError, UnicodeError) as exc:
-        errors.append(f"Package-quality report không hợp lệ: {exc}")
+        errors.append(f"Validation report không hợp lệ: {exc}")
     if operation == "CREATE" and contract.video_prompt_file_name in members:
         errors.append("Stage 3 nguồn CREATE không được chứa video_prompts canonical.")
     return {"status": "FAIL" if errors else "PASS", "errors": errors,

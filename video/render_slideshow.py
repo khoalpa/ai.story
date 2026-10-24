@@ -93,7 +93,10 @@ def make_slideshow_video(
     environment_allow_lens_effects: bool = True,
     environment_global_film_grain: float = 0.0,
     progress_callback: Optional[Callable[[float, str], None]] = None,
+    *,
+    timeline_subtitle: Optional[Path] = None,
 ) -> None:
+    source_subtitle = timeline_subtitle if timeline_subtitle is not None else subtitle
     if zone_aware and timeline_mode == "auto":
         timeline_mode = "zone"
     resolved_timeline_mode = resolve_slideshow_timeline_mode(timeline_mode, visual_plan_json)
@@ -131,10 +134,10 @@ def make_slideshow_video(
 
     def video_filter(expected_duration: float) -> str:
         atmosphere_filters: list[str] = []
-        if environment_overlays and story_json is not None and subtitle is not None:
+        if environment_overlays and story_json is not None and source_subtitle is not None:
             environment_segments = build_environment_segments(
                 timeline_json=story_json,
-                subtitle=subtitle,
+                subtitle=source_subtitle,
                 suppress_before=cover_duration if slideshow_cover is not None else 0.0,
                 suppress_after=(
                     max(0.0, expected_duration - outro_duration)
@@ -159,7 +162,7 @@ def make_slideshow_video(
     if resolved_timeline_mode in {"zone", "scene"}:
         if story_json is None:
             raise ValueError("Zone-aware slideshow requires a story.json file.")
-        if subtitle is None:
+        if source_subtitle is None:
             raise ValueError("Zone-aware slideshow requires a subtitle .srt file with real timestamps.")
         assert scenes_dir is not None
         if resolved_timeline_mode == "scene":
@@ -168,13 +171,13 @@ def make_slideshow_video(
             segments = build_scene_segments(
                 timeline_json=story_json,
                 visual_plan_json=visual_plan_json,
-                subtitle=subtitle,
+                subtitle=source_subtitle,
                 scenes_dir=scenes_dir,
             )
         else:
             segments = build_zone_segments(
                 timeline_json=story_json,
-                subtitle=subtitle,
+                subtitle=source_subtitle,
                 scenes_dir=scenes_dir,
             )
         segments = prepend_cover_segment(segments, slideshow_cover, cover_duration)

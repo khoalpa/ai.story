@@ -22,7 +22,11 @@ from audio.adapters.vieneu_voice_migration import (
 from audio.adapters.vieneu_voice_migration import (
     normalize_voice_token as _normalize_voice_token,
 )
-from audio.env_runtime import bootstrap_vieneu_runtime, prefer_gpu_enabled
+from audio.env_runtime import (
+    bootstrap_vieneu_runtime,
+    cuda_available,
+    prefer_gpu_enabled,
+)
 from audio.exceptions import TtsDependencyError, TtsError
 from audio.model_store import (
     list_local_targets,
@@ -66,7 +70,7 @@ VIENEU_V3_CODEC_FILES = (
     "moss_audio_tokenizer_encode.onnx",
 )
 DEFAULT_VIENEU_API_BASE = "http://127.0.0.1:23333/v1"
-DEFAULT_VIENEU_DEVICE = "cuda"
+DEFAULT_VIENEU_DEVICE = "auto"
 
 _ENGINE_LIFECYCLE = VieneuEngineLifecycle()
 _ENGINE_LOCK = _ENGINE_LIFECYCLE.lock
@@ -812,7 +816,7 @@ def normalize_vieneu_device(value: object) -> str:
 def resolve_vieneu_runtime_device(value: object) -> str:
     normalized = normalize_vieneu_device(value)
     if normalized == "auto":
-        return "cuda" if prefer_gpu_enabled() else "cpu"
+        return "cuda" if cuda_available() else "cpu"
     return normalized
 
 

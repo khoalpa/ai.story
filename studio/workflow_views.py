@@ -8,7 +8,6 @@ import zipfile
 from pathlib import Path
 from typing import Any, Mapping
 
-from studio.artifact_validation import validate_story_validation
 from studio.package_quality_report import _items, _object
 from studio.project_review import (
     DIRECTORY_SOURCE,
@@ -20,9 +19,10 @@ from studio.project_review import (
     VERIFICATION_UPLOAD_BYTES_KEY,
     inspect_selected_workflow,
 )
-from studio.story_images import EXPECTED_IMAGE_STEMS
+from studio.story_images import image_metadata
 from studio.workflow_package import (
     STAGES,
+    active_image_basenames,
     read_archive,
     read_json,
     safe_name,
@@ -302,58 +302,73 @@ def render_video_plan(plan: Mapping[str, Any], *, key_prefix: str = "video_plan"
 
 def visual_bible_summary(document: Mapping[str, Any], *, root: Path | None = None) -> dict[str, Any]:
     """Build deterministic, read-only Stage 2 Visual Bible checks."""
-    required = (
-        "schema_version", "story_sha256", "active_profile", "art_direction_id",
-        "character_identity_locks", "recurring_location_locks",
-        "landscape_reference_map", "dependency_digest",
-    )
-    missing = [key for key in required if key not in document]
-    characters = _items(document.get("character_identity_locks"))
-    locations = _items(document.get("recurring_location_locks"))
-    references = _object(document.get("landscape_reference_map"))
-    expected_names = {f"{stem}.png" for stem in EXPECTED_IMAGE_STEMS}
-    story_binding = "NOT_VERIFIED"
-    asset_passed = 0
-    asset_checked = 0
+    required = {"schema_version", "image_mode", "reference_mode", "targets", "characters", "assets"}
+    missing = sorted(required.difference(document))
+    extra = sorted(set(document).difference(required))
+    characters = _items(document.get("characters"))
+    assets = _items(document.get("assets"))
+    errors = [f"Thiếu trường bắt buộc: {key}" for key in missing]
+    errors.extend(f"Trường ngoài schema: {key}" for key in extra)
+    if document.get("schema_version") != "4.1.3":
+        errors.append("schema_version phải là 4.1.3.")
+    try:
+        expected_names = set(active_image_basenames(document))
+    except ValueError as exc:
+        expected_names = set()
+        errors.append(str(exc))
+    reference_ready = sum(row.get("reference_status") == "READY" for row in characters)
+    reference_checked = 0
+    reference_passed = 0
+    landscape_checked = 0
+    landscape_passed = 0
+    story_links = "NOT_VERIFIED"
     if root is not None:
         try:
-            story_path = root / "story.json"
-            if story_path.is_file():
-                story_binding = ("PASS" if hashlib.sha256(story_path.read_bytes()).hexdigest()
-                                 == document.get("story_sha256") else "FAIL")
-        except OSError:
-            story_binding = "NOT_VERIFIED"
-        for value in references.values():
-            ref = _object(value)
-            path_text = ref.get("path")
-            expected_hash = ref.get("file_sha256")
-            if not isinstance(path_text, str) or not isinstance(expected_hash, str) or not safe_name(path_text):
+            story = read_json((root / "story.json").read_bytes())
+            character_ids = {row.get("character_id") for row in _items(story.get("characters"))}
+            script_ids = {row.get("id") for row in _items(story.get("script"))}
+            linked_ids = {row.get("character_id") for row in characters}
+            asset_character_ids = {value for row in assets for value in row.get("character_ids", [])}
+            source_ids = {value for row in assets for value in row.get("source_script_ids", [])}
+            story_links = "PASS" if linked_ids <= character_ids and asset_character_ids <= character_ids and source_ids <= script_ids else "FAIL"
+        except (OSError, ValueError, TypeError):
+            story_links = "NOT_VERIFIED"
+        for row in characters:
+            path_text = row.get("reference_path")
+            if row.get("reference_status") != "READY":
                 continue
-            asset_checked += 1
+            reference_checked += 1
+            if not isinstance(path_text, str) or not safe_name(path_text):
+                continue
             try:
                 path = (root / path_text).resolve()
-                if (path.is_relative_to(root.resolve()) and path.is_file()
-                        and hashlib.sha256(path.read_bytes()).hexdigest() == expected_hash):
-                    asset_passed += 1
-            except OSError:
+                if path.is_relative_to(root.resolve()) and path.is_file():
+                    image_metadata(path)
+                    reference_passed += 1
+            except (OSError, SyntaxError, ValueError):
                 pass
-    digest = document.get("dependency_digest")
-    digest_ok = isinstance(digest, str) and len(digest) == 64 and all(c in "0123456789abcdef" for c in digest)
-    errors = [f"Thiếu trường bắt buộc: {key}" for key in missing]
-    if set(references) != expected_names:
-        errors.append("Landscape reference map không khớp đúng bộ 10 ảnh canonical.")
-    if story_binding == "FAIL":
-        errors.append("story_sha256 không khớp story.json đang mở.")
-    if asset_checked and asset_passed != asset_checked:
-        errors.append(f"Chỉ {asset_passed}/{asset_checked} ảnh landscape khớp SHA-256 trong Visual Bible.")
-    if not digest_ok:
-        errors.append("dependency_digest không phải SHA-256 hợp lệ.")
+        for name in expected_names:
+            landscape_checked += 1
+            try:
+                path = (root / "landscape" / name).resolve()
+                metadata = image_metadata(path)
+                if path.is_relative_to(root.resolve()) and metadata["format"] == "PNG" and metadata["width"] > metadata["height"]:
+                    landscape_passed += 1
+            except (OSError, SyntaxError, ValueError):
+                pass
+    if story_links == "FAIL":
+        errors.append("Liên kết character_id/source_script_ids không khớp story.json.")
+    if reference_checked and reference_passed != reference_checked:
+        errors.append(f"Chỉ {reference_passed}/{reference_checked} ảnh nhân vật READY tồn tại và giải mã được.")
+    if landscape_checked and landscape_passed != landscape_checked:
+        errors.append(f"Chỉ {landscape_passed}/{landscape_checked} ảnh landscape tồn tại, là PNG và đúng orientation.")
     return {
-        "characters": len(characters), "locations": len(locations),
-        "references": len(references), "expected_references": len(expected_names),
-        "story_binding": story_binding, "asset_passed": asset_passed,
-        "asset_checked": asset_checked, "errors": errors,
-        "status": "FAIL" if errors else "PASS" if story_binding == "PASS" else "NOT_VERIFIED",
+        "characters": len(characters), "reference_ready": reference_ready,
+        "assets": len(assets), "expected_assets": len(expected_names),
+        "story_links": story_links, "reference_passed": reference_passed,
+        "reference_checked": reference_checked, "landscape_passed": landscape_passed,
+        "landscape_checked": landscape_checked, "errors": errors,
+        "status": "FAIL" if errors else "PASS" if root is not None and story_links == "PASS" else "NOT_VERIFIED",
     }
 
 
@@ -366,12 +381,10 @@ def render_visual_bible(document: Mapping[str, Any], *, root: Path | None = None
     st.caption("Dữ liệu nguồn chỉ đọc. Các khóa và trạng thái bên dưới là khai báo, chưa được detector độc lập xác minh.")
     summary = visual_bible_summary(document, root=root)
     columns = st.columns(4)
-    columns[0].metric("Khóa nhân vật", summary["characters"])
-    columns[1].metric("Khóa bối cảnh", summary["locations"])
-    columns[2].metric("Landscape references", f"{summary['references']}/{summary['expected_references']}")
-    columns[3].metric("Story binding", summary["story_binding"])
-    if summary["asset_checked"]:
-        st.caption(f"Đối chiếu ảnh theo Visual Bible: {summary['asset_passed']}/{summary['asset_checked']} SHA-256 khớp.")
+    columns[0].metric("Nhân vật", summary["characters"])
+    columns[1].metric("Ảnh nhân vật READY", f"{summary['reference_passed']}/{summary['reference_ready']}")
+    columns[2].metric("Ảnh landscape", f"{summary['landscape_passed']}/{summary['expected_assets']}")
+    columns[3].metric("Liên kết story", summary["story_links"])
     if summary["errors"]:
         for error in summary["errors"]:
             st.error(error)
@@ -388,7 +401,7 @@ def render_visual_bible(document: Mapping[str, Any], *, root: Path | None = None
 def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Mapping[str, Any]) -> None:
     import streamlit as st
 
-    st.caption("ZIP được đọc trong bộ nhớ, không giải nén lên gói nguồn. Khi gặp manifest Stage 1 kiểu cũ, bạn có thể tạo lại manifest và story.zip từ các artifact hiện có.")
+    st.caption("ZIP được đọc trong bộ nhớ và phải đúng hợp đồng v4.1.6; gói phiên bản cũ bị từ chối.")
     resolved_root = str(root.resolve())
     if state.get(VERIFICATION_ROOT_KEY) != resolved_root:
         state[VERIFICATION_ROOT_KEY] = resolved_root
@@ -414,7 +427,7 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Map
         if source == UPLOADED_ZIP_SOURCE:
             uploaded = st.file_uploader("Gói cần kiểm định", type=["zip"], key=f"workflow_zip_{root.resolve()}")
             if uploaded is None and not state.get(VERIFICATION_UPLOAD_BYTES_KEY):
-                st.info("Chọn story.zip CURRENT hoặc checkpoint legacy để kiểm tra khả năng tương thích.")
+                st.info("Chọn một ZIP v4.1.6: story_stage1.zip, story_stage2.zip, story.zip hoặc story_video_prompts.zip.")
                 return
             if uploaded is not None:
                 state[VERIFICATION_UPLOAD_BYTES_KEY] = uploaded.getvalue()
@@ -430,92 +443,13 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Map
         st.error(f"Không đọc được gói: {exc}")
         return
     render_workflow_summary(result)
-    check_statuses = {
-        str(item.get("check")): str(item.get("status"))
-        for item in result.get("checks", []) if isinstance(item, Mapping)
-    }
-    if result.get("stage") == "STAGE1" and check_statuses.get("manifest_schema") == "FAIL":
-        validation_result = validate_story_validation(root / "story_validation.json", root / "story.json")
-        can_rebuild = validation_result.status == "PASS"
-        if can_rebuild:
-            st.warning("Manifest Stage 1 không theo contract CURRENT; có thể tái tạo từ story, kiểm định và ảnh nhân vật đang có.")
-        else:
-            detail = "; ".join(validation_result.errors)
-            st.error("Chưa thể tạo lại checkpoint: story_validation.json không theo contract CURRENT. " + detail)
-            replacement = st.file_uploader(
-                "Nạp story_validation.json CURRENT", type=["json"],
-                key=f"workflow_stage1_validation_upload_{root.resolve()}",
-                help="Candidate được kiểm tra trong bộ nhớ và chỉ thay file hiện tại khi mọi binding đạt.",
-            )
-            if replacement is not None and st.button(
-                "Xác minh và thay báo cáo kiểm định", type="primary",
-                key=f"workflow_stage1_validation_publish_{root.resolve()}",
-            ):
-                try:
-                    from studio.workflow_builder import publish_story_validation_report
-
-                    publish_story_validation_report(root, replacement.getvalue())
-                except (OSError, ValueError) as exc:
-                    st.error(f"Không thể thay báo cáo kiểm định: {exc}")
-                else:
-                    st.success("Đã nạp story_validation.json CURRENT và xác minh binding.")
-                    st.rerun()
-        if st.button("Tạo lại checkpoint Stage 1", type="primary",
-                     key=f"workflow_rebuild_stage1_{root.resolve()}", disabled=not can_rebuild):
-            try:
-                from studio.workflow_builder import publish_stage1_checkpoint
-
-                publish_stage1_checkpoint(root)
-            except (OSError, ValueError) as exc:
-                st.error(f"Không thể tạo checkpoint Stage 1: {exc}")
-            else:
-                st.success("Đã tạo workflow_manifest.json CURRENT và story.zip đã xác minh.")
-                st.rerun()
-    elif result.get("stage") == "STAGE2" and check_statuses.get("manifest_schema") == "FAIL":
-        st.warning("Manifest Stage 2 không theo contract CURRENT; checkpoint sẽ được dựng lại cùng một parent Stage 1 sạch.")
-        if st.button("Tạo lại checkpoint Stage 2", type="primary", key=f"workflow_rebuild_stage2_{root.resolve()}"):
-            try:
-                from studio.workflow_builder import publish_stage2_checkpoint
-
-                publish_stage2_checkpoint(root)
-            except (OSError, ValueError) as exc:
-                st.error(f"Không thể tạo checkpoint Stage 2: {exc}")
-            else:
-                st.success("Đã tạo stage1_checkpoint.zip và story.zip Stage 2 đã xác minh.")
-                st.rerun()
-    elif result.get("stage") == "STAGE3" and check_statuses.get("manifest_schema") == "FAIL":
-        st.warning("Manifest Stage 3 không theo contract CURRENT; hệ thống sẽ dựng lại chuỗi Stage 1 → 2 → 3 từ các artifact nguồn.")
-        if st.button("Tạo lại chuỗi checkpoint đến Stage 3", type="primary", key=f"workflow_rebuild_stage3_{root.resolve()}"):
-            try:
-                from studio.workflow_builder import rebuild_checkpoint_chain
-
-                rebuild_checkpoint_chain(root, "STAGE3")
-            except (OSError, ValueError) as exc:
-                st.error(f"Không thể tạo chuỗi checkpoint Stage 3: {exc}")
-            else:
-                st.success("Đã tạo stage1_checkpoint.zip, stage2_checkpoint.zip và stage3_release.zip đã xác minh.")
-                st.rerun()
-    elif result.get("stage") == "STAGE4" and check_statuses.get("manifest_schema") == "FAIL":
-        st.warning("Manifest Stage 4 không theo contract CURRENT. Đính kèm đúng story.zip Stage 3 ở ô “Gói cha trực tiếp”; hệ thống sẽ byte-compare mọi member kế thừa trước khi tái tạo Stage 4.")
-        if st.button("Tái tạo gói Stage 4", type="primary", key=f"workflow_rebuild_stage4_{root.resolve()}"):
-            try:
-                if parent is None:
-                    raise ValueError("Cần đính kèm exact story.zip Stage 3 làm gói cha trực tiếp")
-                from studio.workflow_builder import publish_stage4_release
-
-                publish_stage4_release(root, parent)
-            except (OSError, ValueError) as exc:
-                st.error(f"Không thể tái tạo gói Stage 4: {exc}")
-            else:
-                st.success("Đã tạo story.zip và stage4_release.zip Stage 4 đã xác minh.")
-                st.rerun()
     comparison = result.get("source_comparison")
     if comparison:
         (st.success if comparison["status"] == "PASS" else st.error)(comparison["detail"])
     st.dataframe(result["checks"], hide_index=True, width="stretch")
     st.caption("Phạm vi kiểm tra: schema manifest, allowlist, hash/size, ownership, CRC và parent trực tiếp khi được cung cấp. Không chứng nhận an toàn/nội dung/mỹ thuật chỉ từ metadata.")
     if result["compatibility"] != "NATIVE_CURRENT":
-        st.warning("MIGRATION_REQUIRED: chỉ đọc để chẩn đoán. Chưa có adapter legacy được xác minh; không tự chuyển gói sang CURRENT.")
+        st.error("UNSUPPORTED: gói không đúng v4.1.6 và sẽ không được mở ở chế độ tương thích.")
     st.dataframe(result["files"], hide_index=True, width="stretch")
     with st.expander("Manifest nguồn"):
         st.json(result["manifest"], expanded=False)
@@ -532,7 +466,7 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Map
                     doc = read_json(raw)
                     if selected == "video_prompts.json":
                         render_video_plan(doc, key_prefix="archive_video_plan", members=members)
-                    elif selected == "visual_bible.json":
+                    elif selected == "visual_plan.json":
                         render_visual_bible(doc, root=root)
                     else:
                         st.json(doc, expanded=False)

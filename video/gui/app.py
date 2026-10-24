@@ -15,6 +15,8 @@ APP_TITLE = "Không gian sản xuất video"
 def render_video_workspace(*, embedded: bool = False) -> None:
     if not embedded:
         st.set_page_config(page_title=APP_TITLE, page_icon=":material/movie:", layout="wide")
+        from studio.themes.python_theme import render_streamlit
+        render_streamlit()
         st.title(APP_TITLE)
         st.caption("Tạo MP4 từ audio, phụ đề và hình ảnh; hỗ trợ xem trước, nhật ký và lịch sử.")
     else:

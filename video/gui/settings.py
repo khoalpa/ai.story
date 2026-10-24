@@ -256,6 +256,7 @@ def _render_subtitle_style_settings(mode: str, aspect: str) -> dict[str, Any]:
             value=True,
             help="Disable this to render the video without burning subtitle text into its frames.",
         )
+        st.caption("SRT có nhiều câu sẽ hiện lần lượt từng câu, chia thời gian theo độ dài chữ. Mốc chuyển cảnh vẫn dùng phụ đề gốc.")
         st.markdown("**Placement**")
         subtitle_position = st.selectbox(
             "Subtitle position",

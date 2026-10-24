@@ -18,22 +18,17 @@ Liên quan:
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from typing import Sequence
 
-from audio.audio_story_spec import (
-    normalize_canonical_authoring_zones,
-    render_plain_script,
-    validate_canonical_authoring,
-)
 from audio.cli_utils import UsedFilesTracker, setup_stdio
+from audio.story_package_v416 import parse_story_text, render_plain_script
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Convert canonical authoring JSON (meta + outline + script) "
+            "Convert a v4.1.6 story.json (schema 4.1.3) "
             "to plain engine script (.txt) for rendering."
         )
     )
@@ -41,7 +36,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "-i",
         "--input",
         required=True,
-        help="Path to authoring JSON with meta/outline/script.",
+        help="Path to v4.1.6 story.json (schema 4.1.3).",
     )
     parser.add_argument(
         "-o",
@@ -66,15 +61,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     used_files.add("Output plain script", out_path)
 
     try:
-        data = json.loads(json_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"Invalid JSON in {json_path}: {exc}") from exc
-
-    data = normalize_canonical_authoring_zones(data)
-
-    errors = validate_canonical_authoring(data)
-    if errors:
-        raise SystemExit("Invalid canonical authoring JSON:\n- " + "\n- ".join(errors))
+        data = parse_story_text(json_path.read_text(encoding="utf-8"))
+    except (UnicodeError, ValueError) as exc:
+        raise SystemExit(str(exc)) from exc
 
     try:
         plain_text = render_plain_script(data)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from PIL import Image
@@ -22,6 +23,17 @@ def _image(path: Path, size: tuple[int, int] = (1200, 675)) -> None:
     Image.new("RGB", size, (24, 48, 72)).save(path)
 
 
+def _zone_plan(path: Path) -> None:
+    path.write_text(json.dumps({
+        "image_mode": "ZONE",
+        "targets": {
+            "landscape": {"size_policy": "MODEL_DEFAULT", "preferred_aspect_ratio": "16:9", "width": None, "height": None},
+            "portrait": {"size_policy": "MODEL_DEFAULT", "preferred_aspect_ratio": "9:16", "width": None, "height": None},
+        },
+        "assets": [{"basename": f"{stem}.png"} for stem in EXPECTED_IMAGE_STEMS],
+    }), encoding="utf-8")
+
+
 def test_discovery_maps_zone_images_for_both_aspects(tmp_path: Path) -> None:
     _image(tmp_path / "landscape" / "opening.png")
     _image(tmp_path / "portrait" / "opening.png", (675, 1200))
@@ -31,6 +43,7 @@ def test_discovery_maps_zone_images_for_both_aspects(tmp_path: Path) -> None:
 
 
 def test_image_summary_reports_missing_expected_assets(tmp_path: Path) -> None:
+    _zone_plan(tmp_path / "visual_plan.json")
     _image(tmp_path / "landscape" / "cover.png")
     summary = inspect_story_images(tmp_path)
     assert summary["landscape"]["count"] == 1
@@ -46,9 +59,9 @@ def test_stage_image_applicability_does_not_require_portrait_in_stage2() -> None
 
 def test_scene_assets_are_resolved_by_script_span_not_by_zone_image_name(tmp_path: Path) -> None:
     (tmp_path / "visual_plan.json").write_text(
-        '''{"resolved_mode":"SCENE","assets":[
-        {"basename":"scene_0001.png","role":"SCENE","script_item_start":0,"script_item_end":2},
-        {"basename":"scene_0002.png","role":"SCENE","script_item_start":3,"script_item_end":5}
+        '''{"image_mode":"SCENE","assets":[
+        {"basename":"scene_0001.png","role":"SCENE","source_script_ids":["s0001","s0002","s0003"]},
+        {"basename":"scene_0002.png","role":"SCENE","source_script_ids":["s0004","s0005","s0006"]}
         ]}''',
         encoding="utf-8",
     )
@@ -63,9 +76,9 @@ def test_scene_assets_are_resolved_by_script_span_not_by_zone_image_name(tmp_pat
 
 def test_scene_assets_are_sorted_by_story_span(tmp_path: Path) -> None:
     (tmp_path / "visual_plan.json").write_text(
-        '''{"resolved_mode":"SCENE","assets":[
-        {"basename":"scene_0002.png","role":"SCENE","script_item_start":3,"script_item_end":5},
-        {"basename":"scene_0001.png","role":"SCENE","script_item_start":0,"script_item_end":2}
+        '''{"image_mode":"SCENE","assets":[
+        {"basename":"scene_0002.png","role":"SCENE","source_script_ids":["s0004","s0005","s0006"]},
+        {"basename":"scene_0001.png","role":"SCENE","source_script_ids":["s0001","s0002","s0003"]}
         ]}''',
         encoding="utf-8",
     )
@@ -77,8 +90,8 @@ def test_scene_assets_are_sorted_by_story_span(tmp_path: Path) -> None:
 
 def test_scene_context_reports_missing_scene_instead_of_missing_zone_image(tmp_path: Path) -> None:
     (tmp_path / "visual_plan.json").write_text(
-        '''{"resolved_mode":"SCENE","assets":[
-        {"basename":"scene_0001.png","role":"SCENE","script_item_start":0,"script_item_end":2}
+        '''{"image_mode":"SCENE","assets":[
+        {"basename":"scene_0001.png","role":"SCENE","source_script_ids":["s0001","s0002","s0003"]}
         ]}''',
         encoding="utf-8",
     )

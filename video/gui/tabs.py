@@ -50,6 +50,7 @@ from video.slideshow_concat import (
     build_slideshow_segments,
     prepend_cover_segment,
 )
+from video.story_package_v416 import load_project_directory
 from video.validation import (
     ImageReadinessReport,
     autodetect_subtitle_from_audio,
@@ -405,6 +406,27 @@ def _prepare_video_inputs(settings: dict[str, Any]) -> None:
     _ensure_video_input_defaults(settings)
 
 
+def _load_v416_package_directory(settings: dict[str, Any]) -> None:
+    """Verify a package before copying its canonical paths into the UI."""
+    raw = str(st.session_state.get("video_story_package_input") or "").strip()
+    if not raw:
+        raise ValueError("Hãy chọn thư mục gói truyện đã giải nén.")
+    package, inspection = load_project_directory(Path(raw))
+    scenes = package.scenes_dir(str(settings.get("aspect") or "16x9"))
+    st.session_state["video_input_root"] = str(package.root)
+    st.session_state["video_story_json_input"] = str(package.story_json)
+    st.session_state["video_visual_plan_input"] = str(package.visual_plan_json or "")
+    st.session_state["video_input_scenes_dir"] = str(scenes)
+    st.session_state["video_input_cover_path"] = str(package.cover(str(settings.get("aspect") or "16x9")))
+    st.session_state["video_story_package_status"] = {
+        "stage": package.stage,
+        "status": inspection.get("status"),
+        "schema_version": "4.1.3",
+        "prompt_version": "4.1.6",
+        "root": str(package.root),
+    }
+
+
 def _autodetect_story_json(settings: dict[str, Any], audio_path: Optional[Path]) -> Optional[Path]:
     candidates: list[Path] = []
     if audio_path is not None:
@@ -736,6 +758,32 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
     )
     col_left, col_right = st.columns([1.15, 1.0])
     with col_left:
+        st.markdown("#### Gói truyện v4.1.6")
+        package_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
+        package_cols[0].text_input(
+            "Thư mục gói đã giải nén",
+            key="video_story_package_input",
+            help="Video chỉ nạp gói có manifest schema 4.1.3 / prompt 4.1.6 hợp lệ.",
+        )
+        package_cols[1].button(
+            "Chọn thư mục",
+            key="video_select_story_package_directory",
+            width="stretch",
+            on_click=_choose_local_path,
+            kwargs={"state_key": "video_story_package_input", "directory": True},
+        )
+        if st.button("Kiểm tra và nạp gói", key="video_load_story_package", width="stretch"):
+            try:
+                _load_v416_package_directory(settings)
+                st.success("Đã xác thực và nạp gói truyện v4.1.6.")
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                st.session_state["video_story_package_status"] = None
+                st.error(f"Không thể nạp gói: {exc}")
+        if package_status := st.session_state.get("video_story_package_status"):
+            st.caption(
+                f"{package_status['stage']} · schema {package_status['schema_version']} · "
+                f"prompt {package_status['prompt_version']} · manifest {package_status['status']}"
+            )
         st.markdown("#### 1. Nguồn âm thanh")
         st.text_input("Manifest bàn giao Audio", key="video_audio_handoff_manifest")
         if st.button("Nạp bản bàn giao Audio", key="video_load_audio_handoff", width="stretch"):

@@ -57,7 +57,7 @@ def test_score_normalization_handles_missing_invalid_and_legacy(value, expected)
 
 
 def test_uploaded_story_survives_widget_cleanup_and_never_leaks_to_other_project(tmp_path: Path) -> None:
-    original = {"meta": {"title": "Disk"}, "characters": [], "outline": {}, "script": []}
+    original = {"meta": {"title": "Disk"}, "characters": [], "outline": [], "script": []}
     (tmp_path / "story.json").write_text(json.dumps(original), encoding="utf-8")
     state = {}
     overrides = _prepare_overrides(state, tmp_path)
@@ -200,16 +200,18 @@ def test_project_switch_clears_previous_render_results(tmp_path: Path) -> None:
     assert "video_last_output" not in state
 
 
-def test_ui_uses_same_override_when_navigating_to_evidence(tmp_path: Path) -> None:
+def test_ui_renders_v416_validation_report_with_story_override(tmp_path: Path) -> None:
     from streamlit.testing.v1 import AppTest
 
     story = {"meta": {"title": "Uploaded story"}, "characters": [], "outline": {},
              "script": [{"zone": "OPENING", "voice": "NARRATOR", "text": "Uploaded evidence text."}]}
-    validation = standalone_validation()
-    validation["quality"] = {"final_story_quality_score": 94, "dimension_scores": {"story_intent": 2}}
-    validation["engagement"] = {"engagement_score": 94}
-    validation["gates"][0]["evidence_locators"] = ["script:0-0"]
-    (tmp_path / "story_validation.json").write_text(json.dumps(validation))
+    validation = {"schema_version": "4.1.3", "prompt_version": "4.1.6", "stage": 1,
+                  "status": "COMPLETE", "input_sources": [],
+                  "checks": [{"id": "STORY_ORDER", "status": "PASS", "method": "CODE",
+                              "required": True, "target": "story.json", "details": "ok"}],
+                  "limitations": [], "remaining_work": [],
+                  "archive_validation": {"status": "NOT_CHECKED", "details": "directory"}}
+    (tmp_path / "validation_report.json").write_text(json.dumps(validation))
     app = AppTest.from_string(
         "from studio.story_studio import render_story_studio_workspace\n"
         "render_story_studio_workspace(embedded=True, show_navigation=False)", default_timeout=15,
@@ -220,9 +222,6 @@ def test_ui_uses_same_override_when_navigating_to_evidence(tmp_path: Path) -> No
     app.session_state["story_studio_section"] = "Kiểm định"
     app.run()
     assert not app.exception
-    assert next(m.value for m in app.metric if m.label == "Chất lượng") == "9.4/10"
-    next(b for b in app.button if b.label == "Mở đoạn kịch bản").click().run()
-    assert not app.exception
-    assert app.session_state["story_studio_section"] == "Nội dung"
-    assert any("Uploaded evidence text." in m.value for m in app.markdown)
+    assert next(m.value for m in app.metric if m.label == "Trạng thái") == "COMPLETE"
+    assert next(m.value for m in app.metric if m.label == "Kiểm tra đạt") == "1/1"
     assert "story" in app.session_state["story_overrides"]

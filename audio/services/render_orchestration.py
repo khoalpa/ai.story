@@ -125,7 +125,7 @@ def run_render_job(
     vieneu_mode: str = "standard",
     vieneu_api_base: str = "",
     vieneu_model_name: str = resolve_vieneu_model_name("", "standard"),
-    vieneu_device: str = "cuda",
+    vieneu_device: str = "auto",
     vieneu_backend: str = "auto",
     vieneu_render_temperature: float = 0.7,
     vieneu_render_max_chars_chunk: int = 240,

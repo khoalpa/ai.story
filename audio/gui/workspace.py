@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any, MutableMapping
 
 import streamlit as st
 
+from audio.gui.story_editor import DRAFT_KEY, render_story_editor
 from audio.gui.user_messages import UserMessage, render_user_message
+from audio.story_package_v416 import (
+    load_package_bytes,
+    load_project_directory,
+    parse_story_text,
+)
 from audio.validate_plain_script import LineIssue, validate_script
 from studio.project_context import PROJECT_DIRECTORY_KEY
 
@@ -37,10 +44,12 @@ def load_project_canonical_default(
         return story_path if story_path.is_file() else None
     if not story_path.is_file():
         return None
-    text = story_path.read_text(encoding="utf-8-sig")
+    text, _inspection = load_project_directory(story_path.parent)
     state["canonical_json_text"] = text
     state["canonical_editor"] = text
     state[CANONICAL_PROJECT_SOURCE_KEY] = source
+    state[DRAFT_KEY] = False
+    state.pop("audio_story_editor_error", None)
     return story_path
 
 
@@ -49,12 +58,26 @@ def _sync_editor_state(state_key: str, editor_key: str) -> None:
         st.session_state[editor_key] = st.session_state.get(state_key, "")
 
 
+def _save_canonical_widget() -> None:
+    st.session_state["canonical_json_text"] = st.session_state.get("canonical_editor", "") or ""
+    st.session_state[DRAFT_KEY] = True
+
+
 def _load_uploaded_text(uploaded_file, state_key: str, editor_key: str) -> None:
     if uploaded_file is None:
         return
     text = save_uploaded_text(uploaded_file)
     st.session_state[state_key] = text
     st.session_state[editor_key] = text
+
+
+def _load_uploaded_story_package(uploaded_file) -> None:
+    if uploaded_file is None:
+        return
+    text, inspection = load_package_bytes(uploaded_file.getvalue())
+    st.session_state["canonical_json_text"] = text
+    st.session_state["canonical_editor"] = text
+    st.session_state["audio_story_package_stage"] = inspection.get("stage")
 
 
 def _apply_pending_plain_script() -> None:
@@ -136,20 +159,53 @@ def render_workspace_tab() -> None:
         project_story: Path | None = None
         try:
             project_story = load_project_canonical_default(st.session_state)
-        except (OSError, UnicodeError) as exc:
+        except (OSError, UnicodeError, ValueError) as exc:
             st.warning(f"Không thể đọc story.json từ Thư mục dữ liệu dự án: {exc}")
         _sync_editor_state("canonical_json_text", "canonical_editor")
         if project_story is not None:
-            st.caption(f"Mặc định từ Thư mục dữ liệu dự án · `{project_story}`")
-        uploaded_canonical = st.file_uploader("Upload canonical JSON", type=["json"], key="canonical_upload")
-        _load_uploaded_text(uploaded_canonical, "canonical_json_text", "canonical_editor")
+            st.caption(f"Gói v4.1.6 đã kiểm tra từ Thư mục dữ liệu dự án · `{project_story}`")
+        uploaded_canonical = st.file_uploader(
+            "Tải story.json hoặc gói ZIP v4.1.6", type=["json", "zip"], key="canonical_upload",
+            help="Chỉ nhận schema 4.1.3 từ prompt v4.1.6; gói cũ không được mở ở chế độ tương thích.",
+        )
+        upload_digest = hashlib.sha256(uploaded_canonical.getvalue()).hexdigest() if uploaded_canonical is not None else None
+        if uploaded_canonical is None:
+            st.session_state.pop("audio_canonical_upload_digest", None)
+        if uploaded_canonical is not None and upload_digest != st.session_state.get("audio_canonical_upload_digest"):
+            try:
+                if str(uploaded_canonical.name).lower().endswith(".zip"):
+                    _load_uploaded_story_package(uploaded_canonical)
+                else:
+                    text = save_uploaded_text(uploaded_canonical)
+                    parse_story_text(text)
+                    st.session_state["canonical_json_text"] = text
+                    st.session_state["canonical_editor"] = text
+                st.session_state["audio_canonical_upload_digest"] = upload_digest
+                st.session_state[DRAFT_KEY] = False
+                st.session_state.pop("audio_story_editor_error", None)
+            except Exception as exc:
+                render_user_message(
+                    UserMessage(
+                        level="error", title="Không thể mở nguồn truyện",
+                        body="Tệp không đúng gói v4.1.6 / schema 4.1.3 hoặc kiểm tra toàn vẹn thất bại.",
+                        technical_details=str(exc),
+                    ),
+                    show_details=True,
+                )
 
+        # Keep draft text separate from Streamlit's disposable widget state.
+        st.session_state["canonical_editor"] = st.session_state.get("canonical_json_text", "") or ""
         st.text_area(
             "Canonical JSON",
             height=460,
             key="canonical_editor",
+            on_change=_save_canonical_widget,
         )
         st.session_state["canonical_json_text"] = st.session_state.get("canonical_editor", "") or ""
+
+        with st.expander("Chỉnh từng câu thoại", expanded=False):
+            project_root = str(st.session_state.get(PROJECT_DIRECTORY_KEY) or "").strip()
+            render_story_editor(Path(project_root).expanduser() if project_root else None)
 
         canonical_actions = st.columns(2)
         with canonical_actions[0]:

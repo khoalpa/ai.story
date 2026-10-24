@@ -66,6 +66,7 @@ ai-story-audit = "studio.prompt_audit:main"
 include-package-data = true
 
 [tool.setuptools.package-data]
+studio = ["themes/*.json"]
 audio = [
   "py.typed",
   "assets/*",

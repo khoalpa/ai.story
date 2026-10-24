@@ -1,4 +1,4 @@
-"""Friendly Streamlit viewer for story_validation.json files."""
+"""Friendly Streamlit viewer for the current validation_report.json."""
 from __future__ import annotations
 
 from collections import Counter
@@ -38,13 +38,19 @@ SEVERITY_LABELS = {
 
 
 def _validate_story_report(report: Mapping[str, Any]) -> None:
-    required = {"summary", "quality", "engagement", "gates", "scene_zone_map"}
+    required = {"schema_version", "prompt_version", "stage", "status", "input_sources",
+                "checks", "limitations", "remaining_work", "archive_validation"}
+    if report.get("schema_version") != "4.1.3" or report.get("prompt_version") != "4.1.6":
+        raise ValueError("Chỉ hỗ trợ validation_report.json của gói v4.1.6 (schema 4.1.3).")
     missing = sorted(required.difference(report))
-    if missing:
-        raise ValueError(
-            "Tệp không đúng định dạng story_validation.json; thiếu: "
-            + ", ".join(missing)
-        )
+    extra = sorted(set(report).difference(required))
+    if missing or extra:
+        details = []
+        if missing:
+            details.append("thiếu: " + ", ".join(missing))
+        if extra:
+            details.append("field ngoài schema: " + ", ".join(extra))
+        raise ValueError("Tệp không đúng closed schema validation_report.json v4.1.6; " + "; ".join(details))
 
 
 def _all_gates_pass(report: Mapping[str, Any]) -> bool:
@@ -262,23 +268,41 @@ def render_story_validation_report(report: Mapping[str, Any], *, include_technic
     import streamlit as st
 
     _validate_story_report(report)
-    _render_header(report)
-    labels = ["Tổng quan", "Cảnh truyện", "Cổng kiểm định", "Tinh chỉnh"]
-    if include_technical:
-        labels.append("Kỹ thuật")
-    tabs = st.tabs(labels)
-    overview, scenes, gates, refinement = tabs[:4]
-    with overview:
-        _render_overview(report)
-    with scenes:
-        _render_scenes(report)
-    with gates:
-        _render_gates(report)
-    with refinement:
-        _render_refinement(report)
-    if include_technical:
-        with tabs[4]:
-            _render_technical(report)
+    if report.get("prompt_version") == "4.1.6":
+        checks = _items(report.get("checks"))
+        passed = sum(row.get("status") in {"PASS", "NOT_APPLICABLE"} for row in checks)
+        failed = sum(row.get("status") == "FAIL" for row in checks)
+        columns = st.columns(5)
+        columns[0].metric("Trạng thái", report.get("status", "—"))
+        columns[1].metric("Stage", report.get("stage", "—"))
+        columns[2].metric("Kiểm tra đạt", f"{passed}/{len(checks)}")
+        columns[3].metric("Không đạt", failed)
+        columns[4].metric("Việc còn lại", len(_items(report.get("remaining_work"))))
+        if report.get("status") == "COMPLETE" and not failed:
+            st.success("Báo cáo hoàn tất; mọi phép kiểm bắt buộc đã đạt hoặc không áp dụng.")
+        else:
+            st.error("Báo cáo chưa hoàn tất hoặc còn phép kiểm không đạt.")
+        st.subheader("Các phép kiểm tra")
+        st.dataframe([{
+            "ID": row.get("id", "—"), "Kết quả": _status_text(row.get("status")),
+            "Phương pháp": row.get("method", "—"), "Bắt buộc": row.get("required", "—"),
+            "Đối tượng": row.get("target", "—"), "Chi tiết": row.get("details", "—"),
+        } for row in checks], hide_index=True, width="stretch")
+        limitations = _items(report.get("limitations"))
+        if limitations:
+            with st.expander(f"Giới hạn đã ghi nhận ({len(limitations)})"):
+                for item in limitations:
+                    st.write(f"- {item}")
+        remaining = _items(report.get("remaining_work"))
+        if remaining:
+            with st.expander(f"Việc còn lại ({len(remaining)})", expanded=True):
+                for item in remaining:
+                    st.write(f"- {item}")
+        if include_technical:
+            with st.expander("Nguồn và JSON kỹ thuật"):
+                st.write("\n".join(str(item) for item in _items(report.get("input_sources"))))
+                st.json(report, expanded=False)
+        return
 
 
 def render_story_validation_workspace(*, embedded: bool = False) -> None:
@@ -287,7 +311,7 @@ def render_story_validation_workspace(*, embedded: bool = False) -> None:
     if not embedded:
         st.set_page_config(page_title="Story Validation", page_icon=":material/rule:", layout="wide")
     st.header("Story Validation")
-    st.caption("Đọc story_validation.json theo hướng ưu tiên mức độ sẵn sàng và nội dung cần sửa.")
+    st.caption("Đọc validation_report.json v4.1.6 theo hướng ưu tiên mức độ sẵn sàng và nội dung cần sửa.")
     st.html(
         """<style>
         .sv-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:1.1rem 1.2rem;border:1px solid color-mix(in srgb,currentColor 14%,transparent);border-radius:.8rem;margin:.25rem 0 1rem}
@@ -296,10 +320,10 @@ def render_story_validation_workspace(*, embedded: bool = False) -> None:
         @media(max-width:640px){.sv-heading{flex-direction:column}}
         </style>"""
     )
-    uploaded = st.file_uploader("Chọn story_validation.json", type=["json"], key="story_validation_upload")
+    uploaded = st.file_uploader("Chọn validation_report.json", type=["json"], key="story_validation_upload")
     path_text = st.text_input(
         "Hoặc nhập đường dẫn tệp trên máy",
-        placeholder=r"D:\project\ai.story\output\story_validation.json",
+        placeholder=r"D:\project\ai.story\output\validation_report.json",
         key="story_validation_path",
     )
     source: Path | BinaryIO | None = uploaded if uploaded is not None else (Path(path_text.strip()) if path_text.strip() else None)

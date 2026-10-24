@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -300,6 +301,112 @@ def _delivery_result_text(quality: Mapping[str, Any], passed: bool) -> str:
     return "Đạt" if passed else "Không đạt"
 
 
+def _spoken_text(value: Any) -> str:
+    return re.sub(r"\s+", "", unicodedata.normalize("NFC", str(value)))
+
+
+def build_part_audio_report(story: Mapping[str, Any], cues: Sequence[SubtitleCue], *, group_by: str = "zone") -> dict[str, Any]:
+    """Derive part timing from source SRT only when all text aligns in order.
+
+    Several subtitle cues may belong to one script item. A positional count
+    match alone is insufficient evidence; unmatched sources get no timing.
+    This view never changes the story, quality report or Audio handoff schema.
+    """
+    if group_by not in {"zone", "scene_id"}:
+        raise ValueError("group_by must be zone or scene_id")
+    script = _items(story.get("script"))
+    spans: list[list[SubtitleCue]] = []
+    cursor = 0
+    aligned = bool(script and cues)
+    if any(cue.end_ms <= cue.start_ms or cue.start_ms < 0 for cue in cues) or any(
+        current.start_ms < previous.end_ms for previous, current in zip(cues, cues[1:])
+    ):
+        aligned = False
+    if aligned:
+        for item in script:
+            expected, gathered, matched = _spoken_text(item.get("text", "")), "", []
+            if not expected:
+                aligned = False
+                break
+            while cursor < len(cues) and len(gathered) < len(expected):
+                cue = cues[cursor]
+                gathered += _spoken_text(cue.text)
+                matched.append(cue)
+                cursor += 1
+                if not expected.startswith(gathered):
+                    break
+            if gathered != expected:
+                aligned = False
+                break
+            spans.append(matched)
+        aligned = aligned and cursor == len(cues)
+    grouped: dict[str, dict[str, Any]] = {}
+    for index, item in enumerate(script):
+        key = str(item.get(group_by) or "Chưa xác định")
+        row = grouped.setdefault(key, {
+            "part": key, "script_count": 0, "cue_count": 0 if aligned else None,
+            "speech_seconds": 0.0 if aligned else None, "start_seconds": None, "end_seconds": None,
+            "span_seconds": None, "estimated_seconds": 0.0,
+            "status": "Khớp phụ đề" if aligned else ("Chưa khớp nguồn" if cues else "Chưa có phụ đề"),
+        })
+        row["script_count"] += 1
+        try:
+            speed, pause = float(item.get("speed", 1.0)), float(item.get("pause_ms", 0))
+            estimate = len(str(item.get("text", "")).strip()) / (14.0 * speed) + pause / 1000
+            if speed <= 0 or pause < 0 or not math.isfinite(estimate):
+                raise ValueError
+            if row["estimated_seconds"] is not None:
+                row["estimated_seconds"] += estimate
+        except (ValueError, TypeError, OverflowError, ZeroDivisionError):
+            row["estimated_seconds"] = None
+        if aligned:
+            selected = spans[index]
+            row["cue_count"] += len(selected)
+            row["speech_seconds"] += sum(cue.duration_ms for cue in selected) / 1000
+            if row["start_seconds"] is None:
+                row["start_seconds"] = selected[0].start_ms / 1000
+            row["end_seconds"] = selected[-1].end_ms / 1000
+            row["span_seconds"] = row["end_seconds"] - row["start_seconds"]
+    rows = list(grouped.values())
+    for row in rows:
+        for field in ("speech_seconds", "span_seconds", "estimated_seconds"):
+            if row[field] is not None:
+                row[field] = round(row[field], 3)
+    return {"aligned": aligned, "rows": rows, "timing_basis": "source_subtitle", "group_by": group_by}
+
+
+def _render_part_audio_report(data: Mapping[str, Any], cues: Sequence[SubtitleCue]) -> None:
+    import csv
+    from io import StringIO
+
+    import streamlit as st
+
+    story = _object(data.get("story"))
+    if not _items(story.get("script")):
+        st.info("Mở story.json cùng bộ audio để xem báo cáo theo phần truyện.")
+        return
+    selection = st.radio("Tổng hợp theo", ["Zone", "Cảnh"], horizontal=True, key="story_audio_group_by")
+    report = build_part_audio_report(story, cues, group_by="zone" if selection == "Zone" else "scene_id")
+    st.caption("Thời lượng lấy từ phụ đề gốc: thời gian lời thoại và khoảng từ câu đầu đến câu cuối. Ước tính theo chữ chỉ để tham khảo.")
+    if cues and not report["aligned"]:
+        st.warning("Phụ đề không khớp toàn bộ nội dung/thứ tự truyện hoặc có mốc chồng lấn. Chưa thể gán thời lượng cho từng phần.")
+    rows = [{
+        "Phần": row["part"], "Câu kịch bản": row["script_count"], "Mục phụ đề": row["cue_count"],
+        "Ước tính (s)": row["estimated_seconds"], "Lời thoại theo SRT (s)": row["speech_seconds"],
+        "Khoảng toàn phần (s)": row["span_seconds"], "Bắt đầu (s)": row["start_seconds"],
+        "Kết thúc (s)": row["end_seconds"], "Trạng thái": row["status"],
+    } for row in report["rows"]]
+    st.dataframe(rows, hide_index=True, width="stretch")
+    st.caption("Trạng thái trên xác nhận đối chiếu lời thoại. Chất lượng audio và điều kiện bàn giao được đánh giá cho toàn bản ở các mục hiện có.")
+    if rows:
+        buffer = StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+        st.download_button("Tải báo cáo theo phần (CSV)", buffer.getvalue().encode("utf-8-sig"),
+                           file_name=f"story.audio-by-{report['group_by']}.csv", mime="text/csv")
+
+
 def render_audio_delivery(data: Mapping[str, Any], directory: Path) -> None:
     import streamlit as st
 
@@ -334,6 +441,8 @@ def render_audio_delivery(data: Mapping[str, Any], directory: Path) -> None:
         if audio_path:
             st.audio(str(audio_path))
         st.caption(f"Nguồn {duration.get('source_seconds', '—')} giây · Đầu ra {duration.get('output_seconds', '—')} giây")
+        with st.expander("Audio theo phần truyện", expanded=True):
+            _render_part_audio_report(data, cues)
 
     with tab_quality:
         if not quality:

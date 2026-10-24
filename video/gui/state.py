@@ -38,6 +38,8 @@ VIDEO_LAST_RESULT_HISTORY_FILE_KEY = "video_last_result_history_file"
 VIDEO_INPUT_COVER_PATH_KEY = "video_input_cover_path"
 VIDEO_INPUT_SCENES_DIR_KEY = "video_input_scenes_dir"
 VIDEO_VISUAL_PLAN_INPUT_KEY = "video_visual_plan_input"
+VIDEO_STORY_PACKAGE_INPUT_KEY = "video_story_package_input"
+VIDEO_STORY_PACKAGE_STATUS_KEY = "video_story_package_status"
 VIDEO_AUTO_COVER_PATH_KEY = "video_auto_cover_path"
 VIDEO_AUTO_SCENES_DIR_KEY = "video_auto_scenes_dir"
 VIDEO_AUTO_OUTPUT_PATH_KEY = "video_auto_output_path"
@@ -52,6 +54,7 @@ VIDEO_PROJECT_PATH_KEYS = (
     VIDEO_AUDIO_INPUT_KEY,
     VIDEO_SUBTITLE_INPUT_KEY,
     "video_story_json_input",
+    VIDEO_STORY_PACKAGE_INPUT_KEY,
     "video_audio_handoff_manifest",
     VIDEO_INPUT_COVER_PATH_KEY,
     VIDEO_INPUT_SCENES_DIR_KEY,
@@ -73,6 +76,8 @@ VIDEO_INPUT_DEFAULTS: dict[str, object] = {
     VIDEO_INPUT_COVER_PATH_KEY: "output/landscape/cover.png",
     VIDEO_INPUT_SCENES_DIR_KEY: "output/landscape",
     VIDEO_VISUAL_PLAN_INPUT_KEY: "output/visual_plan.json",
+    VIDEO_STORY_PACKAGE_INPUT_KEY: "output",
+    VIDEO_STORY_PACKAGE_STATUS_KEY: None,
     VIDEO_AUTO_COVER_PATH_KEY: "output/landscape/cover.png",
     VIDEO_AUTO_SCENES_DIR_KEY: "output/landscape",
     VIDEO_AUTO_OUTPUT_PATH_KEY: "output/video_landscape.mp4",

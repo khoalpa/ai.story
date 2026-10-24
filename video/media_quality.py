@@ -169,6 +169,52 @@ def _parse_srt_timestamp(raw: str) -> float:
     return int(hours) * 3600 + int(minutes) * 60 + float(rest)
 
 
+def _format_srt_milliseconds(value: int) -> str:
+    hours, remainder = divmod(value, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, millis = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
+
+
+def _subtitle_sentences(text: str) -> list[str]:
+    """Conservatively split plain text; leave styled cues and abbreviations intact."""
+    if re.search(r"<[^>]+>|\{[^}]+\}", text):
+        return [text]
+    abbreviations = {"mr", "mrs", "ms", "dr", "prof", "ts", "ths", "pgs", "gs", "tp", "v.v", "e.g", "i.e"}
+    parts, start = [], 0
+    for boundary in re.finditer(r'[.!?…]["”’\')]*\s+', text):
+        before = text[:boundary.start() + 1]
+        token = before.split()[-1].strip('"“(\'').rstrip(".").casefold()
+        if text[boundary.start()] == "." and (token in abbreviations or len(token) == 1 or re.fullmatch(r"(?:[a-z]\.)+[a-z]", token)):
+            continue
+        parts.append(text[start:boundary.end()].strip())
+        start = boundary.end()
+    parts.append(text[start:].strip())
+    return [part for part in parts if part] or [text]
+
+
+def _split_display_cue(timing: str, body: list[str]) -> list[tuple[str, list[str]]]:
+    match = re.fullmatch(r"(\d{2,}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{2,}:\d{2}:\d{2}[,.]\d{3})", timing.strip())
+    if match is None:
+        return [(timing, body)]
+    if any(int(value.split(":")[1]) > 59 or int(value.split(":")[2][:2]) > 59 for value in match.groups()):
+        return [(timing, body)]
+    start, end = (round(_parse_srt_timestamp(value) * 1000) for value in match.groups())
+    sentences = _subtitle_sentences(" ".join(line.strip() for line in body))
+    if len(sentences) <= 1 or end - start < 300 * len(sentences):
+        return [(timing, body)]
+    # Allocate a readable minimum, then distribute remaining time by text length.
+    weights = [max(1, len(re.sub(r"\s+", "", sentence))) for sentence in sentences]
+    spare, elapsed, cursor = end - start - 300 * len(sentences), 0, start
+    result = []
+    for index, (sentence, weight) in enumerate(zip(sentences, weights)):
+        elapsed += weight
+        finish = start + (index + 1) * 300 + round(spare * elapsed / sum(weights))
+        result.append((f"{_format_srt_milliseconds(cursor)} --> {_format_srt_milliseconds(finish)}", [sentence]))
+        cursor = finish
+    return result
+
+
 def inspect_subtitle(subtitle: Optional[Path], duration: float) -> dict:
     if subtitle is None or not subtitle.is_file():
         return {"present": False, "timing_ok": True, "line_length_ok": True, "max_end_seconds": None, "long_lines": []}
@@ -191,7 +237,7 @@ def prepare_subtitle_for_video(
     output: Path,
     max_chars: Optional[int] = None,
 ) -> tuple[Optional[Path], bool]:
-    """Prepare SRT while leaving default line wrapping to libass.
+    """Prepare a disposable display SRT; the source remains the timeline authority.
 
     A fixed character count does not represent rendered width and can force
     short-looking three-line subtitles even when the configured left/right
@@ -202,7 +248,7 @@ def prepare_subtitle_for_video(
         return subtitle, False
     text = subtitle.read_text(encoding="utf-8-sig", errors="replace")
     blocks = re.split(r"\n\s*\n", text.replace("\r\n", "\n").replace("\r", "\n").strip())
-    rendered_blocks = []
+    rendered_blocks: list[str] = []
     changed = False
     for block in blocks:
         lines = block.splitlines()
@@ -210,28 +256,21 @@ def prepare_subtitle_for_video(
         if time_index is None:
             rendered_blocks.append(block)
             continue
-        prefix = lines[: time_index + 1]
-        body: list[str] = []
-        for line in lines[time_index + 1 :]:
-            normalized_line = line.strip()
-            wrapped = (
-                textwrap.wrap(
-                    normalized_line,
-                    width=max_chars,
-                    break_long_words=False,
-                    break_on_hyphens=False,
-                )
-                if max_chars is not None
-                else [normalized_line]
-            ) or [""]
-            # Preserve long lines for margin-aware libass wrapping while
-            # marking them as layout-managed for the quality gate.
-            changed = changed or (max_chars is None and len(normalized_line) > 70)
-            changed = changed or len(wrapped) > 1
-            body.extend(wrapped)
-        rendered_blocks.append("\n".join(prefix + body))
+        cues = _split_display_cue(lines[time_index], lines[time_index + 1:])
+        changed = changed or len(cues) > 1
+        for timing, source_lines in cues:
+            body: list[str] = []
+            for line in source_lines:
+                normalized_line = line.strip()
+                wrapped = (textwrap.wrap(normalized_line, width=max_chars, break_long_words=False,
+                                         break_on_hyphens=False) if max_chars is not None else [normalized_line]) or [""]
+                changed = changed or (max_chars is None and len(normalized_line) > 70) or len(wrapped) > 1
+                body.extend(wrapped)
+            rendered_blocks.append("\n".join([str(len(rendered_blocks) + 1), timing, *body]))
     if not changed:
         return subtitle, False
+    if output.resolve() == subtitle.resolve():
+        raise ValueError("Display subtitles must be written separately from the source SRT.")
     output.write_text("\n\n".join(rendered_blocks) + "\n", encoding="utf-8")
     return output, True
 

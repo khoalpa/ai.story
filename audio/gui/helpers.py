@@ -12,11 +12,6 @@ from typing import Optional
 
 from audio.app_config import AppConfig
 from audio.asset_profile_utils import normalize_profile_root
-from audio.audio_story_spec import (
-    normalize_canonical_authoring_zones,
-    render_plain_script,
-    validate_canonical_authoring,
-)
 from audio.gui.progress_details import format_duration
 from audio.gui.runtime_usage import render_runtime_usage_compact
 from audio.profile_config import ProfileConfig
@@ -27,6 +22,7 @@ from audio.raw_to_plain_script import (
 )
 from audio.render_audio_app import RenderAudioAppRequest, RenderAudioAppResult
 from audio.render_events import RenderEvent
+from audio.story_package_v416 import parse_story_text, raw_script, render_plain_script
 from audio.validate_plain_script import looks_like_body_only_script
 
 from .config_bundle import GuiConfigBundle
@@ -82,20 +78,11 @@ def convert_canonical_to_plain_text(canonical_text: str) -> str:
 
 def convert_canonical_to_raw_text(canonical_text: str) -> str:
     data = _load_canonical_authoring(canonical_text)
-    return "\n".join(str(item["text"]).strip() for item in data["script"])
+    return raw_script(data)
 
 
 def _load_canonical_authoring(canonical_text: str) -> dict:
-    try:
-        data = json.loads(canonical_text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Canonical JSON is invalid: {exc}") from exc
-
-    data = normalize_canonical_authoring_zones(data)
-    errors = validate_canonical_authoring(data)
-    if errors:
-        raise ValueError("Canonical authoring is invalid:\n- " + "\n- ".join(errors))
-    return data
+    return parse_story_text(canonical_text)
 
 
 def convert_raw_to_plain_text(raw_text: str, title: str, default_voice: str, default_lang: str, include_header: bool) -> str:

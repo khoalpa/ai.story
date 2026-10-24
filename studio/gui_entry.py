@@ -46,6 +46,9 @@ def main() -> int:
 
     render_studio_style()
 
+    from studio.themes.python_theme import render_streamlit
+    render_streamlit()
+
     st.title(app_title)
 
     from studio.prompt_contract import (

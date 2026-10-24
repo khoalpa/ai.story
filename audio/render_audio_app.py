@@ -113,7 +113,7 @@ REQUEST_DEFAULTS: dict[str, Any] = {
     "vieneu_mode": "standard",
     "vieneu_api_base": "",
     "vieneu_model_name": get_default_vieneu_local_target("standard"),
-    "vieneu_device": "cuda",
+    "vieneu_device": "auto",
     "vieneu_backend": "auto",
     "vieneu_render_temperature": 0.7,
     "vieneu_render_max_chars_chunk": 240,
@@ -177,7 +177,7 @@ class RenderAudioAppRequest:
     vieneu_mode: str = "standard"
     vieneu_api_base: str = ""
     vieneu_model_name: str = get_default_vieneu_local_target("standard")
-    vieneu_device: str = "cuda"
+    vieneu_device: str = "auto"
     vieneu_backend: str = "auto"
     vieneu_render_temperature: float = 0.7
     vieneu_render_max_chars_chunk: int = 240
@@ -225,7 +225,7 @@ class RenderAudioAppRequest:
             self.vieneu_device,
             self.vieneu_model_name,
         )
-        normalized_vieneu_device = str(self.vieneu_device or "cuda").strip().lower() or "cuda"
+        normalized_vieneu_device = str(self.vieneu_device or "auto").strip().lower() or "auto"
         object.__setattr__(self, "vieneu_core", normalized_vieneu_core)
         object.__setattr__(self, "vieneu_mode", normalized_vieneu_mode)
         object.__setattr__(self, "vieneu_api_base", str(self.vieneu_api_base or "").strip())

@@ -54,7 +54,7 @@ PROFILE_CONFIG_DEFAULTS: dict[str, Any] = {
     "vieneu_mode": "standard",
     "vieneu_api_base": "",
     "vieneu_model_name": get_default_vieneu_local_target("standard"),
-    "vieneu_device": "cuda",
+    "vieneu_device": "auto",
     "vieneu_backend": "auto",
     "vieneu_preview_temperature": 0.6,
     "vieneu_preview_max_chars_chunk": 160,
@@ -125,7 +125,7 @@ class ProfileConfig:
     vieneu_mode: str = "standard"
     vieneu_api_base: str = ""
     vieneu_model_name: str = get_default_vieneu_local_target("standard")
-    vieneu_device: str = "cuda"
+    vieneu_device: str = "auto"
     vieneu_backend: str = "auto"
     vieneu_preview_temperature: float = 0.6
     vieneu_preview_max_chars_chunk: int = 160

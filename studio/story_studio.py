@@ -15,8 +15,6 @@ from studio.package_quality_report import (
     _items,
     _object,
     _read_report,
-    package_quality_summary,
-    render_package_quality_report,
 )
 from studio.project_assets import inspect_report_bindings, render_project_assets
 from studio.project_context import (
@@ -31,7 +29,6 @@ from studio.project_review import (
     verification_source_label,
 )
 from studio.project_tools import render_project_tools_workspace
-from studio.report_semantics import display_coverage, display_score, gate_summary
 from studio.series_anchor_report import (
     _validate_series_anchor,
     render_series_anchor_report,
@@ -40,7 +37,6 @@ from studio.story_images import render_aspect_cover_gallery
 from studio.story_repetition import analyze_story_repetition
 from studio.story_report import _validate_story, render_story_report
 from studio.story_validation_report import (
-    _validate_story_report,
     render_story_validation_report,
 )
 from studio.ui_components import render_empty_state
@@ -61,8 +57,7 @@ from studio.workflow_views import (
 
 REPORT_SPECS = {
     "story": ("story.json", "Nội dung", _validate_story),
-    "validation": ("story_validation.json", "Kiểm định", _validate_story_report),
-    "quality": ("package_quality_report.json", "Chất lượng", None),
+    "validation": ("validation_report.json", "Kiểm định", None),
     "anchor": ("series_anchor.json", "Series", _validate_series_anchor),
 }
 
@@ -177,7 +172,8 @@ def load_story_package(directory: Path) -> tuple[dict[str, Any], dict[str, str]]
             statuses[key] = "Có dữ liệu"
         except (OSError, ValueError, RecursionError) as exc:
             statuses[key] = f"Không hợp lệ: {exc}"
-    stage = _object(reports.get("workflow")).get("package_stage")
+    manifest_stage = _object(reports.get("workflow")).get("stage")
+    stage = f"STAGE{manifest_stage}" if type(manifest_stage) is int and manifest_stage in range(1, 5) else None
     for key, applicable in (("quality", stage in {"STAGE3", "STAGE4"}),
                             ("visual_bible", stage in {"STAGE2", "STAGE3", "STAGE4"}), ("video_prompts", stage == "STAGE4")):
         if stage in {"STAGE1", "STAGE2", "STAGE3", "STAGE4"} and not applicable and statuses.get(key) == "Thiếu":
@@ -386,7 +382,8 @@ def _render_source_selector() -> tuple[dict[str, Any], dict[str, str]]:
         status = statuses.get(key, "Thiếu")
         icon = "✓" if status.startswith("Có dữ liệu") else ("—" if status == "Thiếu" else "!")
         column.metric(label, f"{icon} {status}")
-    stage = _object(reports.get("workflow")).get("package_stage")
+    stage_number = _object(reports.get("workflow")).get("stage")
+    stage = f"STAGE{stage_number}" if type(stage_number) is int and stage_number in range(1, 5) else None
     if stage == "STAGE2":
         visual_status = statuses.get("visual_bible", "Thiếu")
         icon = "✓" if visual_status.startswith("Có dữ liệu") else "!"
@@ -429,16 +426,12 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
 
     story = _object(reports.get("story"))
     validation = _object(reports.get("validation"))
-    quality = _object(reports.get("quality"))
     anchor = _object(reports.get("anchor"))
-    commitment = _object(_object(story.get("meta")).get("story_quality_commitment"))
-    story_quality = _object(commitment.get("committed_quality_metrics"))
-    validation_quality = _object(validation.get("quality"))
-    engagement = _object(validation.get("engagement"))
-    normalized_quality = package_quality_summary(quality)
     continuity = _object(anchor.get("continuity"))
-    blockers = _items(quality.get("blockers"))
-    material_defects = int(_object(validation.get("summary")).get("material_defect_remaining_count") or 0)
+    checks = _items(validation.get("checks"))
+    passed_checks = sum(row.get("status") in {"PASS", "NOT_APPLICABLE"} for row in checks)
+    failed_checks = sum(row.get("status") == "FAIL" for row in checks)
+    remaining_work = _items(validation.get("remaining_work"))
     repetition = analyze_story_repetition(story) if story else {"summary": {}}
     repetition_summary = _object(repetition.get("summary"))
     repetition_pairs = int(repetition_summary.get("pair_count") or 0)
@@ -455,7 +448,7 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
     ]
     if review["workflow"]["stage"]:
         st.info("Trạng thái gói nằm trong quy trình bên trên. Audio/video render được theo dõi độc lập.")
-    elif blockers or review["issues"] or (validation and not production_ready):
+    elif failed_checks or remaining_work or review["issues"] or (validation and not production_ready):
         verdict, message = "Cần xử lý", "Có lỗi hoặc cổng kiểm định cần xem lại trước khi tiếp tục."
         st.error(f"**{verdict}** · {message}")
     elif publish_ready and production_ready:
@@ -471,10 +464,10 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
         actions.append(f"Mở **Tài nguyên**: {len(review['asset_issues'])} ảnh cần kiểm tra.")
     if missing:
         actions.append("Bổ sung dữ liệu: " + ", ".join(missing) + ".")
-    if material_defects:
-        actions.append(f"Mở **Kiểm định** và xử lý {material_defects} lỗi nội dung còn lại.")
-    if blockers:
-        actions.append(f"Mở **Chất lượng** và xử lý {len(blockers)} lỗi chặn xuất bản.")
+    if failed_checks:
+        actions.append(f"Mở **Kiểm định** và xử lý {failed_checks} phép kiểm tra chưa đạt.")
+    if remaining_work:
+        actions.append(f"Mở **Kiểm định** và hoàn tất {len(remaining_work)} đầu việc còn lại.")
     if repetition_pairs:
         actions.append(f"Mở **Nội dung → Lặp câu** để xem lại {repetition_pairs} cặp câu lặp hoặc gần trùng.")
     open_threads = sum(item.get("status") == "open" for item in _items(continuity.get("open_threads")))
@@ -495,22 +488,18 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
         render_workflow_summary(review["workflow"])
 
     st.subheader(_story_title(reports))
-    columns = [*st.columns(4), *st.columns(3)]
-    story_score = story_quality.get("final_story_quality_score", validation_quality.get("final_story_quality_score", "—"))
-    columns[0].metric("Điểm truyện", display_score(story_score))
-    columns[1].metric("Cuốn hút", display_score(engagement.get("engagement_score")))
-    columns[2].metric("Chất lượng gói", f"{normalized_quality['score'] if normalized_quality['score'] is not None else '—'}/100")
-    st.caption("Độ phủ chấm điểm gói: " + display_coverage(normalized_quality["coverage"]))
-    result = gate_summary(validation)
-    columns[3].metric("Cổng đạt", str(result["passed"]))
-    st.caption(result["label"])
-    columns[4].metric("Lỗi chặn", len(blockers))
-    columns[5].metric("Tập mới nhất", continuity.get("latest_episode", "—"))
-    columns[6].metric("Câu lặp cần xem", repeated_sentences)
+    columns = st.columns(6)
+    columns[0].metric("Stage", review["workflow"].get("stage") or "—")
+    columns[1].metric("Trạng thái", validation.get("status", "—"))
+    columns[2].metric("Kiểm tra đạt", f"{passed_checks}/{len(checks)}" if checks else "—")
+    columns[3].metric("Không đạt", failed_checks)
+    columns[4].metric("Việc còn lại", len(remaining_work))
+    columns[5].metric("Câu lặp cần xem", repeated_sentences)
 
     image_root = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
     st.subheader("Hình ảnh truyện")
-    stage = _object(reports.get("workflow")).get("package_stage")
+    stage_number = _object(reports.get("workflow")).get("stage")
+    stage = f"STAGE{stage_number}" if type(stage_number) is int and stage_number in range(1, 5) else None
     render_aspect_cover_gallery(image_root, key_prefix="story_overview_cover", stage=stage)
 
 
@@ -562,7 +551,7 @@ def render_story_studio_navigation() -> str:
     if st.session_state.get("story_studio_group") not in STORY_STUDIO_GROUPS:
         st.session_state["story_studio_group"] = current_group
     elif st.session_state.get("story_studio_group") != current_group:
-        # A deep link to a legacy section takes precedence over the last visible group.
+        # A direct section link takes precedence over the last visible group.
         st.session_state["story_studio_group"] = current_group
 
     def select_group() -> None:
@@ -627,11 +616,12 @@ def _render_story_studio_section(section: str) -> None:
     if section == "Gói & quy trình":
         render_workflow_workspace(directory, reports, st.session_state)
     elif section == "Visual Bible":
-        stage = _object(reports.get("workflow")).get("package_stage")
+        stage_number = _object(reports.get("workflow")).get("stage")
+        stage = f"STAGE{stage_number}" if type(stage_number) is int and stage_number in range(1, 5) else None
         if stage not in {"STAGE2", "STAGE3", "STAGE4"}:
             st.info("Visual Bible không áp dụng ở stage này.")
             if reports.get("visual_bible"):
-                st.warning("Phát hiện visual_bible.json ngoài phạm vi manifest của stage hiện tại; kiểm tra lại thư mục giải nén.")
+                st.warning("Phát hiện visual_plan.json ngoài phạm vi manifest của stage hiện tại; kiểm tra lại thư mục giải nén.")
         else:
             render_visual_bible(reports.get("visual_bible", {}), root=directory)
     elif section == "Kế hoạch video":
@@ -641,11 +631,10 @@ def _render_story_studio_section(section: str) -> None:
         render_story_report(reports["story"], include_technical=False, images_root=directory)
     elif section == "Kiểm định" and "validation" in reports:
         render_story_validation_report(reports["validation"], include_technical=False)
-    elif section == "Chất lượng" and "quality" in reports:
-        workflow_status = review_package(directory, reports, statuses, st.session_state)["workflow"]["status"]
-        render_package_quality_report(
-            reports["quality"], include_technical=False, workflow_status=workflow_status
-        )
+    elif section == "Chất lượng":
+        st.info("v4.1.6 không có package_quality_report.json riêng. Kết quả chất lượng và giới hạn nằm trong validation_report.json.")
+        if "validation" in reports:
+            render_story_validation_report(reports["validation"], include_technical=False)
     elif section == "Tài nguyên":
         render_project_assets(directory, reports)
     elif section == "Âm thanh & phụ đề":
@@ -662,7 +651,7 @@ def _render_story_studio_section(section: str) -> None:
     elif section == "Công cụ":
         _render_technical(reports)
     else:
-        key = {"Nội dung": "story", "Kiểm định": "validation", "Chất lượng": "quality", "Series": "anchor"}[section]
+        key = {"Nội dung": "story", "Kiểm định": "validation", "Series": "anchor"}[section]
         filename, label, _validator = REPORT_SPECS[key]
         _render_missing(label, filename, statuses.get(key, "Thiếu"))
 

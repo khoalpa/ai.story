@@ -3,14 +3,16 @@ from __future__ import annotations
 import asyncio
 import inspect
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
 from audio.adapters.edge_tts import render_tts_all as render_tts_all_edge
 from audio.adapters.tts_core import (
     apply_vieneu_time_stretch,
+    clear_vieneu_runtime_caches,
     get_vieneu_engine,
+    normalize_vieneu_device,
     resolve_vieneu_effective_mode,
     resolve_vieneu_model_for_runtime,
     resolve_vieneu_model_name,
@@ -43,7 +45,7 @@ def resolve_tts_concurrency(
     provider: str,
     requested: int,
     *,
-    vieneu_device: str = "cuda",
+    vieneu_device: str = "auto",
     vieneu_mode: str = "standard",
     vieneu_use_batch: bool = False,
 ) -> int:
@@ -55,7 +57,7 @@ def resolve_tts_concurrency(
         return min(limit, 8)
     if vieneu_use_batch:
         return 1
-    if str(vieneu_device or "cuda").strip().lower() in {"cuda", "auto"}:
+    if str(vieneu_device or "auto").strip().lower() in {"cuda", "auto"}:
         return min(limit, 2)
     return min(limit, 4)
 
@@ -73,7 +75,7 @@ class TtsRenderConfig:
     vieneu_mode: str = "standard"
     vieneu_api_base: str | None = None
     vieneu_model_name: str | None = None
-    vieneu_device: str = "cuda"
+    vieneu_device: str = "auto"
     vieneu_backend: str = "auto"
     vieneu_render_temperature: float = 0.7
     vieneu_render_max_chars_chunk: int = 240
@@ -126,7 +128,7 @@ def _build_cache_session(segments: list[Segment], config: TtsRenderConfig, provi
     )
 
 
-async def render_tts_segments_async(segments: list[Segment], config: TtsRenderConfig, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:
+async def _render_tts_segments_once_async(segments: list[Segment], config: TtsRenderConfig, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:
     config.wav_dir.mkdir(parents=True, exist_ok=True)
     provider = normalize_tts_provider(config.tts_provider)
     cache = _build_cache_session(segments, config, provider)
@@ -410,6 +412,68 @@ async def render_tts_segments_async(segments: list[Segment], config: TtsRenderCo
         await asyncio.gather(*(process_one(i, segments[i]) for i in miss_indices))
         return
     raise UnsupportedTtsProviderError(f"Unsupported TTS provider: {config.tts_provider}")
+
+
+def _release_cuda_after_failure() -> None:
+    clear_vieneu_runtime_caches()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        logger.debug("Could not clear CUDA cache during CPU fallback", exc_info=True)
+
+
+def _is_gpu_runtime_failure(exc: Exception) -> bool:
+    message = str(exc).casefold()
+    gpu_markers = (
+        "cuda",
+        "gpu",
+        "cublas",
+        "cudnn",
+        "nvrtc",
+        "device-side",
+        "out of memory",
+    )
+    return isinstance(exc, (RuntimeError, MemoryError, OSError)) and any(
+        marker in message for marker in gpu_markers
+    )
+
+
+async def render_tts_segments_async(
+    segments: list[Segment],
+    config: TtsRenderConfig,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+) -> None:
+    requested_device = normalize_vieneu_device(config.vieneu_device)
+    provider = normalize_tts_provider(config.tts_provider)
+    auto_uses_cuda = (
+        provider == TTS_PROVIDER_VIENEU
+        and requested_device == "auto"
+        and resolve_vieneu_runtime_device(requested_device) == "cuda"
+    )
+    try:
+        await _render_tts_segments_once_async(segments, config, progress_callback)
+    except Exception as exc:
+        if not auto_uses_cuda or not _is_gpu_runtime_failure(exc):
+            raise
+        logger.warning("VieNeu GPU rendering failed; retrying unfinished segments on CPU: %s", exc, exc_info=True)
+        emit_render_event(
+            config.event_sink,
+            RenderProviderFallbackEvent(
+                provider="vieneu",
+                from_mode="gpu",
+                to_mode="cpu",
+                reason=str(exc),
+            ),
+        )
+        _release_cuda_after_failure()
+        await _render_tts_segments_once_async(
+            segments,
+            replace(config, vieneu_device="cpu"),
+            progress_callback,
+        )
 
 
 def render_tts_segments(segments: list[Segment], config: TtsRenderConfig, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:

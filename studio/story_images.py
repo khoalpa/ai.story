@@ -9,8 +9,6 @@ from typing import Any, Mapping
 
 from PIL import Image, UnidentifiedImageError
 
-from studio.prompt_contract import load_prompt_contract
-
 ASPECTS = ("landscape", "portrait")
 EXPECTED_IMAGE_STEMS = (
     "cover", "greeting", "opening", "introduction", "development",
@@ -34,12 +32,16 @@ def is_project_image(path: Path) -> bool:
 
 
 def visual_plan_image_stems(output_dir: Path) -> tuple[str, ...]:
-    """Return the persisted active image set, falling back to legacy ZONE names."""
+    """Return the image set declared by a v4.1.6 visual plan.
+
+    Invalid or missing plans do not silently become a ZONE package.  That old
+    fallback could make an unrelated directory look structurally complete.
+    """
     path = output_dir / "visual_plan.json"
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
         assets = document.get("assets") if isinstance(document, dict) else None
-        mode = (document.get("resolved_mode") or document.get("resolved_image_generation_mode")) if isinstance(document, dict) else None
+        mode = document.get("image_mode") if isinstance(document, dict) else None
         stems = tuple(
             Path(str(item.get("basename"))).stem.casefold()
             for item in assets
@@ -49,7 +51,7 @@ def visual_plan_image_stems(output_dir: Path) -> tuple[str, ...]:
             return stems
     except (OSError, UnicodeError, ValueError, TypeError, json.JSONDecodeError):
         pass
-    return EXPECTED_IMAGE_STEMS
+    return ()
 
 
 def apply_visual_plan_zone_aliases(
@@ -60,7 +62,7 @@ def apply_visual_plan_zone_aliases(
         document = json.loads((output_dir / "visual_plan.json").read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
         return
-    if not isinstance(document, dict) or (document.get("resolved_mode") or document.get("resolved_image_generation_mode")) != "SCENE":
+    if not isinstance(document, dict) or document.get("image_mode") != "SCENE":
         return
     assets = document.get("assets")
     if not isinstance(assets, list):
@@ -68,7 +70,19 @@ def apply_visual_plan_zone_aliases(
     for item in assets:
         if not isinstance(item, dict):
             continue
-        zone_stem = ZONE_IMAGE_STEMS.get(str(item.get("zone") or "").upper())
+        source_ids = item.get("source_script_ids")
+        zone_stem = None
+        if isinstance(source_ids, list) and source_ids:
+            try:
+                story = json.loads((output_dir / "story.json").read_text(encoding="utf-8"))
+                zones = {
+                    row.get("id"): row.get("zone")
+                    for row in story.get("script", [])
+                    if isinstance(row, dict)
+                }
+                zone_stem = ZONE_IMAGE_STEMS.get(str(zones.get(source_ids[0]) or "").upper())
+            except (OSError, UnicodeError, ValueError, TypeError, json.JSONDecodeError):
+                zone_stem = None
         basename = item.get("basename")
         scene_stem = Path(basename).stem.casefold() if isinstance(basename, str) else ""
         if not zone_stem or not scene_stem:
@@ -93,7 +107,7 @@ def scene_assets_for_items(
         return ()
     if not isinstance(document, dict):
         return ()
-    mode = document.get("resolved_mode") or document.get("resolved_image_generation_mode")
+    mode = document.get("image_mode")
     assets = document.get("assets")
     if mode != "SCENE" or not isinstance(assets, list) or not item_indexes:
         return ()
@@ -104,9 +118,18 @@ def scene_assets_for_items(
         if not isinstance(asset, dict) or str(asset.get("role") or "").upper() != "SCENE":
             continue
         basename = asset.get("basename")
-        start, end = asset.get("script_item_start"), asset.get("script_item_end")
-        if not isinstance(basename, str) or not isinstance(start, int) or not isinstance(end, int):
+        source_ids = asset.get("source_script_ids")
+        if not isinstance(basename, str) or not isinstance(source_ids, list) or not source_ids:
             continue
+        indexes = []
+        for source_id in source_ids:
+            if not isinstance(source_id, str) or not source_id.startswith("s") or not source_id[1:].isdigit():
+                indexes = []
+                break
+            indexes.append(int(source_id[1:]) - 1)
+        if not indexes:
+            continue
+        start, end = min(indexes), max(indexes)
         if start <= last and end >= first:
             selected.append({"basename": basename, "start": start, "end": end})
     return tuple(sorted(selected, key=lambda asset: (asset["start"], asset["end"], asset["basename"])))
@@ -165,14 +188,20 @@ def discover_story_images(output_dir: Path) -> dict[str, dict[str, Path]]:
 
 def inspect_story_images(output_dir: Path) -> dict[str, dict[str, Any]]:
     discovered = discover_story_images(output_dir)
-    contract = load_prompt_contract()
-    expected_size = {
-        "landscape": contract.landscape_size,
-        "portrait": contract.portrait_size,
-    }
+    try:
+        plan = json.loads((output_dir / "visual_plan.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError):
+        plan = {}
+    targets = plan.get("targets", {}) if isinstance(plan, dict) else {}
     summary: dict[str, dict[str, Any]] = {}
     expected_stems = visual_plan_image_stems(output_dir)
     for aspect, images in discovered.items():
+        target = targets.get(aspect, {}) if isinstance(targets, dict) else {}
+        policy = target.get("size_policy") if isinstance(target, dict) else None
+        expected_size = (
+            (target.get("width"), target.get("height"))
+            if policy == "EXACT" else None
+        )
         missing = [f"{stem}.png" for stem in expected_stems if stem not in images]
         noncanonical: list[str] = []
         wrong_size: list[str] = []
@@ -184,9 +213,12 @@ def inspect_story_images(output_dir: Path) -> dict[str, dict[str, Any]]:
                 noncanonical.append(path.name)
             try:
                 metadata = image_metadata(path)
-                if (metadata["width"], metadata["height"]) != expected_size[aspect]:
+                width, height = metadata["width"], metadata["height"]
+                wrong_orientation = width <= height if aspect == "landscape" else height <= width
+                wrong_exact_size = policy == "EXACT" and (width, height) != expected_size
+                if wrong_orientation or wrong_exact_size:
                     wrong_size.append(
-                        f"{path.name} ({metadata['width']}×{metadata['height']})"
+                        f"{path.name} ({width}×{height})"
                     )
             except (OSError, SyntaxError, UnidentifiedImageError):
                 wrong_size.append(f"{path.name} (không đọc được)")
@@ -198,8 +230,9 @@ def inspect_story_images(output_dir: Path) -> dict[str, dict[str, Any]]:
             "missing": missing,
             "noncanonical": noncanonical,
             "wrong_size": wrong_size,
-            "prompt_conformant": not missing and not noncanonical and not wrong_size,
-            "expected_size": expected_size[aspect],
+            "prompt_conformant": bool(expected_stems) and not missing and not noncanonical and not wrong_size,
+            "size_policy": policy,
+            "expected_size": expected_size,
             "total_bytes": sum(path.stat().st_size for path in images.values() if path.is_file()),
         }
     return summary
@@ -349,10 +382,14 @@ def render_aspect_cover_gallery(
             if data["noncanonical"]:
                 st.warning("Dùng để xem được nhưng không đúng package PNG: " + ", ".join(data["noncanonical"]))
             if data["wrong_size"]:
-                width, height = data["expected_size"]
-                st.warning(f"Sai kích thước prompt {width}×{height}: " + ", ".join(data["wrong_size"]))
+                if data["size_policy"] == "EXACT" and data["expected_size"]:
+                    width, height = data["expected_size"]
+                    reason = f"không đúng EXACT {width}×{height} hoặc sai orientation"
+                else:
+                    reason = "sai orientation"
+                st.warning(f"Ảnh {reason}: " + ", ".join(data["wrong_size"]))
             if data["prompt_conformant"]:
-                st.success("Đạt file set, PNG và kích thước deterministic của prompt.")
+                st.success("Đạt file set PNG và chính sách kích thước/orientation của visual plan.")
 
 
 __all__ = [

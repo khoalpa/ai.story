@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import os
 from pathlib import Path
 from threading import Lock
@@ -52,6 +53,18 @@ def prefer_gpu_enabled() -> bool:
     return value not in {"0", "false", "no", "off"}
 
 
+def cuda_available() -> bool:
+    """Return whether the installed PyTorch runtime can actually use CUDA."""
+    if not prefer_gpu_enabled():
+        return False
+    try:
+        torch = importlib.import_module("torch")
+        cuda = getattr(torch, "cuda", None)
+        return bool(cuda is not None and cuda.is_available() and cuda.device_count() > 0)
+    except Exception:
+        return False
+
+
 def bootstrap_vieneu_runtime(*, allow_network: bool = False) -> None:
     global _BOOTSTRAPPED
     with _BOOTSTRAP_LOCK:
@@ -83,4 +96,4 @@ def bootstrap_vieneu_runtime(*, allow_network: bool = False) -> None:
         _BOOTSTRAPPED = True
 
 
-__all__ = ["bootstrap_vieneu_runtime", "prefer_gpu_enabled"]
+__all__ = ["bootstrap_vieneu_runtime", "cuda_available", "prefer_gpu_enabled"]

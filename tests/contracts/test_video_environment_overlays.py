@@ -1,5 +1,4 @@
 import json
-import re
 from pathlib import Path
 
 from studio.prompt_contract import load_prompt_contract
@@ -21,15 +20,11 @@ def test_all_canonical_environments_have_overlay_profiles() -> None:
     assert normalize_environment("unknown_weather") == "none"
 
 
-def test_prompt_environment_whitelist_matches_runtime_contract() -> None:
-    prompt = load_prompt_contract().path.read_text(encoding="utf-8")
-    match = re.search(
-        r"SHARED ENVIRONMENT WHITELIST:\s*\n- (?P<values>[^\n]+)",
-        prompt,
+def test_v416_prompt_projects_story_zone_whitelist_independently() -> None:
+    assert load_prompt_contract().environment_whitelist == (
+        "GREETING", "OPENING", "INTRODUCTION", "DEVELOPMENT",
+        "CLIMAX", "FALLING", "ENDING", "FAREWELL",
     )
-    assert match is not None
-    prompt_values = tuple(re.findall(r'"([^"]+)"', match.group("values")))
-    assert prompt_values == CANONICAL_STORY_ENVIRONMENTS
 
 
 def test_environment_timeline_uses_srt_timestamps_merges_and_protects_cards(tmp_path: Path) -> None:
