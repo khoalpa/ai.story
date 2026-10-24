@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const root = document.documentElement;
-  const choices = {theme: ['neutral', 'atelier', 'paper'], mode: ['system', 'light', 'dark'], style: ['minimal', 'soft', 'editorial'], density: ['comfortable', 'compact']};
+  const choices = {theme: ['neutral', 'story', 'paper'], mode: ['system', 'light', 'dark'], style: ['minimal', 'soft', 'editorial'], density: ['comfortable', 'compact']};
   const defaults = {theme: root.dataset.theme || 'neutral', mode: root.dataset.mode || 'system', style: root.dataset.style || 'minimal', density: root.dataset.density || 'comfortable'};
   const key = 'ai-themes:1:' + (root.dataset.themeApp || location.pathname);
   const media = matchMedia('(prefers-color-scheme: dark)');

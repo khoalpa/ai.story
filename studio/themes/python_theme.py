@@ -58,7 +58,7 @@ def theme_html(html: str) -> str:
 def render_streamlit() -> None:
     import streamlit as st
     settings = config()
-    labels = {"theme": {"neutral": "Trung tính", "atelier": "Story", "paper": "Giấy"}, "mode": {"system": "Theo hệ thống", "light": "Sáng", "dark": "Tối"}, "style": {"minimal": "Tối giản", "soft": "Mềm mại", "editorial": "Biên tập"}, "density": {"comfortable": "Thoải mái", "compact": "Gọn"}}
+    labels = {"theme": {"neutral": "Trung tính", "story": "Story", "paper": "Giấy"}, "mode": {"system": "Theo hệ thống", "light": "Sáng", "dark": "Tối"}, "style": {"minimal": "Tối giản", "soft": "Mềm mại", "editorial": "Biên tập"}, "density": {"comfortable": "Thoải mái", "compact": "Gọn"}}
     with st.sidebar.expander("Giao diện", expanded=False):
         for key, label in (("theme", "Bảng màu"), ("mode", "Chế độ"), ("style", "Phong cách"), ("density", "Khoảng cách")):
             opts = list(labels[key])

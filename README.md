@@ -1,38 +1,56 @@
 # AI Audio & Video Studio
 
-AI Audio & Video Studio is a pair of standalone Python applications plus a unified Streamlit shell:
+Bộ công cụ Python để kiểm tra gói truyện, dựng lời thoại và ghép video trong một
+quy trình thống nhất. Dự án cung cấp ba ứng dụng có thể cài và chạy độc lập:
 
-- **Audio** converts an external plain-text or canonical JSON script into narration, subtitles, quality reports, and an Audio-to-Video handoff manifest.
-- **Video** combines audio, optional subtitles, and externally supplied cover/scene images into a validated MP4.
+- **Audio** chuyển kịch bản văn bản hoặc JSON chuẩn thành giọng đọc, phụ đề, báo
+  cáo chất lượng và manifest bàn giao cho Video.
+- **Video** ghép audio, phụ đề và ảnh do người dùng cung cấp thành MP4 đã được
+  kiểm tra đầu ra.
+- **Studio** tập hợp các luồng Audio, Video và Story Studio trong một giao diện
+  Streamlit duy nhất.
 
-Story generation and image generation are intentionally outside this repository. Scripts and visual assets can come from any authoring or image-generation tool.
+Dự án **không sinh nội dung truyện hoặc hình ảnh**. Bạn có thể tạo kịch bản và
+tài nguyên hình ảnh bằng bất kỳ công cụ nào, sau đó đưa chúng vào quy trình này.
 
-Canonical authoring references live in `prompts/`, named `ChatGPT_prompt_vX.Y.Z.txt`
-with an optional numeric prefix such as `01-`. Runtime
-tooling selects the newest semantic version, projects its deterministic constants,
-and reports the selected version plus SHA-256. Older prompt files may be retained
-for comparison, but their presence is optional and they are never authoritative
-while a newer version is present.
+## Yêu cầu
 
-## Requirements
+- Python 3.10, 3.11 hoặc 3.12
+- FFmpeg và FFprobe có trong `PATH`
+- Windows, Linux hoặc môi trường tương thích với các phụ thuộc Python của dự án
 
-- Python 3.10, 3.11, or 3.12
-- FFmpeg and FFprobe for rendering
+Các mô hình Audio dung lượng lớn nên được lưu ngoài repository. Đặt biến môi
+trường `AI_AUDIO_MODELS_ROOT` để chỉ đến thư mục mô hình; xem
+[Tài nguyên bên ngoài](docs/EXTERNAL_ASSETS.md) để biết thêm chi tiết.
 
-Large local Audio models may be stored outside the checkout by setting
-`AI_AUDIO_MODELS_ROOT`. See [docs/EXTERNAL_ASSETS.md](docs/EXTERNAL_ASSETS.md).
+## Cài đặt
 
-Install the project:
+Tạo và kích hoạt môi trường ảo, sau đó cài các phụ thuộc và package chính:
 
 ```bash
 python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
-For development, install `requirements-dev.txt` instead. The supported Python
-range is `>=3.10,<3.13`; CI exercises Python 3.10, 3.11, and 3.12.
+Nếu phát triển hoặc chạy bộ kiểm tra, cài thêm công cụ dành cho lập trình viên:
 
-## Entry points
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+Repository cũng định nghĩa ba wheel độc lập tại `packages/audio`,
+`packages/video` và `packages/studio`.
+
+## Khởi động
+
+Trên Windows, cách nhanh nhất để mở Studio là:
+
+```powershell
+.\open_app.bat
+```
+
+Script này kiểm tra phiên bản Python và Streamlit trước khi khởi động. Sau khi
+cài package, bạn cũng có thể dùng các entry point sau:
 
 ```bash
 render-audio --help
@@ -43,70 +61,83 @@ ai-studio-gui
 ai-story-audit --help
 ```
 
-The unified Studio contains `Overview`, `Audio`, `Video`, and `Story Studio` workspaces.
-`Story Studio` discovers the story, validation, package-quality, and series-anchor JSON
-reports in one output directory and combines their content, verdicts, continuity data,
-technical details, and repository QA tools.
+Giao diện Studio gồm bốn không gian làm việc: **Overview**, **Audio**,
+**Video** và **Story Studio**.
 
-## Workflow
+## Quy trình cơ bản
 
-1. Supply Audio with a plain-text or canonical JSON script.
-2. Render narration and subtitles. Audio can write an `audio.video-handoff` manifest.
-3. Supply Video with the audio file or Audio handoff, plus a cover image or scene-image directory.
-4. Render the MP4 and review its result and quality manifests.
+1. Chuẩn bị kịch bản ở dạng văn bản thuần hoặc JSON theo schema chuẩn.
+2. Dùng Audio để kiểm tra kịch bản, dựng giọng đọc và phụ đề. Khi cần chuyển
+   sang Video, xuất manifest `audio.video-handoff`.
+3. Cung cấp audio hoặc manifest bàn giao cho Video, kèm ảnh bìa hay thư mục ảnh
+   theo cảnh.
+4. Dựng MP4, sau đó xem lại video, manifest kết quả và báo cáo chất lượng.
 
-Video does not generate images. Pillow remains a runtime dependency because Video validates image dimensions, formats, and slideshow readiness.
+Video không tự tạo ảnh. Pillow được dùng để kiểm tra định dạng, kích thước và
+mức độ sẵn sàng của ảnh trước khi dựng slideshow.
 
-## Editing and production review
+## Làm việc với kịch bản và gói truyện
 
-- `open_app.bat` checks the selected interpreter against the Python and Streamlit
-  requirements in `pyproject.toml` before starting the interface.
-- In Audio's **Canonical JSON** tab, **Chỉnh từng câu thoại** edits a selected
-  line's speaker, text, emotion, speed, pause, and ambience. IDs, zones, scenes,
-  order, and the existing closed schema are preserved. Edits remain a session
-  draft, survive workspace navigation, and can be downloaded as `story.draft.json`.
-  The source package and its validation reports are never overwritten; changed
-  content needs review before replacing a published package.
-- Video prepares a separate display SRT when a cue contains several sentences.
-  Display timing is estimated from text length within the original cue. Scene
-  transitions and environment effects continue to use the original SRT, including
-  when subtitle display is disabled. Styled and very short cues remain intact.
-- Story Studio's **Âm thanh & phụ đề → Tổng quan → Audio theo phần truyện**
-  summarizes script counts and source-subtitle timing by zone or scene, with CSV
-  export. Timing is withheld when text/order does not match or cues overlap.
-  Part timing does not imply that per-part audio quality has been verified.
-- In **Tài nguyên → Lịch sử kiểm tra ảnh**, record a local inspection to track
-  image revisions, the latest inspection result, notes, and the content fingerprint
-  observed with each revision. Rechecking unchanged bytes does not increment the
-  revision or rebind the image to changed story content. History is stored in
-  `.render_audio_gui/story_asset_history_*.json`, outside the canonical package.
-  These observations are separate from image-generation provenance and semantic QA.
+Các tài liệu biên soạn chuẩn nằm trong `prompts/`, theo tên
+`ChatGPT_prompt_vX.Y.Z.txt`; tên tệp có thể có thêm tiền tố số như `01-`. Runtime
+luôn chọn phiên bản semantic mới nhất, đồng thời ghi nhận phiên bản và SHA-256.
+Các prompt cũ chỉ dùng để đối chiếu và không còn là nguồn chuẩn khi đã có phiên
+bản mới hơn.
 
-These tools retain the four-stage package format, source JSON schemas, and
-Audio-to-Video handoff contract.
+Kiểm tra một thư mục đầu ra hoặc gói truyện v4.1.6 bằng lệnh:
 
-## Audio pacing
+```bash
+ai-story-audit output
+ai-story-audit output/story.zip
+```
 
-Narration pacing is adaptive: the mixer measures leading and trailing silence from each synthesized segment and inserts only the amount needed to reach the selected acoustic gap. The default `natural` preset targets 550 ms between sentences, 650 ms on voice/language changes, 800 ms at paragraph breaks, and 1200 ms at zone changes. Explicit `[PAUSE]` and `[SILENCE]` tags take precedence. The `compact`, `dramatic`, and `off` presets are also available.
+Audit kiểm tra JSON nghiêm ngặt, schema hiện hành, liên kết giữa artifact, danh
+sách tệp trong archive, CRC, định dạng PNG và kích thước ảnh chuẩn. Những tiêu
+chí cần OCR, nguồn gốc từ trình tạo, đánh giá ngữ nghĩa hoặc bộ lọc an toàn bên
+ngoài sẽ được ghi là `NOT_VERIFIED`; kiểm tra xác định không tự nâng chúng thành
+`PASS`.
 
-## Development and verification
+Story Studio có thể chuyển `video_prompts.json` chuẩn thành dữ liệu dành cho
+Veo, Flow hoặc Generic. Đầu ra hỗ trợ một tệp JSON đã liên kết, văn bản thuận
+tiện để sao chép và ZIP xác định gồm từng clip, ánh xạ tài nguyên, thứ tự tạo,
+cảnh báo khả năng và digest nguồn. Đây là các bản xuất dùng cho công cụ đích;
+chúng không sửa hay thay thế dữ liệu chuẩn.
 
-The four canonical reference archives live in `samples/Tiem_Sua_Nhung_Loi_Hua/`.
-Their exact bytes are pinned in the adjacent `SHA256SUMS` file and tracked by Git.
-Studio's sample tabs and the test fixtures use the shared definitions in
-`studio/reference_samples.py`; neither requires a populated `output/` directory.
+## Biên tập và rà soát sản xuất
 
-Tests that need extracted files receive a fresh temporary project from the
-fixtures in `conftest.py`. Archives are verified before extraction, and edits in
-one test cannot modify the reference files or another test's project. Missing or
-changed samples fail explicitly instead of skipping package validation.
+- Trong tab **Canonical JSON** của Audio, mục **Chỉnh từng câu thoại** cho phép
+  sửa người nói, nội dung, cảm xúc, tốc độ, khoảng nghỉ và âm thanh môi trường.
+  Bản sửa chỉ tồn tại trong phiên và có thể tải xuống dưới tên
+  `story.draft.json`; package nguồn cùng các báo cáo kiểm định không bị ghi đè.
+- Video có thể tách một cue chứa nhiều câu thành các cue SRT dành riêng cho hiển
+  thị. Timeline cảnh và hiệu ứng môi trường vẫn dùng SRT gốc, kể cả khi tắt phụ
+  đề trên hình.
+- Story Studio tổng hợp báo cáo truyện, kiểm định, chất lượng package và tính
+  liên tục của series trong cùng một thư mục đầu ra.
+- Lịch sử kiểm tra ảnh được lưu trong
+  `.render_audio_gui/story_asset_history_*.json`, bên ngoài package chuẩn. Lịch
+  sử này ghi nhận revision, kết quả, ghi chú và fingerprint nội dung; nó không
+  thay thế bằng chứng nguồn gốc ảnh hoặc kiểm định ngữ nghĩa.
 
-CI runs `python scripts/check_reference_samples.py --require-tracked` before
-testing. When intentionally replacing a reference archive, review its contents,
-update its pinned checksum, and rerun the existing contract tests. The loader
-never updates checksums automatically. Only the four ZIP files and their checksum
-list are required; generated audio, video and manually extracted sample folders
-are not test inputs. Reference data stays outside the Audio/Video wheels.
+Các công cụ trên giữ nguyên định dạng package bốn giai đoạn, schema JSON nguồn
+và hợp đồng bàn giao từ Audio sang Video.
+
+## Nhịp đọc Audio
+
+Mixer đo khoảng lặng đầu và cuối của từng đoạn tổng hợp rồi chỉ chèn phần còn
+thiếu để đạt nhịp đã chọn. Preset `natural` mặc định đặt mục tiêu 550 ms giữa
+hai câu, 650 ms khi đổi giọng hoặc ngôn ngữ, 800 ms khi đổi đoạn và 1200 ms khi
+đổi vùng. Thẻ `[PAUSE]` và `[SILENCE]` luôn được ưu tiên. Các preset khác gồm
+`compact`, `dramatic` và `off`.
+
+## Phát triển và kiểm tra
+
+Bốn archive tham chiếu chuẩn nằm trong `samples/Tiem_Sua_Nhung_Loi_Hua/`. Byte
+của từng archive được ghim trong `SHA256SUMS` và được Git theo dõi. Fixture kiểm
+thử xác minh checksum trước khi giải nén vào thư mục tạm, vì vậy một test không
+thể sửa dữ liệu tham chiếu hoặc ảnh hưởng đến test khác.
+
+Chạy toàn bộ cổng kiểm tra trước khi phát hành:
 
 ```bash
 python scripts/check_reference_samples.py --require-tracked
@@ -123,34 +154,23 @@ python scripts/check_independent_wheels.py
 python scripts/release_smoke.py
 ```
 
-The full-suite coverage command measures branches in the three shipped packages
-and fails below the threshold configured in `pyproject.toml`. Targeted test runs do
-not apply the global threshold, so they remain useful during development.
+Lệnh coverage đầy đủ đo cả branch của ba package được phát hành và áp dụng
+ngưỡng trong `pyproject.toml`. Các lần chạy test có mục tiêu hẹp không chịu
+ngưỡng toàn cục, phù hợp cho vòng lặp phát triển nhanh.
 
-See [Troubleshooting](docs/TROUBLESHOOTING.md),
-[standalone-package migration](docs/MIGRATION_STANDALONE_PACKAGES.md), and
-[deprecations](docs/DEPRECATIONS.md) for operational details. The maintenance
-workflow for future prompt versions is documented in
-[Prompt–runtime synchronization](docs/PROMPT_SYNC.md).
+Khi chủ động thay archive tham chiếu, hãy kiểm tra nội dung, cập nhật checksum
+đã ghim rồi chạy lại các contract test. Loader không tự sửa checksum.
 
-Independent wheels are defined under `packages/audio`, `packages/video`, and `packages/studio`.
+## Tài liệu liên quan
 
-## Prompt conformance
+- [Tổng quan Story Studio](docs/OVERVIEW_STORY_STUDIO.md)
+- [Xử lý sự cố](docs/TROUBLESHOOTING.md)
+- [Di chuyển sang package độc lập](docs/MIGRATION_STANDALONE_PACKAGES.md)
+- [Các API và hành vi đã ngừng dùng](docs/DEPRECATIONS.md)
+- [Đồng bộ prompt với runtime](docs/PROMPT_SYNC.md)
+- [Thay đổi theo nhóm](docs/CHANGE_GROUPS.md)
+- [Lịch sử phát hành](CHANGELOG.md)
 
-Run a deterministic audit against the newest prompt in `prompts/`:
+## Giấy phép
 
-```bash
-ai-story-audit output
-ai-story-audit output/story.zip
-```
-
-The audit checks strict JSON parsing, current schema projections, artifact bindings,
-archive file sets, CRC, PNG format, and canonical image dimensions. Gates that need
-OCR, generator provenance, semantic review, or an external safety adapter are reported
-as `NOT_VERIFIED`; deterministic checks never promote those gates to `PASS`.
-
-Story Studio can export a structurally valid canonical `video_prompts.json` into
-target-specific Veo, Flow, or Generic prompt artifacts. Available formats are one
-bound JSON document, copy-friendly text, and a deterministic ZIP containing per-clip
-jobs, reference mapping, generation order, capability warnings, and source digests.
-Exports are disposable views; they never replace or modify the canonical source.
+Dự án được phát hành theo giấy phép MIT. Xem [LICENSE](LICENSE).
