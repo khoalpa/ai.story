@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -30,12 +31,13 @@ def values(settings: dict | None = None) -> dict:
     if mode == "system":
         # Native Windows preference; other hosts default to light.
         mode = "light"
-        try:
-            import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize") as key:
-                mode = "light" if winreg.QueryValueEx(key, "AppsUseLightTheme")[0] else "dark"
-        except (ImportError, OSError):
-            pass
+        if sys.platform == "win32":
+            try:
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize") as key:
+                    mode = "light" if winreg.QueryValueEx(key, "AppsUseLightTheme")[0] else "dark"
+            except (ImportError, OSError):
+                pass
     return data["themes"][settings["theme"]][mode] | data["status"][mode] | data["styles"][settings["style"]] | data["density"][settings["density"]]
 
 
