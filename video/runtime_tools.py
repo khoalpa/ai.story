@@ -3,7 +3,7 @@ from __future__ import annotations
 import platform
 import shutil
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Optional
 
 from video.exceptions import RuntimeDependencyError
@@ -48,7 +48,7 @@ def resolve_tool_path(env_var: str, executable_name: str, windows_fallback: Path
 
     discovered = shutil.which(executable_name)
     if discovered:
-        discovered_path = Path(discovered)
+        discovered_path = PureWindowsPath(discovered)
         if (
             platform.system().lower().startswith("win")
             and windows_fallback.is_file()

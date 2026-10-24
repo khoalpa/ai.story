@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import platform
 import shutil
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Final
 
 from audio.logging_utils import get_logger
@@ -24,7 +24,7 @@ def prefer_real_binary(path_or_name: str, windows_fallback: Path) -> str:
     raw = str(path_or_name or "").strip()
     if not raw:
         return raw
-    candidate = Path(raw)
+    candidate = PureWindowsPath(raw)
     if (
         platform.system().lower().startswith("win")
         and windows_fallback.is_file()
