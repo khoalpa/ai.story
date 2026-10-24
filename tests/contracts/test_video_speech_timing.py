@@ -6,7 +6,6 @@ from studio.video_speech_timing import (
     speech_timing_preflight,
 )
 
-
 SRT = """1
 00:00:44,258 --> 00:00:50,786
 Sáng ấy, đoàn tàu màu lam vừa dừng ở Ga Mây thì chiếc chuông đồng trên mái hiên tự rung ba tiếng.

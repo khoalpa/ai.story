@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -89,7 +90,8 @@ def prompt_directories() -> tuple[Path, ...]:
     configured = os.environ.get(PROMPTS_DIRECTORY_ENV, "").strip()
     if configured:
         candidates.append(Path(configured).expanduser())
-    candidates.extend((Path.cwd() / "prompts", DEFAULT_PROMPTS_DIRECTORY))
+    candidates.extend((Path.cwd() / "prompts", DEFAULT_PROMPTS_DIRECTORY,
+                       Path(sys.prefix) / "share" / "ai-story" / "prompts"))
     unique: list[Path] = []
     for candidate in candidates:
         resolved = candidate.resolve()

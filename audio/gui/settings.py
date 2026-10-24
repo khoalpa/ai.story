@@ -59,6 +59,12 @@ from .service import (
     resolve_vieneu_runtime_mode,
     resolve_vieneu_ui_mode,
 )
+from .vieneu_preferences import (
+    _normalize_vieneu_backend_choice as _normalize_vieneu_backend_choice,
+)
+from .vieneu_preferences import (
+    _normalize_vieneu_device_choice as _normalize_vieneu_device_choice,
+)
 from .voice_speed_controls import (
     VOICE_EN_FEMALE_SPEED_KEY,
     VOICE_EN_MALE_SPEED_KEY,
@@ -99,27 +105,6 @@ def _expander(label: str, *, expanded: bool = False):
         def __exit__(self, exc_type, exc, tb):
             return False
     return _NoopContext()
-
-
-def _normalize_vieneu_device_choice(value: object) -> str:
-    normalized = str(value or "auto").strip().lower().replace("-", "_")
-    if normalized == "cpu":
-        return "cpu"
-    if normalized in {"auto", "cuda", "gpu", "cuda:0", "cuda0", "default", "prefer_gpu"}:
-        return "auto"
-    return "auto"
-
-
-def _normalize_vieneu_backend_choice(value: object) -> str:
-    normalized = str(value or "auto").strip().lower().replace("-", "_")
-    if normalized in {"auto", "native", "lmdeploy"}:
-        return normalized
-    return "auto"
-
-
-
-
-
 
 
 def _render_audio_local_model_picker(*, provider_id: str, current_model: str, mode: str) -> tuple[str, str]:
@@ -1011,7 +996,6 @@ def render_settings_sidebar() -> GuiConfigBundle:
         **vieneu_persisted_settings,
     })
     return GuiConfigBundle(app=app_config, profile=profile_config)
-
 
 
 def get_audio_settings() -> GuiConfigBundle:

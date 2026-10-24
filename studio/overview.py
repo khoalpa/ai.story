@@ -297,6 +297,8 @@ def build_overview_model(
     candidates += [path for path in output_dir.rglob("*") if path.is_file()] if output_dir.is_dir() else []
     last_updated = max((path.stat().st_mtime for path in candidates), default=None)
 
+    estimated_minutes = meta.get("estimated_minutes")
+    duration_label = f"{estimated_minutes:.1f} phút" if type(estimated_minutes) is int or type(estimated_minutes) is float else "—"
     return {
         "review": review,
         "workflow": workflow,
@@ -311,7 +313,7 @@ def build_overview_model(
         "verdict_kind": verdict_kind,
         "updated": datetime.fromtimestamp(last_updated).strftime("%d/%m/%Y %H:%M") if last_updated else "—",
         "metrics": [
-            ("Thời lượng dự kiến", f"{float(meta.get('estimated_minutes')):.1f} phút" if type(meta.get("estimated_minutes")) in {int, float} else "—"),
+            ("Thời lượng dự kiến", duration_label),
             ("Số từ", f"{_story_word_count(story):,}" if story else "—"),
             ("Số cảnh", str(expected_scenes) if expected_scenes else "—"),
             ("Kiểm định", f"{passed_checks}/{total_checks}" if total_checks else "—"),

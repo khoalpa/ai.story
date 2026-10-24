@@ -121,7 +121,7 @@ def scene_assets_for_items(
         source_ids = asset.get("source_script_ids")
         if not isinstance(basename, str) or not isinstance(source_ids, list) or not source_ids:
             continue
-        indexes = []
+        indexes: list[int] = []
         for source_id in source_ids:
             if not isinstance(source_id, str) or not source_id.startswith("s") or not source_id[1:].isdigit():
                 indexes = []

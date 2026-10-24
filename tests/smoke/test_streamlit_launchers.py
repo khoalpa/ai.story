@@ -21,6 +21,7 @@ def test_streamlit_runtime_meets_supported_minimum() -> None:
 
 def test_every_streamlit_launcher_opens_in_a_clean_runtime() -> None:
     probe = r'''
+import streamlit
 from streamlit.testing.v1 import AppTest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -50,6 +51,13 @@ for workspace_name, selector_key in (
     ("Audio Studio", "audio_embedded_view_selector"),
     ("Video Studio", "video_embedded_view_selector"),
 ):
+    # Streamlit 1.49's test driver serializes single-select button groups as
+    # iterables. Supply the one selected value as a list so reruns send the same
+    # index array as the browser; the application's session value stays scalar.
+    if streamlit.__version__.startswith("1.49."):
+        for group in studio.get("button_group"):
+            if isinstance(group.value, str):
+                group.set_value([group.value])
     workspace = next(radio for radio in studio.radio if radio.label == "Không gian làm việc")
     workspace.set_value(workspace_name).run()
     if studio.exception:

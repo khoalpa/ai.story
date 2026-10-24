@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Sequence
 
 from audio.cli_utils import UsedFilesTracker, setup_stdio
-from audio.story_package_v416 import parse_story_text, render_plain_script
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -51,6 +50,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     setup_stdio()
     used_files = UsedFilesTracker()
     args = build_arg_parser().parse_args(argv)
+
+    from audio.story_package_v416 import parse_story_text, render_plain_script
 
     json_path = Path(args.input)
     out_path = Path(args.output)

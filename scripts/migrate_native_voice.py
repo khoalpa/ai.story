@@ -5,9 +5,14 @@ import hashlib
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 from studio.video_prompt_validation import canonical_output_digest
-from studio.video_voice import build_voice_plan, default_voice_strategy, native_audio_prompt
+from studio.video_voice import (
+    build_voice_plan,
+    default_voice_strategy,
+    native_audio_prompt,
+)
 from studio.workflow_package import package_digest
 
 
@@ -27,12 +32,12 @@ def migrate(root: Path) -> None:
 
     target = plan["generator_target"]
     target["capability_profile"]["audio_mode"] = "NATIVE_DIALOGUE"
-    migrated: dict[str, object] = {}
+    migrated: dict[str, Any] = {}
     for key, value in plan.items():
         migrated[key] = value
         if key == "project":
             migrated["voice_strategy"] = strategy
-    for clip in migrated["clips"]:  # type: ignore[index]
+    for clip in migrated["clips"]:
         source = clip["source_script"]
         voice_plan = build_voice_plan(script, source)
         ambience = str(clip["audio_prompt"])
@@ -44,8 +49,8 @@ def migrate(root: Path) -> None:
         updated["audio_prompt"] = native_audio_prompt(voice_plan, strategy, ambience)
         clip.clear()
         clip.update(updated)
-    migrated["validation"]["voice_selection_status"] = "PASS"  # type: ignore[index]
-    migrated["validation"]["output_digest_sha256"] = canonical_output_digest(migrated)  # type: ignore[index]
+    migrated["validation"]["voice_selection_status"] = "PASS"
+    migrated["validation"]["output_digest_sha256"] = canonical_output_digest(migrated)
     plan_raw = encoded(migrated)
 
     row = next(item for item in manifest["files"] if item["path"] == "video_prompts.json")

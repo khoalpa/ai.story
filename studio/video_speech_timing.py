@@ -6,7 +6,6 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Sequence
 
-
 _TIMESTAMP = re.compile(
     r"^(?P<hours>\d{2}):(?P<minutes>\d{2}):(?P<seconds>\d{2})[,.](?P<millis>\d{3})$"
 )
@@ -58,7 +57,7 @@ def parse_srt(text: str) -> list[SubtitleCue]:
 def normalize_speech_text(text: str) -> str:
     """Normalize typography and whitespace while preserving the spoken wording."""
     value = unicodedata.normalize("NFC", text)
-    value = value.translate(str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'"}))
+    value = value.translate(str.maketrans("“”‘’", "\"\"''"))
     return " ".join(value.split()).strip()
 
 
@@ -127,7 +126,7 @@ def speech_timing_preflight(
                 f"{clip_id}: SPEECH_REQUIRES_SEGMENTATION — thoại {measured:.3f}s + "
                 f"đệm {safety_margin_seconds:.3f}s vượt container lớn nhất."
             )
-        elif type(planned) not in {int, float} or float(planned) < measured + safety_margin_seconds:
+        elif not (type(planned) is int or type(planned) is float) or planned < measured + safety_margin_seconds:
             errors.append(
                 f"{clip_id}: SPEECH_DOES_NOT_FIT_CONTAINER — thoại {measured:.3f}s + "
                 f"đệm {safety_margin_seconds:.3f}s cần container {recommended}s, hiện là {planned}s."

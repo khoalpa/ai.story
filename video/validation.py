@@ -468,11 +468,11 @@ def inspect_video_image_readiness(
         if outro_last and outro is not None and scene_plan is None:
             assets.append(_inspect_image_file(outro, role="end screen", aspect=aspect))
 
-    for asset in assets:
-        if asset.level == "error":
-            errors.append(asset.message)
-        elif asset.level == "warning":
-            warnings.append(asset.message)
+    for image_asset in assets:
+        if image_asset.level == "error":
+            errors.append(image_asset.message)
+        elif image_asset.level == "warning":
+            warnings.append(image_asset.message)
 
     if mode == "slideshow" and scene_plan is None and scene_count > 0:
         missing_zones = tuple(zone for zone in ZONE_IMAGE_SEQUENCE if zone not in mapped_zones)

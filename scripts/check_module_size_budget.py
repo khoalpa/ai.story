@@ -7,10 +7,10 @@ ROOT = Path(__file__).resolve().parents[1]
 # These are ceilings, not targets. Reduce them whenever responsibilities move to
 # dedicated modules; never raise one without an architecture review.
 LINE_BUDGETS = {
-    "audio/adapters/tts_core.py": 1360,
+    "audio/adapters/tts_core.py": 1350,
     "audio/adapters/ffmpeg_audio_mixer.py": 900,
-    "audio/gui/settings.py": 1030,
-    "video/gui/tabs.py": 1225,
+    "audio/gui/settings.py": 1020,
+    "video/gui/tabs.py": 1180,
 }
 
 

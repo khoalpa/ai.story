@@ -6,7 +6,7 @@ import math
 import re
 import zipfile
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, MutableMapping
 
 from studio.package_quality_report import _items, _object
 from studio.project_review import (
@@ -398,7 +398,7 @@ def render_visual_bible(document: Mapping[str, Any], *, root: Path | None = None
             st.json(value) if isinstance(value, (dict, list)) else st.write(value)
 
 
-def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Mapping[str, Any]) -> None:
+def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: MutableMapping[str, Any]) -> None:
     import streamlit as st
 
     st.caption("ZIP được đọc trong bộ nhớ và phải đúng hợp đồng v4.1.6; gói phiên bản cũ bị từ chối.")

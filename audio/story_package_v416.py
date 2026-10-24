@@ -47,7 +47,7 @@ def _nonempty(value: object) -> bool:
 
 
 def _finite_positive(value: object) -> bool:
-    return type(value) in {int, float} and math.isfinite(float(value)) and float(value) > 0
+    return (type(value) is int or type(value) is float) and math.isfinite(value) and value > 0
 
 
 def parse_story_text(text: str) -> dict[str, Any]:
@@ -83,10 +83,10 @@ def validate_story(story: Any) -> list[str]:
     if type(meta.get("episode")) is not int or meta.get("episode", 0) < 1:
         errors.append("meta.episode phải là integer >= 1.")
     profile = meta.get("profile")
-    if profile not in PROFILES:
+    if not isinstance(profile, str) or profile not in PROFILES:
         errors.append("meta.profile không hợp lệ.")
     expected_ages = YOUTH_AGES if profile == "YOUTH_SAFE" else {"18+"}
-    if meta.get("age_band") not in expected_ages:
+    if not isinstance(meta.get("age_band"), str) or meta.get("age_band") not in expected_ages:
         errors.append("meta.age_band không khớp profile.")
     if not _finite_positive(meta.get("target_minutes")):
         errors.append("meta.target_minutes phải là number > 0.")
@@ -192,7 +192,8 @@ def validate_story(story: Any) -> list[str]:
                 errors.append(f"script[{index}].ambience phải là string hoặc null.")
         if scene_ids and used_scenes != scene_ids:
             errors.append("Mỗi scene phải được dùng đúng thứ tự và liên tiếp trong script.")
-        missing_zones = [zone for zone in ZONES if zone not in {r.get("zone") for r in script if isinstance(r, Mapping)}]
+        present_zones = [r.get("zone") for r in script if isinstance(r, Mapping)]
+        missing_zones = [zone for zone in ZONES if zone not in present_zones]
         if missing_zones:
             errors.append(f"script thiếu zone bắt buộc: {missing_zones}.")
     return errors

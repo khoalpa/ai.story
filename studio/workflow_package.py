@@ -13,7 +13,7 @@ import unicodedata
 import zipfile
 from io import BytesIO
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from PIL import Image, UnidentifiedImageError
 
@@ -124,7 +124,7 @@ def _expected_payload(members: Mapping[str, bytes], stage: int) -> set[str]:
     return expected
 
 
-def package_digest(rows: list[Mapping[str, Any]]) -> str:
+def package_digest(rows: Sequence[Mapping[str, Any]]) -> str:
     canonical = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -149,11 +149,11 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
     parent_digest = manifest.get("parent_package_sha256")
     schema_ok = (set(manifest) == set(MANIFEST_FIELDS) and manifest.get("schema_version") == "4.1.3"
                  and manifest.get("prompt_version") == contract.version_label and stage_label is not None
-                 and manifest.get("status") in {"COMPLETE", "PARTIAL", "BLOCKED"}
-                 and (parent_digest is None or isinstance(parent_digest, str) and digest_pattern.fullmatch(parent_digest)))
+                 and manifest.get("status") in ("COMPLETE", "PARTIAL", "BLOCKED")
+                 and (parent_digest is None or isinstance(parent_digest, str) and digest_pattern.fullmatch(parent_digest) is not None))
     check("manifest_schema", schema_ok, "Manifest v4.1.6 / schema 4.1.3 hợp lệ.", "Manifest không đúng schema v4.1.6 (không hỗ trợ gói cũ).")
     row_ok, indexed = isinstance(rows, list), {}
-    if row_ok:
+    if isinstance(rows, list):
         paths = []
         for row in rows:
             valid = (isinstance(row, Mapping) and set(row) == set(FILE_FIELDS) and isinstance(row.get("path"), str)
@@ -170,7 +170,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
     check("manifest_files", row_ok, "Danh sách manifest hợp lệ.", "manifest.files không hợp lệ.")
     actual_payload, listed = set(members) - {"manifest.json"}, set(indexed)
     file_set_ok = row_ok and actual_payload == listed
-    if stage_label:
+    if type(stage) is int and stage_label:
         try:
             expected_payload = _expected_payload(members, stage)
             required_payload = {"story.json", "validation_report.json"}
@@ -180,7 +180,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
                 file_set_ok = file_set_ok and actual_payload == expected_payload
             else:
                 file_set_ok = file_set_ok and required_payload <= actual_payload <= expected_payload
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, TypeError):
             file_set_ok = False
     check("file_set", file_set_ok, f"Exact file set Stage {stage} hợp lệ.", "File set không đúng stage/schema v4.1.6.")
     digest_ok = row_ok
@@ -216,14 +216,14 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
           "validation_report.json không khớp manifest hoặc closed schema v4.1.6.")
 
     image_ok = True
-    if stage_label and stage >= 2 and "visual_plan.json" in members:
+    if type(stage) is int and stage_label and stage >= 2 and "visual_plan.json" in members:
         try:
             plan = read_json(members["visual_plan.json"])
             targets = plan["targets"]
             aspects = ("landscape",) if stage == 2 else ("landscape", "portrait")
             image_names = active_image_basenames(plan)
             reference_names = [
-                row.get("reference_path") for row in plan.get("characters", [])
+                row["reference_path"] for row in plan.get("characters", [])
                 if isinstance(row, Mapping) and isinstance(row.get("reference_path"), str)
             ]
             image_paths = [*(f"{aspect}/{name}" for aspect in aspects for name in image_names), *reference_names]
@@ -243,7 +243,11 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
                         image_ok = image_ok and height > width
                     if path.startswith(("landscape/", "portrait/")):
                         aspect = path.split("/", 1)[0]
+                        if not isinstance(targets, Mapping):
+                            raise ValueError("visual_plan.targets phải là object")
                         target = targets.get(aspect, {})
+                        if not isinstance(target, Mapping):
+                            raise ValueError("visual_plan.targets phải chứa object theo tỷ lệ")
                         if target.get("size_policy") == "EXACT":
                             image_ok = image_ok and (width, height) == (target.get("width"), target.get("height"))
         except (KeyError, TypeError, ValueError, UnidentifiedImageError, OSError):
@@ -264,7 +268,13 @@ def inspect_directory(root: Path, *, overridden: bool = False, parent: Mapping[s
                       contract: PromptContract | None = None) -> dict[str, Any]:
     try:
         manifest = read_json((root / "manifest.json").read_bytes())
-        names = {"manifest.json", *(row["path"] for row in manifest.get("files", []) if isinstance(row, Mapping) and isinstance(row.get("path"), str))}
+        rows = manifest.get("files")
+        if not isinstance(rows, list):
+            raise ValueError("manifest.files phải là array")
+        names = {"manifest.json", *(row["path"] for row in rows if isinstance(row, Mapping) and isinstance(row.get("path"), str))}
+        resolved_root = root.resolve()
+        if any(not safe_name(name) or not (root / name).resolve().is_relative_to(resolved_root) for name in names):
+            raise ValueError("Đường dẫn payload không an toàn")
         members = {name: (root / Path(name)).read_bytes() for name in names}
         return inspect_members(members, parent=parent, contract=contract, overridden=overridden)
     except (OSError, ValueError, KeyError) as exc:
