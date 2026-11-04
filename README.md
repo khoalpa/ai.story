@@ -132,15 +132,17 @@ hai câu, 650 ms khi đổi giọng hoặc ngôn ngữ, 800 ms khi đổi đoạ
 
 ## Phát triển và kiểm tra
 
-Bốn archive tham chiếu chuẩn nằm trong `samples/Tiem_Sua_Nhung_Loi_Hua/`. Byte
-của từng archive được ghim trong `SHA256SUMS` và được Git theo dõi. Fixture kiểm
-thử xác minh checksum trước khi giải nén vào thư mục tạm, vì vậy một test không
-thể sửa dữ liệu tham chiếu hoặc ảnh hưởng đến test khác.
+Các bộ dữ liệu tham chiếu được khai báo trong `samples/registry.json`; mỗi bộ có
+`reference-set.json` và một `set_id` ổn định. Studio cho phép chọn bộ đang dùng.
+CLI chọn một bộ bằng `--set <set_id>` hoặc kiểm tra toàn bộ bằng `--all`. Biến
+`AI_STORY_REFERENCE_SET` có thể đặt bộ mặc định cho automation. Bộ tham chiếu có
+thể là project đã giải nén hoặc bốn archive Stage 1–4; archive phải được ghim
+trong `SHA256SUMS` trước khi sử dụng.
 
 Chạy toàn bộ cổng kiểm tra trước khi phát hành:
 
 ```bash
-python scripts/check_reference_samples.py --require-tracked
+python scripts/check_reference_samples.py --all --require-tracked
 ruff check .
 mypy
 pytest -q --cov=audio --cov=video --cov=studio --cov-report=term-missing:skip-covered --cov-report=xml

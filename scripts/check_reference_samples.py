@@ -1,4 +1,4 @@
-"""Fail early when CI is missing or using modified reference story archives."""
+"""Validate one or every registered reference dataset."""
 from __future__ import annotations
 
 import argparse
@@ -11,18 +11,24 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from studio.reference_samples import (  # noqa: E402
-    REFERENCE_CHECKSUM_FILE,
-    REFERENCE_PACKAGE_DIRECTORY,
-    REFERENCE_PACKAGE_NAMES,
-    load_reference_package,
+    REFERENCE_DATASET_FILE,
+    REFERENCE_REGISTRY_FILE,
+    REFERENCE_ROOT,
+    ReferenceDataset,
+    discover_reference_datasets,
+    get_reference_dataset,
+    validate_reference_dataset,
 )
 
 
-def check_tracked_samples() -> None:
-    relative = REFERENCE_PACKAGE_DIRECTORY.relative_to(ROOT)
-    required = {(relative / name).as_posix() for name in (*REFERENCE_PACKAGE_NAMES, REFERENCE_CHECKSUM_FILE)}
+def check_tracked_dataset(dataset: ReferenceDataset) -> None:
+    required = {
+        (REFERENCE_ROOT / REFERENCE_REGISTRY_FILE).relative_to(ROOT).as_posix(),
+        (dataset.directory / REFERENCE_DATASET_FILE).relative_to(ROOT).as_posix(),
+    }
+    required.update((dataset.directory / name).relative_to(ROOT).as_posix() for name in dataset.package_names)
     result = subprocess.run(
-        ["git", "ls-files", "-z", "--", relative.as_posix()], cwd=ROOT,
+        ["git", "ls-files", "-z", "--", "samples"], cwd=ROOT,
         capture_output=True, text=True, encoding="utf-8", check=True, timeout=30,
     )
     missing = required - set(result.stdout.split("\0"))
@@ -31,20 +37,30 @@ def check_tracked_samples() -> None:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--require-tracked", action="store_true", help="Also require all reference inputs in the Git index")
+    choice = parser.add_mutually_exclusive_group()
+    choice.add_argument("--set", dest="set_id", help="Validate one reference set by stable ID")
+    choice.add_argument("--all", action="store_true", help="Validate every enabled reference set")
+    parser.add_argument("--require-tracked", action="store_true", help="Require registry, manifest and archives in Git")
     args = parser.parse_args()
     try:
-        if args.require_tracked:
-            check_tracked_samples()
-        for name in REFERENCE_PACKAGE_NAMES:
-            _members, result = load_reference_package(name)
-            print(f"PASS {name}: SHA-256, {result['stage']}, schema and payload checks")
+        datasets = discover_reference_datasets() if args.all else (get_reference_dataset(args.set_id),)
+        failed = False
+        for dataset in datasets:
+            if args.require_tracked:
+                check_tracked_dataset(dataset)
+            result = validate_reference_dataset(dataset)
+            print(f"{result['status']} {dataset.set_id}: {dataset.title}")
+            for error in result["errors"]:
+                print(f"  - {error}", file=sys.stderr)
+            failed = failed or result["status"] != "PASS"
+        return 1 if failed else 0
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"Reference sample check failed: {exc}", file=sys.stderr)
         return 1
-    print("All four reference archives are ready; output/ is not required.")
-    return 0
 
 
 if __name__ == "__main__":
