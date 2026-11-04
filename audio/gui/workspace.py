@@ -31,6 +31,11 @@ from .state import (
 CANONICAL_PROJECT_SOURCE_KEY = "audio_canonical_project_source"
 
 
+def _queue_plain_script_from_canonical(state: MutableMapping[str, Any], canonical_text: str) -> None:
+    """Prepare a validated canonical source for the Plain Script tab on rerun."""
+    state[PENDING_PLAIN_SCRIPT_KEY] = convert_canonical_to_plain_text(canonical_text)
+
+
 def load_project_canonical_default(
     state: MutableMapping[str, Any],
 ) -> Path | None:
@@ -50,6 +55,7 @@ def load_project_canonical_default(
     state[CANONICAL_PROJECT_SOURCE_KEY] = source
     state[DRAFT_KEY] = False
     state.pop("audio_story_editor_error", None)
+    _queue_plain_script_from_canonical(state, text)
     return story_path
 
 
@@ -78,6 +84,7 @@ def _load_uploaded_story_package(uploaded_file) -> None:
     st.session_state["canonical_json_text"] = text
     st.session_state["canonical_editor"] = text
     st.session_state["audio_story_package_stage"] = inspection.get("stage")
+    _queue_plain_script_from_canonical(st.session_state, text)
 
 
 def _apply_pending_plain_script() -> None:
@@ -119,7 +126,9 @@ def render_workspace_tab() -> None:
         session.plain_script_text = st.session_state.get("plain_script_editor", "") or ""
         validation = validate_script(session.plain_script_text.splitlines())
 
-        if validation.errors:
+        if not session.plain_script_text.strip():
+            st.info("Chưa có kịch bản. Hãy nạp story.json hoặc nhập Plain script để bắt đầu.")
+        elif validation.errors:
             st.error(
                 f"Syntax check found {len(validation.errors)} error(s). "
                 "Fix them before sending this script to the Run panel."
@@ -161,6 +170,8 @@ def render_workspace_tab() -> None:
             project_story = load_project_canonical_default(st.session_state)
         except (OSError, UnicodeError, ValueError) as exc:
             st.warning(f"Không thể đọc story.json từ Thư mục dữ liệu dự án: {exc}")
+        if st.session_state.get(PENDING_PLAIN_SCRIPT_KEY) is not None:
+            st.rerun()
         _sync_editor_state("canonical_json_text", "canonical_editor")
         if project_story is not None:
             st.caption(f"Gói v4.1.6 đã kiểm tra từ Thư mục dữ liệu dự án · `{project_story}`")
@@ -180,9 +191,11 @@ def render_workspace_tab() -> None:
                     parse_story_text(text)
                     st.session_state["canonical_json_text"] = text
                     st.session_state["canonical_editor"] = text
+                    _queue_plain_script_from_canonical(st.session_state, text)
                 st.session_state["audio_canonical_upload_digest"] = upload_digest
                 st.session_state[DRAFT_KEY] = False
                 st.session_state.pop("audio_story_editor_error", None)
+                st.rerun()
             except Exception as exc:
                 render_user_message(
                     UserMessage(

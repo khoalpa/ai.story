@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import wave
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -39,6 +40,27 @@ from audio.tts_provider import (
 )
 
 logger = get_logger(__name__)
+
+SILENCE_SAMPLE_RATE = 24_000
+SILENCE_SAMPLE_WIDTH_BYTES = 2
+SILENCE_CHANNELS = 1
+
+
+def _write_silence_wav(path: Path, duration_ms: int) -> None:
+    """Write a valid PCM WAV for a planner-generated silence segment."""
+    safe_duration_ms = max(1, int(duration_ms))
+    frame_count = max(1, round(SILENCE_SAMPLE_RATE * safe_duration_ms / 1000))
+    temporary = path.with_name(f".{path.name}.silence-tmp")
+    temporary.unlink(missing_ok=True)
+    try:
+        with wave.open(str(temporary), "wb") as output:
+            output.setnchannels(SILENCE_CHANNELS)
+            output.setsampwidth(SILENCE_SAMPLE_WIDTH_BYTES)
+            output.setframerate(SILENCE_SAMPLE_RATE)
+            output.writeframes(b"\x00" * frame_count * SILENCE_SAMPLE_WIDTH_BYTES * SILENCE_CHANNELS)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def resolve_tts_concurrency(
@@ -168,6 +190,33 @@ async def _render_tts_segments_once_async(segments: list[Segment], config: TtsRe
         )
         return
     if provider == TTS_PROVIDER_VIENEU:
+        silence_indices: list[int] = []
+        speech_indices: list[int] = []
+        for index in miss_indices:
+            segment = segments[index]
+            if not hasattr(segment, "text"):
+                speech_indices.append(index)
+                continue
+            if str(getattr(segment, "text", "") or "").strip():
+                speech_indices.append(index)
+                continue
+            pause_ms = int(getattr(segment, "pause_ms_before", 0) or 0)
+            if pause_ms <= 0:
+                raise TtsError(
+                    f"Segment {index} rỗng và không có thời lượng pause; "
+                    "không thể render bằng VieNeu TTS"
+                )
+            _write_silence_wav(cache.output_path(index), pause_ms)
+            cache.commit(index)
+            silence_indices.append(index)
+
+        restored_hit_count = len(restored.hits) if restored is not None else 0
+        completed_before_inference = restored_hit_count + len(silence_indices)
+        if progress_callback and silence_indices:
+            progress_callback(completed_before_inference, len(segments))
+        if segments and not speech_indices:
+            return
+
         runtime_device = resolve_vieneu_runtime_device(config.vieneu_device)
         effective_mode = resolve_vieneu_effective_mode(
             config.vieneu_core,
@@ -332,9 +381,9 @@ async def _render_tts_segments_once_async(segments: list[Segment], config: TtsRe
             done = 0
             try:
                 if progress_callback:
-                    progress_callback(0, total)
+                    progress_callback(completed_before_inference, total)
                 batch_items: list[tuple[int, Segment, str, object | None]] = []
-                for idx in miss_indices:
+                for idx in speech_indices:
                     seg = segments[idx]
                     voice_id, voice = resolve_vieneu_segment_voice(
                         engine,
@@ -351,14 +400,14 @@ async def _render_tts_segments_once_async(segments: list[Segment], config: TtsRe
                             cache.commit(completed_idx)
                         batch_items = []
                         if progress_callback:
-                            progress_callback(len(restored.hits) + done, total)
+                            progress_callback(completed_before_inference + done, total)
                 if batch_items:
                     await asyncio.to_thread(_render_batch, batch_items)
                     done += len(batch_items)
                     for completed_idx, *_rest in batch_items:
                         cache.commit(completed_idx)
                     if progress_callback:
-                        progress_callback(len(restored.hits) + done, total)
+                        progress_callback(completed_before_inference + done, total)
                 return
             except Exception as exc:
                 logger.warning(
@@ -405,11 +454,11 @@ async def _render_tts_segments_once_async(segments: list[Segment], config: TtsRe
                 cache.commit(idx)
                 done += 1
                 if progress_callback:
-                    progress_callback(len(restored.hits) + done, total)
+                    progress_callback(completed_before_inference + done, total)
 
         if progress_callback:
-            progress_callback(0, total)
-        await asyncio.gather(*(process_one(i, segments[i]) for i in miss_indices))
+            progress_callback(completed_before_inference, total)
+        await asyncio.gather(*(process_one(i, segments[i]) for i in speech_indices))
         return
     raise UnsupportedTtsProviderError(f"Unsupported TTS provider: {config.tts_provider}")
 

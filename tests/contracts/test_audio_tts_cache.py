@@ -8,8 +8,15 @@ from audio.pipeline.segment_planner import Segment
 from audio.services.tts_cache import TtsCacheSession, build_segment_cache_key
 
 
-def _segment(text: str = "Xin chào") -> Segment:
-    return Segment(text=text, voice="narrator", rate="0%", lang="vi", lang_from_tag=True)
+def _segment(text: str = "Xin chào", *, pause_ms: int = 0) -> Segment:
+    return Segment(
+        text=text,
+        voice="narrator",
+        rate="0%",
+        lang="vi",
+        lang_from_tag=True,
+        pause_ms_before=pause_ms,
+    )
 
 
 def _key(segment: Segment, *, model: str = "model-a") -> str:
@@ -30,6 +37,10 @@ def test_cache_key_changes_with_text_voice_rate_or_model() -> None:
     faster = _segment()
     faster.rate = "+10%"
     assert _key(base) != _key(faster)
+
+
+def test_cache_key_distinguishes_silence_duration() -> None:
+    assert _key(_segment("", pause_ms=500)) != _key(_segment("", pause_ms=1_000))
 
 
 def test_manifest_resumes_existing_output_and_rejects_tampering(tmp_path) -> None:

@@ -54,6 +54,7 @@ def build_segment_cache_key(
         "rate": str(getattr(segment, "rate", "0%") or "0%"),
         "lang": str(getattr(segment, "lang", "vi") or "vi"),
         "lang_from_tag": bool(getattr(segment, "lang_from_tag", False)),
+        "pause_ms_before": int(getattr(segment, "pause_ms_before", 0) or 0),
         "voice_map_vi": dict(voice_map_vi),
         "voice_map_en": dict(voice_map_en),
         "settings": dict(settings),
