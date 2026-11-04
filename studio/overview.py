@@ -28,7 +28,7 @@ from studio.story_studio import (
 )
 from studio.ui_components import render_empty_state
 from studio.video_delivery_report import build_video_delivery_summary
-from studio.workflow_views import render_workflow_summary
+from studio.workflow_views import render_manifest_repair, render_workflow_summary
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
@@ -433,8 +433,11 @@ def render_overview() -> None:
                     story_section = "Nội dung"
                 elif "Âm thanh & phụ đề" in action["text"]:
                     story_section = "Âm thanh & phụ đề"
+            button_label = f"Mở {action['workspace']}"
+            if action["workspace"] == "Story Studio" and story_section:
+                button_label = f"Mở {story_section}"
             button_col.button(
-                f"Mở {action['workspace']}",
+                button_label,
                 key=f"overview_action_{index}",
                 on_click=open_workspace,
                 args=(action["workspace"], story_section),
@@ -442,6 +445,7 @@ def render_overview() -> None:
 
     with st.expander("Quy trình và bằng chứng kiểm định", expanded=False):
         render_workflow_summary(model["workflow"])
+        render_manifest_repair(output_dir, model["workflow"])
         source_comparison = model["workflow"].get("source_comparison")
         if source_comparison:
             (st.success if source_comparison["status"] == "PASS" else st.error)(source_comparison["detail"])

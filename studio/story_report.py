@@ -85,6 +85,10 @@ def _character_reference(images_root: Path, character_id: str) -> tuple[Path | N
     status = str(entry.get("reference_status") or "UNKNOWN")
     relative = entry.get("reference_path")
     if status != "READY" or not isinstance(relative, str) or not relative:
+        unlinked_relative = f"characters/{character_id}.png"
+        unlinked_path = project_asset_path(images_root, unlinked_relative)
+        if unlinked_path is not None and unlinked_path.is_file():
+            return None, "UNLINKED_FILE", unlinked_relative
         return None, status, ""
     return project_asset_path(images_root, relative), status, relative
 
@@ -283,6 +287,11 @@ def _render_characters(report: Mapping[str, Any], *, images_root: Path | None = 
                 st.caption(f"{relative} · {dimensions} · SHA-256 {digest[:12]}… · {reference_status}")
             except (OSError, ValueError, SyntaxError):
                 st.warning("Không đọc được ảnh tham chiếu.")
+        elif reference_status == "UNLINKED_FILE":
+            st.warning(
+                f"Có ảnh `{relative}` nhưng ảnh chưa được liên kết trong visual_plan.json. "
+                "Hãy chạy sửa tính toàn vẹn của gói."
+            )
         elif reference_status == "NOT_APPLICABLE":
             st.info("Visual plan dùng DESCRIPTION_ONLY nên không có ảnh tham chiếu nhân vật.")
 

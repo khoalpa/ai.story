@@ -170,6 +170,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
     check("manifest_files", row_ok, "Danh sách manifest hợp lệ.", "manifest.files không hợp lệ.")
     actual_payload, listed = set(members) - {"manifest.json"}, set(indexed)
     file_set_ok = row_ok and actual_payload == listed
+    file_set_error: str | None = None
     if type(stage) is int and stage_label:
         try:
             expected_payload = _expected_payload(members, stage)
@@ -180,9 +181,14 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
                 file_set_ok = file_set_ok and actual_payload == expected_payload
             else:
                 file_set_ok = file_set_ok and required_payload <= actual_payload <= expected_payload
-        except (ValueError, KeyError, TypeError):
+        except (ValueError, KeyError, TypeError) as exc:
             file_set_ok = False
-    check("file_set", file_set_ok, f"Exact file set Stage {stage} hợp lệ.", "File set không đúng stage/schema v4.1.6.")
+            file_set_error = str(exc)
+    file_set_bad = (
+        f"Không thể xác định file set do visual plan không hợp lệ: {file_set_error}"
+        if file_set_error else "File set không đúng stage/schema v4.1.6."
+    )
+    check("file_set", file_set_ok, f"Exact file set Stage {stage} hợp lệ.", file_set_bad)
     digest_ok = row_ok
     for path, row in indexed.items():
         raw = members.get(path)
@@ -216,6 +222,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
           "validation_report.json không khớp manifest hoặc closed schema v4.1.6.")
 
     image_ok = True
+    image_error: str | None = None
     if type(stage) is int and stage_label and stage >= 2 and "visual_plan.json" in members:
         try:
             plan = read_json(members["visual_plan.json"])
@@ -250,10 +257,15 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
                             raise ValueError("visual_plan.targets phải chứa object theo tỷ lệ")
                         if target.get("size_policy") == "EXACT":
                             image_ok = image_ok and (width, height) == (target.get("width"), target.get("height"))
-        except (KeyError, TypeError, ValueError, UnidentifiedImageError, OSError):
+        except (KeyError, TypeError, ValueError, UnidentifiedImageError, OSError) as exc:
             image_ok = False
+            image_error = str(exc)
+    image_bad = (
+        f"Không thể kiểm tra ảnh do visual plan hoặc tệp ảnh không hợp lệ: {image_error}"
+        if image_error else "Ảnh không phải PNG hợp lệ hoặc sai orientation/size policy."
+    )
     check("image_files", image_ok, "PNG giải mã được và đạt orientation/size policy.",
-          "Ảnh không phải PNG hợp lệ hoặc sai orientation/size policy.")
+          image_bad)
     success = all(row["status"] == "PASS" for row in checks)
     payload_rows = [dict(indexed[path]) for path in sorted(indexed)] if row_ok else []
     return {"status": "PASS" if success else "FAIL", "integrity_status": "PASS" if success else "FAIL",

@@ -19,6 +19,10 @@ from studio.prompt_contract import (
 from studio.reference_samples import (
     REFERENCE_PACKAGE_DIRECTORY,
     REFERENCE_PACKAGE_NAMES,
+    ReferenceDataset,
+    discover_reference_datasets,
+    get_reference_dataset,
+    load_dataset_package,
     load_reference_package,
 )
 from studio.workflow_package import inspect_directory
@@ -148,12 +152,22 @@ def _first_failure(result: Mapping[str, Any]) -> str:
 
 def inspect_reference_packages(
     templates_directory: Path = REFERENCE_PACKAGE_DIRECTORY,
+    dataset: ReferenceDataset | None = None,
 ) -> list[dict[str, object]]:
-    """Inspect the four v4.1.6 example archives with the production validator."""
+    """Inspect a selected dataset, retaining the legacy directory argument."""
     rows: list[dict[str, object]] = []
-    for package_name in REFERENCE_PACKAGE_NAMES:
+    packages = (
+        tuple(dataset.packages.items())
+        if dataset is not None
+        else tuple((stage, name) for name, stage in zip(REFERENCE_PACKAGE_NAMES, ("STAGE1", "STAGE2", "STAGE3", "STAGE4")))
+    )
+    for stage, package_name in packages:
         try:
-            members, result = load_reference_package(package_name, templates_directory)
+            members, result = (
+                load_dataset_package(dataset, stage)
+                if dataset is not None
+                else load_reference_package(package_name, templates_directory)
+            )
             failed = sum(row.get("status") != "PASS" for row in result.get("checks", []))
             rows.append(
                 {
@@ -178,6 +192,19 @@ def inspect_reference_packages(
                     "Chi tiết": str(exc),
                 }
             )
+    if dataset is not None and dataset.project_directory is not None:
+        result = inspect_directory(dataset.directory / dataset.project_directory)
+        rows.append(
+            {
+                "Gói": "Project đã giải nén",
+                "Giai đoạn": result.get("stage") or "—",
+                "Trạng thái": result.get("status", "FAIL"),
+                "Tương thích": result.get("compatibility", "UNSUPPORTED"),
+                "Số tệp": len(result.get("files", [])),
+                "Kiểm tra lỗi": sum(row.get("status") != "PASS" for row in result.get("checks", [])),
+                "Chi tiết": "" if result.get("status") == "PASS" else _first_failure(result),
+            }
+        )
     return rows
 
 
@@ -244,31 +271,37 @@ def _render_structure(document: PromptDocument) -> None:
     )
 
 
-def _render_reference_packages() -> None:
+def _render_reference_packages(dataset: ReferenceDataset) -> None:
     import streamlit as st
 
-    st.caption("Bốn ZIP phát hành cùng prompt được mở trong bộ nhớ và kiểm bằng hợp đồng v4.1.6 hiện hành.")
-    rows = inspect_reference_packages()
+    st.caption(f"Đang kiểm tra bộ `{dataset.set_id}` bằng hợp đồng v4.1.6 hiện hành.")
+    rows = inspect_reference_packages(dataset=dataset)
     st.dataframe(rows, hide_index=True, width="stretch")
     if rows and all(
         row["Trạng thái"] == "PASS" and row["Tương thích"] == "NATIVE_CURRENT"
         for row in rows
     ):
-        st.success("Cả bốn ZIP mẫu đều đạt kiểm tra v4.1.6.")
+        st.success("Bộ dữ liệu tham chiếu đạt kiểm tra v4.1.6.")
     else:
         st.error("Có ZIP mẫu thiếu, hỏng hoặc không đúng hợp đồng v4.1.6.")
 
 
-def _render_reference_story(output_directory: Path | None = None) -> None:
+def _render_reference_story(
+    output_directory: Path | None = None, dataset: ReferenceDataset | None = None,
+) -> None:
     import streamlit as st
 
     if output_directory is None:
         try:
-            _members, result = load_reference_package("story_video_prompts.zip")
+            selected = dataset or get_reference_dataset()
+            if selected.project_directory is not None:
+                result = inspect_directory(selected.directory / selected.project_directory)
+            else:
+                _members, result = load_dataset_package(selected, "STAGE4")
         except (OSError, ValueError) as exc:
             st.error(str(exc))
             return
-        st.caption("Truyện tham khảo được đọc từ ZIP mẫu Stage 4 đã xác minh checksum.")
+        st.caption(f"Truyện tham khảo được đọc từ bộ `{selected.set_id}`.")
     else:
         result = inspect_directory(output_directory)
     columns = st.columns(4)
@@ -302,6 +335,24 @@ def render_prompt_library_workspace(*, embedded: bool = False) -> None:
         st.error(f"Không nạp được hợp đồng v4.1.6: {exc}")
         return
     st.caption(f"`{document.path.name}` · SHA-256 `{contract.sha256}`")
+    try:
+        datasets = discover_reference_datasets()
+        default_dataset = get_reference_dataset()
+    except ValueError as exc:
+        st.error(f"Không nạp được registry dữ liệu tham chiếu: {exc}")
+        return
+    selected_id = st.selectbox(
+        "Bộ dữ liệu tham chiếu",
+        [dataset.set_id for dataset in datasets],
+        index=[dataset.set_id for dataset in datasets].index(default_dataset.set_id),
+        format_func=lambda value: next(dataset.label for dataset in datasets if dataset.set_id == value),
+        key="reference_dataset_id",
+    )
+    selected_dataset = next(dataset for dataset in datasets if dataset.set_id == selected_id)
+    details = [f"Prompt {selected_dataset.prompt_version}"]
+    if selected_dataset.tags:
+        details.append(" · ".join(selected_dataset.tags))
+    st.caption(" · ".join(details))
     reader, structure, packages, story = st.tabs(
         ["Đọc prompt", "Cấu trúc v4.1.6", "ZIP mẫu", "Gói truyện mẫu"]
     )
@@ -310,9 +361,9 @@ def render_prompt_library_workspace(*, embedded: bool = False) -> None:
     with structure:
         _render_structure(document)
     with packages:
-        _render_reference_packages()
+        _render_reference_packages(selected_dataset)
     with story:
-        _render_reference_story()
+        _render_reference_story(dataset=selected_dataset)
 
 
 __all__ = [

@@ -82,6 +82,22 @@ def test_declared_landscape_image_is_verified(sample_package_members, kind):
     failed(packages.inspect_members(members), "image_files")
 
 
+def test_invalid_visual_plan_reports_the_actual_contract_error(sample_package_members):
+    members = dict(sample_package_members("story_stage2.zip"))
+    plan = json.loads(members["visual_plan.json"])
+    plan["assets"][0]["basename"] = "cover"
+    rebind(members, "visual_plan.json", encoded(plan))
+
+    result = packages.inspect_members(members)
+    file_set = next(row for row in result["checks"] if row["check"] == "file_set")
+    image_files = next(row for row in result["checks"] if row["check"] == "image_files")
+
+    assert "visual plan" in file_set["detail"]
+    assert "basename" in file_set["detail"]
+    assert "visual plan" in image_files["detail"]
+    assert "basename" in image_files["detail"]
+
+
 @pytest.mark.parametrize("name", ["../outside.json", "/absolute.json", "C:/escape.json", "bad\\path.json"])
 def test_directory_does_not_read_unsafe_manifest_paths(tmp_path, monkeypatch, name):
     (tmp_path / "manifest.json").write_bytes(encoded({"files": [{"path": name}]}))

@@ -20,6 +20,11 @@ from studio.project_review import (
     inspect_selected_workflow,
 )
 from studio.story_images import image_metadata
+from studio.workflow_builder import (
+    plan_directory_integrity_repair,
+    repair_directory_integrity,
+    restore_integrity_backup,
+)
 from studio.workflow_package import (
     STAGES,
     active_image_basenames,
@@ -105,6 +110,60 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
         st.caption(f"Bước kế tiếp theo manifest: {result['next_stage']} · chỉ thực hiện khi toàn bộ gate đầu vào đạt.")
     if result.get("expected_count") is not None:
         st.caption(f"File trong phạm vi gói: {result['actual_count']}/{result['expected_count']} · không đếm file audio/video sản xuất ngoài gói.")
+
+
+def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
+    """Preview and apply guarded integrity repairs for a directory package."""
+    import streamlit as st
+
+    failed_checks = {
+        str(row.get("check")) for row in result.get("checks", [])
+        if isinstance(row, Mapping) and row.get("status") == "FAIL"
+    }
+    backup_key = f"workflow_repair_backup_{root.resolve()}"
+    backup_value = st.session_state.get(backup_key)
+    if backup_value:
+        st.success("Lần sửa gần nhất đã đạt kiểm định. Bản sao lưu vẫn được giữ để hoàn tác.")
+        if st.button("Hoàn tác lần sửa gần nhất", key=f"workflow_repair_undo_{root.resolve()}"):
+            try:
+                restore_integrity_backup(root, Path(backup_value))
+            except (OSError, ValueError) as exc:
+                st.error(f"Hoàn tác thất bại: {exc}")
+            else:
+                st.session_state.pop(backup_key, None)
+                st.success("Đã khôi phục các tệp từ bản sao lưu.")
+                st.rerun()
+    repairable_checks = {"manifest_files", "file_set", "file_digest"}
+    if result.get("archive") or not failed_checks or not failed_checks.issubset(repairable_checks):
+        return
+    try:
+        plan = plan_directory_integrity_repair(root)
+    except (OSError, ValueError, KeyError) as exc:
+        st.error(f"Không thể phân tích phương án sửa: {exc}")
+        return
+    if not plan["actions"] and not plan["blockers"]:
+        return
+    st.subheader("Sửa tính toàn vẹn gói")
+    st.warning(f"Phát hiện {len(failed_checks)} lỗi kiểm định có thể phân tích tại máy.")
+    with st.expander("Xem trước thay đổi", expanded=True):
+        for action in plan["actions"]:
+            st.markdown(f"- {action['detail']}")
+            paths = action.get("paths") or [row["path"] for row in action.get("links", [])]
+            if paths:
+                st.caption(" · ".join(paths))
+        for blocker in plan["blockers"]:
+            st.error(blocker)
+    st.caption("Ứng dụng tạo bản sao lưu, sửa trên ứng viên, kiểm định toàn bộ rồi mới ghi manifest và ZIP checkpoint.")
+    if st.button("Tạo bản sao lưu và sửa tất cả", type="primary", disabled=not plan["can_repair"], key=f"workflow_repair_integrity_{root.resolve()}"):
+        try:
+            repaired, backup = repair_directory_integrity(root)
+        except (OSError, ValueError, KeyError) as exc:
+            st.error(f"Sửa tính toàn vẹn thất bại: {exc}")
+        else:
+            if repaired.get("status") == "PASS":
+                st.session_state[backup_key] = str(backup)
+                st.success("Đã sửa, tạo lại ZIP checkpoint và kiểm định toàn bộ thành công.")
+                st.rerun()
 
 
 def video_plan_model(plan: Mapping[str, Any]) -> dict[str, Any]:
@@ -447,6 +506,8 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Mut
     if comparison:
         (st.success if comparison["status"] == "PASS" else st.error)(comparison["detail"])
     st.dataframe(result["checks"], hide_index=True, width="stretch")
+    if source == DIRECTORY_SOURCE:
+        render_manifest_repair(root, result)
     st.caption("Phạm vi kiểm tra: schema manifest, allowlist, hash/size, ownership, CRC và parent trực tiếp khi được cung cấp. Không chứng nhận an toàn/nội dung/mỹ thuật chỉ từ metadata.")
     if result["compatibility"] != "NATIVE_CURRENT":
         st.error("UNSUPPORTED: gói không đúng v4.1.6 và sẽ không được mở ở chế độ tương thích.")

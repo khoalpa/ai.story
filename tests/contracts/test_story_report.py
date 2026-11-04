@@ -76,6 +76,23 @@ def test_character_reference_does_not_treat_pending_path_as_ready(tmp_path: Path
     assert _character_reference(tmp_path, "c001") == (None, "PENDING", "")
 
 
+def test_character_reference_reports_existing_unlinked_file(tmp_path: Path) -> None:
+    (tmp_path / "characters").mkdir()
+    (tmp_path / "characters" / "c001.png").write_bytes(b"png fixture")
+    (tmp_path / "visual_plan.json").write_text(json.dumps({
+        "reference_mode": "DESCRIPTION_ONLY",
+        "characters": [{
+            "character_id": "c001", "planned_reference_path": None,
+            "reference_path": None, "reference_status": "NOT_APPLICABLE",
+            "description_lock": "Mai",
+        }],
+    }), encoding="utf-8")
+
+    assert _character_reference(tmp_path, "c001") == (
+        None, "UNLINKED_FILE", "characters/c001.png",
+    )
+
+
 def test_single_page_reader_does_not_render_degenerate_slider() -> None:
     class StreamlitStub:
         def select_slider(self, *args: object, **kwargs: object) -> int:

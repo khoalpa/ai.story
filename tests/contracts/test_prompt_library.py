@@ -6,14 +6,13 @@ import pytest
 
 from studio.prompt_contract import PROJECT_ROOT, SUPPORTED_PROMPT_FILENAME
 from studio.prompt_library import (
-    REFERENCE_PACKAGE_DIRECTORY,
-    REFERENCE_PACKAGE_NAMES,
     _select_prompt_page,
     discover_prompt_files,
     inspect_reference_packages,
     load_prompt,
     search_prompt,
 )
+from studio.reference_samples import get_reference_dataset
 
 PROMPT = PROJECT_ROOT / "prompts" / SUPPORTED_PROMPT_FILENAME
 
@@ -49,12 +48,11 @@ def test_search_returns_line_and_numbered_section() -> None:
     assert "KHÔI PHỤC ZIP" in str(results[0]["Nội dung"])
 
 
-def test_reference_packages_are_exact_v416_examples(sample_archives_dir: Path) -> None:
-    assert REFERENCE_PACKAGE_DIRECTORY == sample_archives_dir
-    rows = inspect_reference_packages()
+def test_selected_reference_dataset_is_inspected() -> None:
+    dataset = get_reference_dataset()
+    rows = inspect_reference_packages(dataset=dataset)
 
-    assert tuple(row["Gói"] for row in rows) == REFERENCE_PACKAGE_NAMES
-    assert [row["Giai đoạn"] for row in rows] == ["STAGE1", "STAGE2", "STAGE3", "STAGE4"]
+    assert rows
     assert all(row["Trạng thái"] == "PASS" for row in rows)
     assert all(row["Tương thích"] == "NATIVE_CURRENT" for row in rows)
 

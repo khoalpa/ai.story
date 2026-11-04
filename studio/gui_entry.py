@@ -20,6 +20,7 @@ def main() -> int:
         from studio.navigation import pipeline_step_for_workspace
         from studio.overview import render_overview
         from studio.prompt_library import render_prompt_library_workspace
+        from studio.safe_exit import render_safe_exit
         from studio.story_studio import (
             render_story_studio_navigation,
             render_story_studio_workspace,
@@ -50,6 +51,9 @@ def main() -> int:
     render_streamlit()
 
     st.title(app_title)
+
+    if render_safe_exit():
+        return 0
 
     from studio.prompt_contract import (
         PROMPT_FILE_ENV,

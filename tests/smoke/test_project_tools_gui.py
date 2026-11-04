@@ -30,3 +30,12 @@ def test_project_tools_gui_surfaces_qa_release_commands() -> None:
     assert "check_wheel_contents.py" in content
     assert "release_smoke.py" in content
 
+
+def test_project_tools_gui_surfaces_safe_json_formatter() -> None:
+    content = (ROOT / "studio" / "project_tools.py").read_text(encoding="utf-8")
+    assert "Làm đẹp tệp JSON" in content
+    assert "format_json_file" in content
+    assert '"Chọn tệp"' in content
+    assert "choose_json_file" in content
+    assert "studio_json_formatter_confirm_overwrite" in content
+
