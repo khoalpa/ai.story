@@ -18,6 +18,7 @@ def test_story_studio_section_order_is_stable() -> None:
         "Kiểm định",
         "Chất lượng",
         "Visual Bible",
+        "Bộ ảnh nhân vật",
         "Tài nguyên",
         "Kế hoạch video",
         "Âm thanh & phụ đề",

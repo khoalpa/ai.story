@@ -14,8 +14,16 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
-SUPPORTED_PROMPT_VERSION = (4, 1, 6)
-SUPPORTED_PROMPT_FILENAME = "ChatGPT_prompt_v4.1.6.txt"
+CURRENT_PROMPT_VERSION = (4, 2, 0)
+CURRENT_PROMPT_FILENAME = "ChatGPT_prompt_v4.2.0.txt"
+SUPPORTED_PROMPT_VERSIONS = ((4, 1, 6), CURRENT_PROMPT_VERSION)
+SUPPORTED_PROMPT_FILENAMES = tuple(
+    f"ChatGPT_prompt_v{'.'.join(map(str, version))}.txt"
+    for version in SUPPORTED_PROMPT_VERSIONS
+)
+# Compatibility aliases retained for callers that mean "the active prompt".
+SUPPORTED_PROMPT_VERSION = CURRENT_PROMPT_VERSION
+SUPPORTED_PROMPT_FILENAME = CURRENT_PROMPT_FILENAME
 PROMPT_FILENAME = re.compile(r"^ChatGPT_prompt_v(\d+)\.(\d+)\.(\d+)\.txt$", re.IGNORECASE)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROMPTS_DIRECTORY = PROJECT_ROOT / "prompts"
@@ -65,6 +73,8 @@ class PromptContract:
     current_public_schema_registry: Mapping[str, Any] | None = None
     current_enum_registry: Mapping[str, Any] | None = None
     current_config_registry: Mapping[str, Any] | None = None
+    character_pack_version: str | None = None
+    supports_character_image_pack: bool = False
 
     @property
     def version_label(self) -> str:
@@ -81,8 +91,7 @@ def _version(path: Path) -> tuple[int, int, int]:
 def discover_canonical_prompts(directory: Path = DEFAULT_PROMPTS_DIRECTORY) -> list[Path]:
     if not directory.is_dir():
         return []
-    path = directory / SUPPORTED_PROMPT_FILENAME
-    return [path] if path.is_file() else []
+    return [directory / name for name in SUPPORTED_PROMPT_FILENAMES if (directory / name).is_file()]
 
 
 def prompt_directories() -> tuple[Path, ...]:
@@ -113,7 +122,8 @@ def canonical_prompt_path(directory: Path | None = None) -> Path:
     for candidate in directories:
         paths = discover_canonical_prompts(candidate)
         if paths:
-            return paths[0]
+            current = candidate / CURRENT_PROMPT_FILENAME
+            return current if current in paths else paths[-1]
     searched = ", ".join(str(item) for item in directories)
     raise FileNotFoundError(
         f"Không tìm thấy ChatGPT_prompt_v*.*.*.txt trong: {searched}. "
@@ -122,10 +132,22 @@ def canonical_prompt_path(directory: Path | None = None) -> Path:
 
 
 def prompt_contract_for_version(version_label: str, *, directory: Path | None = None) -> PromptContract:
-    """Load the sole supported contract; older packages are deliberately rejected."""
-    if version_label != "4.1.6":
-        raise ValueError(f"Chỉ hỗ trợ prompt v4.1.6, nhận {version_label!r}")
-    return load_prompt_contract((directory / SUPPORTED_PROMPT_FILENAME) if directory else None)
+    """Load an explicitly supported prompt contract without upgrading it."""
+    try:
+        version = tuple(int(part) for part in version_label.split("."))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Phiên bản prompt không hợp lệ: {version_label!r}") from exc
+    if version not in SUPPORTED_PROMPT_VERSIONS:
+        supported = ", ".join(".".join(map(str, item)) for item in SUPPORTED_PROMPT_VERSIONS)
+        raise ValueError(f"Chỉ hỗ trợ prompt {supported}; nhận {version_label!r}")
+    filename = f"ChatGPT_prompt_v{version_label}.txt"
+    if directory is not None:
+        return load_prompt_contract(directory / filename)
+    for candidate in prompt_directories():
+        path = candidate / filename
+        if path.is_file():
+            return load_prompt_contract(path)
+    raise FileNotFoundError(f"Không tìm thấy {filename}")
 
 
 def _literal(text: str, name: str) -> str:
@@ -262,12 +284,14 @@ def _size(text: str, name: str) -> tuple[int, int]:
 
 def load_prompt_contract(path: Path | None = None) -> PromptContract:
     resolved = (path or canonical_prompt_path()).resolve()
-    if _version(resolved) != SUPPORTED_PROMPT_VERSION:
-        raise ValueError(f"Chỉ hỗ trợ {SUPPORTED_PROMPT_FILENAME}")
+    version = _version(resolved)
+    if version not in SUPPORTED_PROMPT_VERSIONS:
+        raise ValueError(f"Chỉ hỗ trợ {', '.join(SUPPORTED_PROMPT_FILENAMES)}")
     raw = resolved.read_bytes()
     text = raw.decode("utf-8-sig")
-    if not text.startswith("CHATGPT AUDIO STORY PACKAGE — v4.1.6"):
-        raise ValueError("Nội dung prompt không phải hợp đồng v4.1.6")
+    version_label = ".".join(map(str, version))
+    if not text.startswith(f"CHATGPT AUDIO STORY PACKAGE — v{version_label}"):
+        raise ValueError(f"Nội dung prompt không phải hợp đồng v{version_label}")
     # v4.1.6 is a prose-first, self-contained contract.  These values are a
     # typed projection of its public schema, not aliases copied from an older
     # registry and not the result of replacing version strings.
@@ -277,7 +301,7 @@ def load_prompt_contract(path: Path | None = None) -> PromptContract:
         "farewell.png", "outro.png",
     )
     return PromptContract(
-        path=resolved, version=SUPPORTED_PROMPT_VERSION,
+        path=resolved, version=version,
         sha256=hashlib.sha256(raw).hexdigest(), image_basenames=basenames,
         landscape_size=(0, 0), portrait_size=(0, 0),
         story_validation_schema_version="4.1.3",
@@ -303,6 +327,8 @@ def load_prompt_contract(path: Path | None = None) -> PromptContract:
         current_public_schema_registry=MappingProxyType({}),
         current_enum_registry=MappingProxyType({}),
         current_config_registry=MappingProxyType({}),
+        character_pack_version="1.0" if version == (4, 2, 0) else None,
+        supports_character_image_pack=version == (4, 2, 0),
     )
 
     # Parser for registry-based pre-v4 prompts intentionally remains below as
@@ -378,6 +404,8 @@ def load_prompt_contract(path: Path | None = None) -> PromptContract:
 
 
 __all__ = [
-    "DEFAULT_PROMPTS_DIRECTORY", "PROJECT_ROOT", "PROMPT_FILE_ENV", "PromptContract", "canonical_prompt_path",
+    "CURRENT_PROMPT_FILENAME", "CURRENT_PROMPT_VERSION", "DEFAULT_PROMPTS_DIRECTORY", "PROJECT_ROOT",
+    "PROMPT_FILE_ENV", "SUPPORTED_PROMPT_FILENAME", "SUPPORTED_PROMPT_FILENAMES",
+    "SUPPORTED_PROMPT_VERSION", "SUPPORTED_PROMPT_VERSIONS", "PromptContract", "canonical_prompt_path",
     "discover_canonical_prompts", "load_prompt_contract", "prompt_contract_for_version", "prompt_directories",
 ]

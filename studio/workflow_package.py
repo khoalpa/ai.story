@@ -17,8 +17,12 @@ from typing import Any, Mapping, Sequence
 
 from PIL import Image, UnidentifiedImageError
 
-from studio.artifact_validation import strict_json_bytes
-from studio.prompt_contract import PromptContract, load_prompt_contract
+from studio.artifact_validation import strict_json_bytes, validate_series_anchor_bytes
+from studio.prompt_contract import (
+    PromptContract,
+    load_prompt_contract,
+    prompt_contract_for_version,
+)
 
 WORKFLOW_FILES = {"workflow": "manifest.json", "visual_bible": "visual_plan.json", "video_prompts": "video_prompts.json"}
 STAGES = ("STAGE1", "STAGE2", "STAGE3", "STAGE4")
@@ -129,20 +133,80 @@ def package_digest(rows: Sequence[Mapping[str, Any]]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _stage_gate_assessment(members: Mapping[str, bytes], contract: PromptContract) -> tuple[str, str]:
+    """Resolve required report gates, replacing the legacy external anchor check locally."""
+    try:
+        report = read_json(members["validation_report.json"])
+    except (KeyError, ValueError):
+        return "FAIL", "Không đọc được validation_report.json để tổng hợp gate."
+    checks = report.get("checks")
+    if not isinstance(checks, list):
+        return "FAIL", "validation_report.checks phải là array."
+    unresolved: list[str] = []
+    failed: list[str] = []
+    resolved_anchor = False
+    if "series_anchor.json" in members:
+        anchor_result = validate_series_anchor_bytes(members["series_anchor.json"], contract)
+        resolved_anchor = anchor_result.status == "PASS"
+        if not resolved_anchor:
+            failed.extend(f"ANCHOR_NESTED_SCHEMA: {message}" for message in anchor_result.errors)
+    for row in checks:
+        if not isinstance(row, Mapping) or row.get("required") is not True:
+            continue
+        identifier = str(row.get("id") or "UNKNOWN_GATE")
+        status = str(row.get("status") or "NOT_CHECKED")
+        if identifier == "ANCHOR_EXTERNAL_NESTED_SCHEMA" and resolved_anchor:
+            continue
+        if status == "FAIL":
+            failed.append(identifier)
+        elif status not in {"PASS", "NOT_APPLICABLE"}:
+            unresolved.append(identifier)
+    if failed:
+        return "FAIL", "Gate bắt buộc không đạt: " + "; ".join(failed[:4])
+    if unresolved:
+        return "NOT_VERIFIED", "Gate bắt buộc chưa có bằng chứng: " + ", ".join(unresolved)
+    return "PASS", "Mọi gate bắt buộc đã đạt bằng chứng deterministic hoặc report hợp lệ."
+
+
+def aggregate_package_status(integrity_status: str, gate_status: str, completion_status: str) -> tuple[str, str]:
+    """Return user-facing aggregate and publish status without conflating its three inputs."""
+    if integrity_status == "FAIL" or gate_status == "FAIL":
+        return "FAIL", "FAIL"
+    if integrity_status != "PASS" or gate_status != "PASS":
+        return "NOT_VERIFIED", "FAIL"
+    if completion_status != "COMPLETE":
+        return "PARTIAL", "FAIL"
+    return "PASS", "PASS"
+
+
 def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, parent: Mapping[str, bytes] | None = None,
                     contract: PromptContract | None = None, overridden: bool = False) -> dict[str, Any]:
-    contract = contract or load_prompt_contract()
     checks: list[dict[str, str]] = []
     def check(name: str, ok: bool, good: str, bad: str) -> None:
         checks.append({"check": name, "status": "PASS" if ok else "FAIL", "detector_class": "DETERMINISTIC", "detail": good if ok else bad})
     if "manifest.json" not in members:
         check("manifest_schema", False, "", "Thiếu manifest.json v4.1.6")
-        return {"status": "FAIL", "integrity_status": "FAIL", "publish_status": "FAIL", "compatibility": "UNSUPPORTED", "stage": None, "checks": checks, "files": [], "manifest": {}, "actual_package_digest_sha256": None}
+        return {"status": "FAIL", "overall_status": "FAIL", "integrity_status": "FAIL",
+                "stage_gate_status": "NOT_VERIFIED", "package_completion_status": "UNKNOWN",
+                "publish_status": "FAIL", "compatibility": "UNSUPPORTED", "stage": None,
+                "checks": checks, "files": [], "manifest": {}, "actual_package_digest_sha256": None}
     try:
         manifest = read_json(members["manifest.json"])
     except ValueError as exc:
         check("manifest_schema", False, "", f"manifest.json không hợp lệ: {exc}")
-        return {"status": "FAIL", "integrity_status": "FAIL", "publish_status": "FAIL", "compatibility": "UNSUPPORTED", "stage": None, "checks": checks, "files": [], "manifest": {}, "actual_package_digest_sha256": None}
+        return {"status": "FAIL", "overall_status": "FAIL", "integrity_status": "FAIL",
+                "stage_gate_status": "NOT_VERIFIED", "package_completion_status": "UNKNOWN",
+                "publish_status": "FAIL", "compatibility": "UNSUPPORTED", "stage": None,
+                "checks": checks, "files": [], "manifest": {}, "actual_package_digest_sha256": None}
+    if contract is None:
+        try:
+            contract = prompt_contract_for_version(str(manifest.get("prompt_version") or ""))
+        except (OSError, ValueError) as exc:
+            check("prompt_contract", False, "", str(exc))
+            return {"status": "FAIL", "overall_status": "FAIL", "integrity_status": "FAIL",
+                    "stage_gate_status": "NOT_VERIFIED", "package_completion_status": "UNKNOWN",
+                    "publish_status": "FAIL", "compatibility": "UNSUPPORTED", "stage": None,
+                    "checks": checks, "files": [], "manifest": manifest, "actual_package_digest_sha256": None}
     stage, rows = manifest.get("stage"), manifest.get("files")
     stage_label = _stage_label(stage)
     digest_pattern = re.compile(r"[0-9a-f]{64}")
@@ -151,7 +215,8 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
                  and manifest.get("prompt_version") == contract.version_label and stage_label is not None
                  and manifest.get("status") in ("COMPLETE", "PARTIAL", "BLOCKED")
                  and (parent_digest is None or isinstance(parent_digest, str) and digest_pattern.fullmatch(parent_digest) is not None))
-    check("manifest_schema", schema_ok, "Manifest v4.1.6 / schema 4.1.3 hợp lệ.", "Manifest không đúng schema v4.1.6 (không hỗ trợ gói cũ).")
+    check("manifest_schema", schema_ok, f"Manifest v{contract.version_label} / schema 4.1.3 hợp lệ.",
+          f"Manifest không đúng schema của prompt v{contract.version_label}.")
     row_ok, indexed = isinstance(rows, list), {}
     if isinstance(rows, list):
         paths = []
@@ -186,7 +251,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
             file_set_error = str(exc)
     file_set_bad = (
         f"Không thể xác định file set do visual plan không hợp lệ: {file_set_error}"
-        if file_set_error else "File set không đúng stage/schema v4.1.6."
+        if file_set_error else f"File set không đúng stage/schema prompt v{contract.version_label}."
     )
     check("file_set", file_set_ok, f"Exact file set Stage {stage} hợp lệ.", file_set_bad)
     digest_ok = row_ok
@@ -211,7 +276,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
             set(report) == {"schema_version", "prompt_version", "stage", "status", "input_sources",
                             "checks", "limitations", "remaining_work", "archive_validation"}
             and report.get("schema_version") == "4.1.3"
-            and report.get("prompt_version") == "4.1.6"
+            and report.get("prompt_version") == contract.version_label
             and report.get("stage") == stage
             and report.get("status") == manifest.get("status")
             and isinstance(report.get("checks"), list)
@@ -219,7 +284,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
     except (KeyError, ValueError):
         report_ok = False
     check("validation_report", report_ok, "Report khớp schema, prompt, stage và trạng thái manifest.",
-          "validation_report.json không khớp manifest hoặc closed schema v4.1.6.")
+          f"validation_report.json không khớp manifest hoặc closed schema v{contract.version_label}.")
 
     image_ok = True
     image_error: str | None = None
@@ -268,8 +333,17 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
           image_bad)
     success = all(row["status"] == "PASS" for row in checks)
     payload_rows = [dict(indexed[path]) for path in sorted(indexed)] if row_ok else []
-    return {"status": "PASS" if success else "FAIL", "integrity_status": "PASS" if success else "FAIL",
-            "publish_status": "PASS" if success and manifest.get("status") == "COMPLETE" else "FAIL",
+    integrity_status = "PASS" if success else "FAIL"
+    completion_status = str(manifest.get("status") or "UNKNOWN")
+    stage_gate_status, gate_detail = _stage_gate_assessment(members, contract)
+    checks.append({"check": "stage_gates", "status": stage_gate_status,
+                   "detector_class": "DETERMINISTIC", "detail": gate_detail})
+    overall_status, publish_status = aggregate_package_status(
+        integrity_status, stage_gate_status, completion_status
+    )
+    return {"status": integrity_status, "overall_status": overall_status,
+            "integrity_status": integrity_status, "stage_gate_status": stage_gate_status,
+            "package_completion_status": completion_status, "publish_status": publish_status,
             "compatibility": "NATIVE_CURRENT" if schema_ok else "UNSUPPORTED", "stage": stage_label,
             "package_stage": stage_label, "checks": checks, "manifest": manifest, "files": payload_rows,
             "actual_package_digest_sha256": package_digest(payload_rows) if row_ok else None,
@@ -295,4 +369,4 @@ def inspect_directory(root: Path, *, overridden: bool = False, parent: Mapping[s
         return result
 
 
-__all__ = ["FILE_FIELDS", "MANIFEST_FIELDS", "PURPOSES", "STAGES", "VALIDATION_FIELDS", "WORKFLOW_FILES", "active_image_basenames", "inspect_directory", "inspect_members", "package_digest", "read_archive", "read_json", "safe_name"]
+__all__ = ["FILE_FIELDS", "MANIFEST_FIELDS", "PURPOSES", "STAGES", "VALIDATION_FIELDS", "WORKFLOW_FILES", "active_image_basenames", "aggregate_package_status", "inspect_directory", "inspect_members", "load_prompt_contract", "package_digest", "read_archive", "read_json", "safe_name"]

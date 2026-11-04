@@ -174,10 +174,10 @@ def render_workspace_tab() -> None:
             st.rerun()
         _sync_editor_state("canonical_json_text", "canonical_editor")
         if project_story is not None:
-            st.caption(f"Gói v4.1.6 đã kiểm tra từ Thư mục dữ liệu dự án · `{project_story}`")
+            st.caption(f"Gói prompt v4.1.6/v4.2.0 đã kiểm tra từ Thư mục dữ liệu dự án · `{project_story}`")
         uploaded_canonical = st.file_uploader(
-            "Tải story.json hoặc gói ZIP v4.1.6", type=["json", "zip"], key="canonical_upload",
-            help="Chỉ nhận schema 4.1.3 từ prompt v4.1.6; gói cũ không được mở ở chế độ tương thích.",
+            "Tải story.json hoặc gói ZIP prompt v4", type=["json", "zip"], key="canonical_upload",
+            help="Nhận schema 4.1.3 từ prompt v4.1.6/v4.2.0; gói cũ hơn không được mở ở chế độ tương thích.",
         )
         upload_digest = hashlib.sha256(uploaded_canonical.getvalue()).hexdigest() if uploaded_canonical is not None else None
         if uploaded_canonical is None:
@@ -200,7 +200,7 @@ def render_workspace_tab() -> None:
                 render_user_message(
                     UserMessage(
                         level="error", title="Không thể mở nguồn truyện",
-                        body="Tệp không đúng gói v4.1.6 / schema 4.1.3 hoặc kiểm tra toàn vẹn thất bại.",
+                        body="Tệp không đúng gói prompt v4.1.6/v4.2.0 / schema 4.1.3 hoặc kiểm tra toàn vẹn thất bại.",
                         technical_details=str(exc),
                     ),
                     show_details=True,

@@ -21,7 +21,9 @@ from studio.project_review import (
 )
 from studio.story_images import image_metadata
 from studio.workflow_builder import (
+    complete_stage_atomic,
     plan_directory_integrity_repair,
+    plan_stage_completion,
     repair_directory_integrity,
     restore_integrity_backup,
 )
@@ -46,6 +48,7 @@ def workflow_stage_caption(name: str, current_stage: Any, status: str) -> str:
         return "Chưa xác định tiến độ"
     return {
         "PASS": "Stage hiện tại · đạt các phép kiểm tra đã chạy",
+        "PARTIAL": "Stage hiện tại · kiểm định đạt, chưa hoàn tất",
         "FAIL": "Stage hiện tại · có lỗi",
         "NOT_VERIFIED": "Stage hiện tại · chưa xác minh đầy đủ",
     }.get(status, "Stage hiện tại · chưa xác định trạng thái")
@@ -82,7 +85,19 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
     st.subheader("Quy trình gói truyện")
     st.caption(" · ".join(str(v) for v in (stage or "Chưa xác định stage", result.get("purpose"),
                manifest.get("active_profile"), f"Prompt {manifest.get('created_by_prompt_version', '—')}") if v))
-    status = str(result.get("status", "NOT_VERIFIED"))
+    integrity_status = str(result.get("integrity_status") or "NOT_VERIFIED")
+    gate_status = str(result.get("stage_gate_status") or "NOT_VERIFIED")
+    publish_status = str(result.get("publish_status") or "NOT_VERIFIED")
+    completion_status = str(
+        result.get("package_completion_status")
+        or manifest.get("status")
+        or "UNKNOWN"
+    )
+    status = str(result.get("overall_status") or (
+        "FAIL" if integrity_status == "FAIL" or gate_status == "FAIL"
+        else "PASS" if integrity_status == gate_status == publish_status == "PASS"
+        else "NOT_VERIFIED"
+    ))
     image_count = sum(
         1 for row in result.get("files", [])
         if isinstance(row, Mapping) and str(row.get("path", "")).startswith("landscape/")
@@ -94,17 +109,33 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
     for column, name, label in zip(st.columns(4), STAGES, labels):
         column.markdown(f"**{name} · {label}**")
         column.caption(workflow_stage_caption(name, stage, status))
-    message = {"PASS": "Gói đạt các phép kiểm tra đã chạy", "FAIL": "Gói có lỗi cần xử lý",
-               "NOT_VERIFIED": "Chưa đủ bằng chứng xác minh toàn bộ gói"}[status]
+    if status == "PASS" and publish_status == "PASS":
+        message = "Gói đã được xác minh và đủ điều kiện publish"
+    elif status == "FAIL":
+        message = "Gói có lỗi cần xử lý"
+    elif integrity_status == "PASS" and completion_status != "COMPLETE":
+        message = f"Gói hợp lệ về cấu trúc nhưng đang ở trạng thái {completion_status}; chưa đủ điều kiện publish"
+    elif integrity_status == "PASS":
+        message = "Gói hợp lệ về cấu trúc nhưng chưa đủ bằng chứng xác minh; chưa đủ điều kiện publish"
+    else:
+        message = "Chưa đủ bằng chứng xác minh toàn bộ gói"
     (st.error if status == "FAIL" else st.success if status == "PASS" else st.warning)(message)
     if status == "FAIL":
         failures = [str(item.get("detail")) for item in result.get("checks", [])
                     if isinstance(item, Mapping) and item.get("status") == "FAIL" and item.get("detail")]
         if failures:
             st.caption("Nguyên nhân xác định: " + failures[0])
-    st.caption(f"Toàn vẹn & parent trực tiếp: {result.get('integrity_status', 'NOT_VERIFIED')} · "
-               f"Toàn bộ gate của stage: {result.get('stage_gate_status', 'NOT_VERIFIED')} · "
-               f"Đủ điều kiện publish: {result.get('publish_status', 'NOT_VERIFIED')}")
+    blockers = []
+    if integrity_status != "PASS":
+        blockers.append("toàn vẹn gói chưa đạt")
+    if completion_status != "COMPLETE":
+        blockers.append(f"manifest đang là {completion_status}")
+    if gate_status != "PASS":
+        blockers.append(f"gate của stage là {gate_status}")
+    if publish_status != "PASS" and blockers:
+        st.caption("Nguyên nhân chưa thể publish: " + "; ".join(blockers) + ".")
+    st.caption(f"Toàn vẹn & parent trực tiếp: {integrity_status} · Trạng thái manifest: {completion_status} · "
+               f"Toàn bộ gate của stage: {gate_status} · Đủ điều kiện publish: {publish_status}")
     st.caption("Chuyển stage thủ công. Stage 3/4 không yêu cầu audio/video đã render. Báo cáo tự khai PASS không thay thế detector.")
     if result.get("next_stage"):
         st.caption(f"Bước kế tiếp theo manifest: {result['next_stage']} · chỉ thực hiện khi toàn bộ gate đầu vào đạt.")
@@ -133,6 +164,23 @@ def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
                 st.session_state.pop(backup_key, None)
                 st.success("Đã khôi phục các tệp từ bản sao lưu.")
                 st.rerun()
+    if result.get("integrity_status") == "PASS" and result.get("package_completion_status") != "COMPLETE":
+        completion = plan_stage_completion(root)
+        with st.expander("Hoàn tất Stage", expanded=bool(completion["can_complete"])):
+            if completion["blockers"]:
+                for blocker in completion["blockers"]:
+                    st.warning(blocker)
+            else:
+                st.caption(" · ".join(completion["changes"]))
+                if st.button("Xác minh và hoàn tất Stage", key=f"workflow_complete_{root.resolve()}"):
+                    try:
+                        _inspection, backup = complete_stage_atomic(root)
+                    except (OSError, ValueError) as exc:
+                        st.error(f"Không thể hoàn tất Stage: {exc}")
+                    else:
+                        st.session_state[backup_key] = str(backup)
+                        st.success("Stage đã COMPLETE; manifest/hash đã đồng bộ và post-write validation đạt.")
+                        st.rerun()
     repairable_checks = {"manifest_files", "file_set", "file_digest"}
     if result.get("archive") or not failed_checks or not failed_checks.issubset(repairable_checks):
         return
@@ -460,7 +508,7 @@ def render_visual_bible(document: Mapping[str, Any], *, root: Path | None = None
 def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: MutableMapping[str, Any]) -> None:
     import streamlit as st
 
-    st.caption("ZIP được đọc trong bộ nhớ và phải đúng hợp đồng v4.1.6; gói phiên bản cũ bị từ chối.")
+    st.caption("ZIP được đọc trong bộ nhớ và phải đúng prompt v4.1.6/v4.2.0; gói phiên bản cũ hơn bị từ chối.")
     resolved_root = str(root.resolve())
     if state.get(VERIFICATION_ROOT_KEY) != resolved_root:
         state[VERIFICATION_ROOT_KEY] = resolved_root
@@ -486,7 +534,7 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Mut
         if source == UPLOADED_ZIP_SOURCE:
             uploaded = st.file_uploader("Gói cần kiểm định", type=["zip"], key=f"workflow_zip_{root.resolve()}")
             if uploaded is None and not state.get(VERIFICATION_UPLOAD_BYTES_KEY):
-                st.info("Chọn một ZIP v4.1.6: story_stage1.zip, story_stage2.zip, story.zip hoặc story_video_prompts.zip.")
+                st.info("Chọn ZIP prompt v4.1.6/v4.2.0: story_stage1.zip, story_stage2.zip, story.zip hoặc story_video_prompts.zip.")
                 return
             if uploaded is not None:
                 state[VERIFICATION_UPLOAD_BYTES_KEY] = uploaded.getvalue()
@@ -510,7 +558,7 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Mut
         render_manifest_repair(root, result)
     st.caption("Phạm vi kiểm tra: schema manifest, allowlist, hash/size, ownership, CRC và parent trực tiếp khi được cung cấp. Không chứng nhận an toàn/nội dung/mỹ thuật chỉ từ metadata.")
     if result["compatibility"] != "NATIVE_CURRENT":
-        st.error("UNSUPPORTED: gói không đúng v4.1.6 và sẽ không được mở ở chế độ tương thích.")
+        st.error("UNSUPPORTED: gói không đúng prompt v4.1.6/v4.2.0 và sẽ không được mở ở chế độ tương thích.")
     st.dataframe(result["files"], hide_index=True, width="stretch")
     with st.expander("Manifest nguồn"):
         st.json(result["manifest"], expanded=False)

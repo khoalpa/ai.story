@@ -13,7 +13,8 @@ from typing import Any, Mapping
 from studio.workflow_package import inspect_directory, inspect_members, read_archive
 
 SCHEMA_VERSION = "4.1.3"
-PROMPT_VERSION = "4.1.6"
+PROMPT_VERSION = "4.2.0"
+SUPPORTED_PROMPT_VERSIONS = {"4.1.6", "4.2.0"}
 SUPPORTED_STAGES = {"STAGE1", "STAGE2", "STAGE3", "STAGE4"}
 VIDEO_READY_STAGES = {"STAGE2", "STAGE3", "STAGE4"}
 
@@ -71,9 +72,9 @@ def _require_current(inspection: Mapping[str, Any], *, source: str) -> None:
     manifest = inspection.get("manifest")
     if not isinstance(manifest, Mapping):
         raise ValueError(f"{source} thiếu manifest.json v4.1.6 hợp lệ.")
-    if manifest.get("schema_version") != SCHEMA_VERSION or manifest.get("prompt_version") != PROMPT_VERSION:
+    if manifest.get("schema_version") != SCHEMA_VERSION or manifest.get("prompt_version") not in SUPPORTED_PROMPT_VERSIONS:
         raise ValueError(
-            f"{source} phải dùng schema {SCHEMA_VERSION} và prompt {PROMPT_VERSION}; "
+            f"{source} phải dùng schema {SCHEMA_VERSION} và prompt 4.1.6/4.2.0; "
             "gói cũ không được hỗ trợ."
         )
 
@@ -141,7 +142,7 @@ def load_project_directory(root: Path) -> tuple[VideoPackageInputs, dict[str, An
 
 
 __all__ = [
-    "PROMPT_VERSION", "SCHEMA_VERSION", "SUPPORTED_STAGES", "VIDEO_READY_STAGES",
+    "PROMPT_VERSION", "SUPPORTED_PROMPT_VERSIONS", "SCHEMA_VERSION", "SUPPORTED_STAGES", "VIDEO_READY_STAGES",
     "VideoPackageInputs", "inspect_package_bytes", "inspect_project_directory",
     "load_package_bytes", "load_project_directory",
 ]

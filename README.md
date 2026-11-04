@@ -81,10 +81,10 @@ mức độ sẵn sàng của ảnh trước khi dựng slideshow.
 Các tài liệu biên soạn chuẩn nằm trong `prompts/`, theo tên
 `ChatGPT_prompt_vX.Y.Z.txt`; tên tệp có thể có thêm tiền tố số như `01-`. Runtime
 luôn chọn phiên bản semantic mới nhất, đồng thời ghi nhận phiên bản và SHA-256.
-Các prompt cũ chỉ dùng để đối chiếu và không còn là nguồn chuẩn khi đã có phiên
-bản mới hơn.
+Prompt 4.2.0 là nguồn mặc định cho gói mới. Prompt 4.1.6 tiếp tục được hỗ trợ
+để đọc, kiểm tra và xử lý các snapshot hiện có mà không thay version payload.
 
-Kiểm tra một thư mục đầu ra hoặc gói truyện v4.1.6 bằng lệnh:
+Kiểm tra một thư mục đầu ra hoặc gói truyện prompt v4.1.6/v4.2.0 bằng lệnh:
 
 ```bash
 ai-story-audit output

@@ -11,6 +11,7 @@ from studio.audio_delivery_report import (
     read_audio_delivery_override,
     render_audio_delivery,
 )
+from studio.character_pack import render_character_pack_workspace
 from studio.package_quality_report import (
     _items,
     _object,
@@ -68,6 +69,7 @@ STORY_STUDIO_SECTIONS = (
     "Kiểm định",
     "Chất lượng",
     "Visual Bible",
+    "Bộ ảnh nhân vật",
     "Tài nguyên",
     "Kế hoạch video",
     "Âm thanh & phụ đề",
@@ -78,7 +80,7 @@ STORY_STUDIO_SECTIONS = (
 
 STORY_STUDIO_GROUPS = {
     "Tổng quan": ("Tổng quan", "Gói & quy trình"),
-    "Nội dung": ("Nội dung", "Series", "Visual Bible"),
+    "Nội dung": ("Nội dung", "Series", "Visual Bible", "Bộ ảnh nhân vật"),
     "Kiểm định": ("Kiểm định", "Chất lượng"),
     "Sản xuất": ("Tài nguyên", "Kế hoạch video", "Âm thanh & phụ đề", "Video đầu ra"),
     "Dữ liệu kỹ thuật": ("Công cụ",),
@@ -87,6 +89,7 @@ STORY_STUDIO_GROUPS = {
 STORY_STUDIO_SECTION_INTROS = {
     "Gói & quy trình": ("Gói truyện & quy trình", "Kiểm tra manifest, ZIP, bytes kế thừa và bằng chứng theo từng stage; không sửa gói nguồn."),
     "Visual Bible": ("Visual Bible · lineage Stage 2", "Tra cứu kế hoạch hình ảnh và khóa continuity; được giữ read-only trong gói Stage 2–4."),
+    "Bộ ảnh nhân vật": ("Character Image Pack", "Kiểm bộ bốn ảnh mỗi nhân vật và tạo repair snapshot Stage 2 khi liên kết FRONT có chủ đích."),
     "Kế hoạch video": ("Kế hoạch video Stage 4", "Xem timeline, script span, tham chiếu và prompt; không phải video đã render."),
     "Tài nguyên": ("Tài nguyên dự án", "Duyệt ảnh nhân vật, so sánh ngang/dọc và đối chiếu kích thước, SHA-256."),
     "Tổng quan": (
@@ -126,6 +129,7 @@ STORY_STUDIO_SECTION_INTROS = {
 STORY_STUDIO_SECTION_ANCHORS = {
     "Tổng quan": "story-studio-overview",
     "Gói & quy trình": "story-studio-package-workflow",
+    "Bộ ảnh nhân vật": "story-studio-character-image-pack",
     "Nội dung": "story-studio-content",
     "Kiểm định": "story-studio-validation",
     "Chất lượng": "story-studio-quality",
@@ -609,6 +613,9 @@ def _render_story_studio_section(section: str) -> None:
         reports, statuses = _render_source_selector()
         _render_overview(reports, statuses)
         return
+    if section == "Bộ ảnh nhân vật":
+        render_character_pack_workspace()
+        return
 
     reports, statuses = _load_source_from_session()
     directory = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
@@ -632,7 +639,7 @@ def _render_story_studio_section(section: str) -> None:
     elif section == "Kiểm định" and "validation" in reports:
         render_story_validation_report(reports["validation"], include_technical=False)
     elif section == "Chất lượng":
-        st.info("v4.1.6 không có package_quality_report.json riêng. Kết quả chất lượng và giới hạn nằm trong validation_report.json.")
+        st.info("Prompt v4.1.6/v4.2.0 không có package_quality_report.json riêng. Kết quả chất lượng và giới hạn nằm trong validation_report.json.")
         if "validation" in reports:
             render_story_validation_report(reports["validation"], include_technical=False)
     elif section == "Tài nguyên":

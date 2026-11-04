@@ -4,16 +4,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from studio.prompt_contract import PromptContract, load_prompt_contract
+from studio.prompt_contract import PromptContract, prompt_contract_for_version
 from studio.workflow_package import inspect_members, read_archive, read_json
 
 
 def validate_stage4_source(source: Path | bytes, operation: str, *,
                            contract: PromptContract | None = None) -> dict[str, Any]:
-    contract = contract or load_prompt_contract()
     errors: list[str] = []
     try:
         members = read_archive(source)
+        if contract is None:
+            manifest = read_json(members["manifest.json"])
+            contract = prompt_contract_for_version(str(manifest.get("prompt_version") or ""))
         inspection = inspect_members(members, archive=True, contract=contract)
     except (OSError, ValueError) as exc:
         return {"status": "FAIL", "errors": [str(exc)], "members": {}, "inspection": {}}
@@ -27,8 +29,8 @@ def validate_stage4_source(source: Path | bytes, operation: str, *,
         errors.append("Gói nguồn chưa vượt toàn bộ kiểm tra integrity CURRENT.")
     try:
         report = read_json(members["validation_report.json"])
-        if report.get("status") != "COMPLETE" or report.get("prompt_version") != "4.1.6":
-            errors.append("validation_report v4.1.6 chưa COMPLETE.")
+        if report.get("status") != "COMPLETE" or report.get("prompt_version") != contract.version_label:
+            errors.append(f"validation_report v{contract.version_label} chưa COMPLETE.")
     except (KeyError, TypeError, ValueError, UnicodeError) as exc:
         errors.append(f"Validation report không hợp lệ: {exc}")
     if operation == "CREATE" and contract.video_prompt_file_name in members:

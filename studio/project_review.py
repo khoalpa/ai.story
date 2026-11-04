@@ -53,7 +53,9 @@ def inspect_selected_workflow(root: Path, state: Mapping[str, Any], *, overridde
         zip_source = root / "story.zip"
         if not zip_source.is_file():
             result = dict(directory_result)
-            result.update(status="NOT_VERIFIED", integrity_status="NOT_VERIFIED", publish_status="NOT_VERIFIED",
+            result.update(status="NOT_VERIFIED", overall_status="NOT_VERIFIED",
+                          integrity_status="NOT_VERIFIED", stage_gate_status="NOT_VERIFIED",
+                          publish_status="NOT_VERIFIED",
                           verification_source=source, source_comparison=None)
             result["checks"] = [*directory_result["checks"], {
                 "check": "verification_source", "status": "NOT_VERIFIED", "detector_class": "HOST_UNAVAILABLE",
@@ -64,7 +66,9 @@ def inspect_selected_workflow(root: Path, state: Mapping[str, Any], *, overridde
         uploaded = state.get(VERIFICATION_UPLOAD_BYTES_KEY)
         if not isinstance(uploaded, bytes) or not uploaded:
             result = dict(directory_result)
-            result.update(status="NOT_VERIFIED", integrity_status="NOT_VERIFIED", publish_status="NOT_VERIFIED",
+            result.update(status="NOT_VERIFIED", overall_status="NOT_VERIFIED",
+                          integrity_status="NOT_VERIFIED", stage_gate_status="NOT_VERIFIED",
+                          publish_status="NOT_VERIFIED",
                           verification_source=source, source_comparison=None)
             result["checks"] = [*directory_result["checks"], {
                 "check": "verification_source", "status": "NOT_VERIFIED", "detector_class": "HOST_UNAVAILABLE",
@@ -91,7 +95,7 @@ def inspect_selected_workflow(root: Path, state: Mapping[str, Any], *, overridde
         "detail": comparison["detail"],
     }]
     if not matches:
-        result.update(status="FAIL", integrity_status="FAIL", publish_status="FAIL")
+        result.update(status="FAIL", overall_status="FAIL", integrity_status="FAIL", publish_status="FAIL")
     return result
 
 
@@ -131,7 +135,7 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
                 "check": "video_prompt_plan", "status": "FAIL", "detector_class": "DETERMINISTIC",
                 "detail": video_plan_issue.removeprefix("video_prompt_plan: "),
             }]
-            workflow.update(status="FAIL", stage_gate_status="FAIL", publish_status="FAIL")
+            workflow.update(status="FAIL", overall_status="FAIL", stage_gate_status="FAIL", publish_status="FAIL")
         else:
             workflow["checks"] = [*workflow["checks"], {
                 "check": "video_prompt_plan", "status": "PASS", "detector_class": "DETERMINISTIC",
@@ -140,7 +144,7 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
     workflow["video_prompt_validation"] = video_plan_result
     bindings = inspect_report_bindings(root, reports, story_bytes=overrides.get("story"))
     assets = inspect_project_assets(root, reports)
-    issues = ([] if validation.get("prompt_version") == "4.1.6" else
+    issues = ([] if validation.get("prompt_version") in {"4.1.6", "4.2.0"} else
               [{"section": "Kiểm định", "text": text} for text in gate_issues(validation)])
     if video_plan_issue:
         issues.append({"section": "Kế hoạch video", "text": video_plan_issue})
@@ -157,12 +161,16 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
     if validation.get("active_profile") == "SERIAL_DETECTIVE" and not reports.get("anchor"):
         issues.append({"section": "Series", "text": "Hồ sơ SERIAL_DETECTIVE cần series_anchor.json."})
     defects = int(_object(validation.get("summary")).get("material_defect_remaining_count") or 0)
-    validation_ready = (validation.get("status") == "COMPLETE" if validation.get("prompt_version") == "4.1.6"
+    validation_ready = (validation.get("status") == "COMPLETE" if validation.get("prompt_version") in {"4.1.6", "4.2.0"}
                         else gate_summary(validation)["ready"] and defects == 0)
     story_ready = bool(reports.get("story")) and validation_ready and not any(i["section"] in {"Kiểm định", "Nội dung"} for i in issues)
     asset_issues = [row for row in assets if row["issues"]]
     package_ready = story_ready and not issues and not asset_issues
-    locally_verified = workflow["status"] == "PASS" and not overrides
+    locally_verified = (
+        workflow.get("overall_status") == "PASS"
+        and workflow.get("publish_status") == "PASS"
+        and not overrides
+    )
     package_ready = bool(package_ready and locally_verified)
     return {"workflow": workflow, "locally_verified": locally_verified, "story_ready": story_ready, "package_ready": package_ready, "issues": issues,
             "assets": assets, "asset_issues": asset_issues, "bindings": bindings}

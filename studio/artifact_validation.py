@@ -12,7 +12,11 @@ from typing import Any, Iterable, Mapping
 
 from PIL import Image, UnidentifiedImageError
 
-from studio.prompt_contract import PromptContract, load_prompt_contract
+from studio.prompt_contract import (
+    PromptContract,
+    load_prompt_contract,
+    prompt_contract_for_version,
+)
 
 STORY_VALIDATION_FIELDS = (
     "schema_version", "prompt_version", "stage", "status", "input_sources",
@@ -139,8 +143,8 @@ def validate_story_validation(
         schema_version="4.1.3",
     )
     if document is not None:
-        if document.get("prompt_version") != "4.1.6":
-            result.fail("prompt_version phải là 4.1.6")
+        if document.get("prompt_version") != contract.version_label:
+            result.fail(f"prompt_version phải là {contract.version_label}")
         if type(document.get("stage")) is not int or document["stage"] not in range(1, 5):
             result.fail("stage phải là integer 1..4")
         if document.get("status") not in {"COMPLETE", "PARTIAL", "BLOCKED"}:
@@ -239,12 +243,183 @@ def validate_story_validation_bytes(
 
 def validate_series_anchor(path: Path, contract: PromptContract | None = None) -> ValidationResult:
     contract = contract or load_prompt_contract()
-    root = ("schema_version", "series", "canon", "continuity", "episode_ledger", "canon_change_log")
-    result, _document = _validate_json_file(
-        path, required=root, exact_order=root, contract=contract,
-        schema_version=contract.series_anchor_schema_version,
-    )
+    result = _result(path.name, contract)
+    try:
+        document = strict_json_bytes(path.read_bytes())
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        result.fail(f"JSON không hợp lệ: {exc}")
+        return result
+    validate_series_anchor_document(document, result, contract)
     return result
+
+
+def validate_series_anchor_bytes(raw: bytes, contract: PromptContract | None = None) -> ValidationResult:
+    contract = contract or load_prompt_contract()
+    result = _result("series_anchor.json", contract)
+    try:
+        document = strict_json_bytes(raw)
+    except (UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        result.fail(f"JSON không hợp lệ: {exc}")
+        return result
+    validate_series_anchor_document(document, result, contract)
+    return result
+
+
+def _non_empty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _closed_object(result: ValidationResult, value: Any, path: str, fields: set[str]) -> Mapping[str, Any] | None:
+    if not isinstance(value, Mapping):
+        result.fail(f"{path} phải là object")
+        return None
+    if set(value) != fields:
+        result.fail(f"{path} không đúng closed schema; fields={sorted(value)}")
+    return value
+
+
+def _unique_rows(result: ValidationResult, value: Any, path: str, id_key: str,
+                 fields: set[str]) -> list[Mapping[str, Any]]:
+    if not isinstance(value, list):
+        result.fail(f"{path} phải là array")
+        return []
+    rows: list[Mapping[str, Any]] = []
+    ids: list[Any] = []
+    for index, item in enumerate(value):
+        row = _closed_object(result, item, f"{path}[{index}]", fields)
+        if row is None:
+            continue
+        identifier = row.get(id_key)
+        if not (_non_empty_string(identifier) or type(identifier) is int):
+            result.fail(f"{path}[{index}].{id_key} không hợp lệ")
+        ids.append(identifier)
+        rows.append(row)
+    if len(ids) != len(set(ids)):
+        result.fail(f"{path}.{id_key} phải duy nhất")
+    return rows
+
+
+def validate_series_anchor_document(document: Mapping[str, Any], result: ValidationResult,
+                                    contract: PromptContract) -> None:
+    """Validate both the v4.1.6 legacy anchor and normalized v4.2.0 anchor."""
+    if document.get("schema_version") != contract.series_anchor_schema_version:
+        result.fail(f"schema_version phải là {contract.series_anchor_schema_version}")
+    if "series_state" in document:
+        root = {"schema_version", "series_title", "last_completed_episode", "characters", "canon_facts",
+                "open_threads", "resolved_threads", "episode_summaries", "series_state"}
+        if set(document) != root:
+            result.fail("Root series_anchor v4.2.0 không đúng closed schema")
+        last_episode = document.get("last_completed_episode")
+        if not _non_empty_string(document.get("series_title")) or type(last_episode) is not int or last_episode < 0:
+            result.fail("series_title/last_completed_episode không hợp lệ")
+            last_episode = 0
+        characters = _unique_rows(result, document.get("characters"), "characters", "character_id",
+                                  {"character_id", "name", "established_facts", "known_facts"})
+        facts = _unique_rows(result, document.get("canon_facts"), "canon_facts", "fact_id",
+                             {"fact_id", "text", "established_episode"})
+        open_rows = _unique_rows(result, document.get("open_threads"), "open_threads", "thread_id",
+                                 {"thread_id", "description", "clues"})
+        resolved_rows = _unique_rows(result, document.get("resolved_threads"), "resolved_threads", "thread_id",
+                                     {"thread_id", "description", "clues"})
+        summaries = _unique_rows(result, document.get("episode_summaries"), "episode_summaries", "episode",
+                                 {"episode", "summary"})
+        if len({row.get("thread_id") for row in [*open_rows, *resolved_rows]}) != len(open_rows) + len(resolved_rows):
+            result.fail("thread_id phải duy nhất trên open_threads và resolved_threads")
+        if [row.get("episode") for row in summaries] != list(range(1, last_episode + 1)):
+            result.fail("episode_summaries phải liên tục từ 1 tới last_completed_episode")
+        for row in facts:
+            episode = row.get("established_episode")
+            if not _non_empty_string(row.get("text")) or type(episode) is not int or not 1 <= episode <= last_episode:
+                result.fail(f"canon_facts[{row.get('fact_id')}] không hợp lệ")
+        _validate_series_state(result, document.get("series_state"), last_episode, characters, open_rows, resolved_rows)
+    else:
+        _validate_legacy_series_anchor(result, document)
+    result.checks["anchor_nested_schema"] = "PASS" if not result.errors else "FAIL"
+
+
+def _validate_legacy_series_anchor(result: ValidationResult, document: Mapping[str, Any]) -> None:
+    root = {"schema_version", "series", "canon", "continuity", "episode_ledger", "canon_change_log"}
+    if set(document) != root:
+        result.fail("Root series_anchor v4.1.6 không đúng closed schema")
+    series = _closed_object(result, document.get("series"), "series",
+                            {"title", "last_completed_episode", "status", "next_episode_contract"}) or {}
+    canon = _closed_object(result, document.get("canon"), "canon",
+                           {"characters", "facts", "open_threads", "resolved_threads"}) or {}
+    continuity = _closed_object(result, document.get("continuity"), "continuity",
+                                {"milestones", "clues", "consequences", "visual_locks", "episode_designs"}) or {}
+    last_episode = series.get("last_completed_episode")
+    if not _non_empty_string(series.get("title")) or type(last_episode) is not int or last_episode < 0:
+        result.fail("series.title/last_completed_episode không hợp lệ")
+        last_episode = 0
+    characters = _unique_rows(result, canon.get("characters"), "canon.characters", "character_id",
+                              {"character_id", "name", "established_facts", "known_facts"})
+    facts = _unique_rows(result, canon.get("facts"), "canon.facts", "fact_id",
+                         {"fact_id", "text", "established_episode"})
+    open_rows = _unique_rows(result, canon.get("open_threads"), "canon.open_threads", "thread_id",
+                             {"thread_id", "description", "clues"})
+    resolved_rows = _unique_rows(result, canon.get("resolved_threads"), "canon.resolved_threads", "thread_id",
+                                 {"thread_id", "description", "clues"})
+    if len({row.get("thread_id") for row in [*open_rows, *resolved_rows]}) != len(open_rows) + len(resolved_rows):
+        result.fail("thread_id phải duy nhất trên open_threads và resolved_threads")
+    state = {"status": series.get("status"), "next_episode_contract": series.get("next_episode_contract"), **continuity}
+    _validate_series_state(result, state, last_episode, characters, open_rows, resolved_rows)
+    ledger = _closed_object(result, document.get("episode_ledger"), "episode_ledger",
+                            {"last_completed_episode", "episodes"})
+    if ledger is not None:
+        summaries = ledger.get("episodes")
+        if ledger.get("last_completed_episode") != last_episode or not isinstance(summaries, list):
+            result.fail("episode_ledger không khớp last_completed_episode")
+        elif [row.get("episode") for row in summaries if isinstance(row, Mapping)] != list(range(1, last_episode + 1)):
+            result.fail("episode_ledger.episodes phải liên tục")
+    if not isinstance(document.get("canon_change_log"), list):
+        result.fail("canon_change_log phải là array")
+    for row in facts:
+        episode = row.get("established_episode")
+        if type(episode) is not int or not 1 <= episode <= last_episode:
+            result.fail(f"canon.facts[{row.get('fact_id')}].established_episode không hợp lệ")
+
+
+def _validate_series_state(result: ValidationResult, value: Any, last_episode: int,
+                           characters: list[Mapping[str, Any]], open_rows: list[Mapping[str, Any]],
+                           resolved_rows: list[Mapping[str, Any]]) -> None:
+    fields = {"status", "next_episode_contract", "milestones", "clues", "consequences", "visual_locks", "episode_designs"}
+    state = _closed_object(result, value, "series_state", fields)
+    if state is None:
+        return
+    status = state.get("status")
+    if status not in {"ACTIVE", "COMPLETED", "UNKNOWN"}:
+        result.fail("series_state.status không hợp lệ")
+    contract_value = state.get("next_episode_contract")
+    if status == "ACTIVE":
+        contract_row = _closed_object(result, contract_value, "series_state.next_episode_contract",
+                                      {"episode", "premise", "required_thread_ids", "forbidden_resolutions"})
+        if contract_row is not None and (contract_row.get("episode") != last_episode + 1 or not _non_empty_string(contract_row.get("premise"))):
+            result.fail("next_episode_contract episode/premise không hợp lệ")
+    elif status == "COMPLETED" and contract_value is not None:
+        result.fail("Series COMPLETED phải có next_episode_contract=null")
+    character_ids = {row.get("character_id") for row in characters}
+    thread_ids = {row.get("thread_id") for row in [*open_rows, *resolved_rows]}
+    clues = _unique_rows(result, state.get("clues"), "series_state.clues", "clue_id",
+                         {"clue_id", "thread_id", "observation", "interpretation", "status", "introduced_episode", "revealed_episode", "known_by", "source_script_ids"})
+    for row in clues:
+        if row.get("thread_id") not in thread_ids or row.get("status") not in {"UNRESOLVED", "VERIFIED", "REFUTED"}:
+            result.fail(f"series_state.clues[{row.get('clue_id')}] có thread/status không hợp lệ")
+        known_by = row.get("known_by")
+        if not isinstance(known_by, list) or not set(known_by) <= character_ids:
+            result.fail(f"series_state.clues[{row.get('clue_id')}].known_by không hợp lệ")
+    _unique_rows(result, state.get("milestones"), "series_state.milestones", "milestone_id",
+                 {"milestone_id", "description", "target_episode", "required", "status", "resolution"})
+    _unique_rows(result, state.get("consequences"), "series_state.consequences", "consequence_id",
+                 {"consequence_id", "description", "established_episode", "status", "resolution"})
+    _unique_rows(result, state.get("visual_locks"), "series_state.visual_locks", "character_id",
+                 {"character_id", "appearance", "wardrobe", "props"})
+    designs = _unique_rows(result, state.get("episode_designs"), "series_state.episode_designs", "episode",
+                           {"episode", "central_question", "case_type", "clue_media", "decisive_choice", "ending_consequence"})
+    episodes = [row.get("episode") for row in designs]
+    valid_episodes = [episode for episode in episodes if type(episode) is int]
+    if (len(valid_episodes) != len(episodes) or valid_episodes != sorted(valid_episodes)
+            or any(not 1 <= episode <= last_episode for episode in valid_episodes)):
+        result.fail("series_state.episode_designs[].episode không hợp lệ")
 
 
 def validate_package_quality(
@@ -357,11 +532,19 @@ def _validate_png(raw: bytes, name: str, expected_size: tuple[int, int], result:
 
 
 def validate_archive(path: Path, contract: PromptContract | None = None) -> ValidationResult:
-    contract = contract or load_prompt_contract()
+    from studio.prompt_contract import prompt_contract_for_version
     from studio.workflow_package import inspect_members, read_archive
+    members = None
+    if contract is None:
+        try:
+            members = read_archive(path)
+            manifest = strict_json_bytes(members["manifest.json"])
+            contract = prompt_contract_for_version(str(manifest.get("prompt_version") or ""))
+        except (OSError, ValueError, KeyError, zipfile.BadZipFile, RuntimeError):
+            contract = load_prompt_contract()
     result = _result(path.name, contract)
     try:
-        members = read_archive(path)
+        members = members or read_archive(path)
         inspection = inspect_members(members, archive=True, contract=contract)
     except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as exc:
         result.fail(f"ZIP không hợp lệ: {exc}")
@@ -377,9 +560,15 @@ def validate_archive(path: Path, contract: PromptContract | None = None) -> Vali
 
 
 def validate_project(path: Path, contract: PromptContract | None = None) -> list[ValidationResult]:
-    contract = contract or load_prompt_contract()
     if path.is_file() and path.suffix.casefold() == ".zip":
         return [validate_archive(path, contract)]
+    if contract is None and path.is_dir() and (path / "manifest.json").is_file():
+        try:
+            manifest = strict_json_bytes((path / "manifest.json").read_bytes())
+            contract = prompt_contract_for_version(str(manifest.get("prompt_version") or ""))
+        except (OSError, ValueError):
+            contract = load_prompt_contract()
+    contract = contract or load_prompt_contract()
     if not path.is_dir():
         result = _result(str(path), contract)
         result.fail("Đường dẫn không phải thư mục hoặc ZIP")

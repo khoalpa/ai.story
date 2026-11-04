@@ -66,7 +66,7 @@ ai-story-audit = "studio.prompt_audit:main"
 include-package-data = true
 
 [tool.setuptools.data-files]
-"share/ai-story/prompts" = ["prompts/ChatGPT_prompt_v4.1.6.txt", "prompts/ChatGPT_prompt_v4.1.6_Quickstart.txt"]
+"share/ai-story/prompts" = ["prompts/ChatGPT_prompt_v4.1.6.txt", "prompts/ChatGPT_prompt_v4.1.6_Quickstart.txt", "prompts/ChatGPT_prompt_v4.2.0.txt", "prompts/ChatGPT_prompt_v4.2.0_Quickstart.txt"]
 
 [tool.setuptools.package-data]
 studio = ["themes/*.json"]

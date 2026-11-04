@@ -37,6 +37,7 @@ def workflow_verdict(status: str) -> tuple[str, str]:
     """Map a verified workflow status to its overview message and Streamlit call."""
     return {
         "PASS": ("Gói đạt các phép kiểm tra đã chạy", "success"),
+        "PARTIAL": ("Gói đã kiểm định nhưng chưa hoàn tất", "warning"),
         "FAIL": ("Gói có lỗi cần xử lý", "error"),
         "NOT_VERIFIED": ("Gói chưa được xác minh đầy đủ", "warning"),
     }.get(status, ("Gói chưa được xác minh đầy đủ", "warning"))
@@ -218,15 +219,13 @@ def build_overview_model(
     stage = workflow["stage"]
     production_ready = review["story_ready"]
     completed = bool(delivery["ready"] and delivery["passed"] and video_deliveries and ready_videos == len(video_deliveries))
-    workflow_status = workflow.get("status", "NOT_VERIFIED")
+    workflow_status = workflow.get("overall_status", workflow.get("status", "NOT_VERIFIED"))
     if not story and not validation and not reports.get("workflow"):
         verdict = "Chưa đủ dữ liệu"
         verdict_kind = "warning"
     elif workflow_status == "FAIL":
         verdict, verdict_kind = workflow_verdict(workflow_status)
-    elif stage and workflow_status == "NOT_VERIFIED":
-        verdict, verdict_kind = workflow_verdict(workflow_status)
-    elif stage and workflow_status == "PASS":
+    elif stage and workflow_status in {"PASS", "PARTIAL", "NOT_VERIFIED"}:
         verdict, verdict_kind = workflow_verdict(workflow_status)
     elif failed_checks or remaining_work or review["issues"] or (validation and not production_ready):
         verdict = "Cần xử lý"
@@ -255,6 +254,20 @@ def build_overview_model(
         {"workspace": "Story Studio", "section": issue["section"], "text": issue["text"]}
         for issue in review["issues"]
     ]
+    integrity_status = workflow.get("integrity_status", "NOT_VERIFIED")
+    completion_status = workflow.get("package_completion_status") or _object(workflow.get("manifest")).get("status")
+    stage_gate_status = workflow.get("stage_gate_status", "NOT_VERIFIED")
+    workflow_blockers: list[dict[str, str]] = []
+    if stage and integrity_status == "FAIL":
+        workflow_blockers.append({"workspace": "Story Studio", "section": "Gói & quy trình",
+                                  "text": "Sửa lỗi toàn vẹn, file set hoặc digest của gói trước khi tiếp tục."})
+    if stage and completion_status and completion_status != "COMPLETE":
+        workflow_blockers.append({"workspace": "Story Studio", "section": "Gói & quy trình",
+                                  "text": f"Hoàn tất Stage hiện tại: manifest đang ở trạng thái {completion_status}."})
+    if stage and stage_gate_status != "PASS":
+        workflow_blockers.append({"workspace": "Story Studio", "section": "Kiểm định",
+                                  "text": f"Bổ sung bằng chứng cho các gate của {stage}: {stage_gate_status}."})
+    actions = workflow_blockers + actions
     if story and not stage:
         actions.insert(0, {"workspace": "Story Studio", "section": "Gói & quy trình", "text": "Mở story.zip để kiểm tra manifest; không suy stage từ thư mục hoặc tên file."})
     asset_problems = review["asset_issues"] if story else []
@@ -272,8 +285,11 @@ def build_overview_model(
             "workspace": "Story Studio",
             "text": f"Xem lại {repetition_pairs} cặp câu lặp hoặc gần trùng trong Nội dung → Lặp câu.",
         })
+    package_blocked = bool(workflow_blockers)
     if stage in {"STAGE1", "STAGE2"}:
         actions.append({"workspace": "Story Studio", "section": "Gói & quy trình", "text": "Hoàn tất kiểm định gói hiện tại trước khi chuyển stage thủ công; chưa yêu cầu render audio/video."})
+    elif package_blocked:
+        pass
     elif not audio_path:
         actions.append({"workspace": "Audio Studio", "text": "Render audio và phụ đề từ kịch bản."})
     elif reports.get("audio_quality") and not delivery["passed"]:

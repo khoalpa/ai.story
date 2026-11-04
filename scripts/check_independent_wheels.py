@@ -27,7 +27,7 @@ from streamlit.testing.v1 import AppTest
 import audio.app_api
 import video.app_api
 import studio.video_prompt_projection
-from studio.prompt_contract import load_prompt_contract
+from studio.prompt_contract import load_prompt_contract, prompt_contract_for_version
 from studio.themes.python_theme import config, values
 
 prefix = Path(sys.prefix).resolve()
@@ -35,8 +35,11 @@ for package in ("audio", "video", "studio"):
     module = importlib.import_module(package)
     assert Path(module.__file__).resolve().is_relative_to(prefix), module.__file__
 contract = load_prompt_contract()
-assert contract.version_label == "4.1.6"
+assert contract.version_label == "4.2.0"
 assert contract.path.resolve().is_relative_to(prefix), contract.path
+legacy_contract = prompt_contract_for_version("4.1.6")
+assert legacy_contract.version_label == "4.1.6"
+assert legacy_contract.path.resolve().is_relative_to(prefix), legacy_contract.path
 assert values(config())
 for launcher in ("audio.gui_entry", "video.gui_entry", "studio.gui_entry"):
     app = AppTest.from_string(f"from {launcher} import main\nmain()\n", default_timeout=60)

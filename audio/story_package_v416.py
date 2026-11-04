@@ -15,7 +15,8 @@ from studio.artifact_validation import strict_json_bytes
 from studio.workflow_package import inspect_directory, inspect_members, read_archive
 
 SCHEMA_VERSION = "4.1.3"
-PROMPT_VERSION = "4.1.6"
+PROMPT_VERSION = "4.2.0"
+SUPPORTED_PROMPT_VERSIONS = {"4.1.6", "4.2.0"}
 ROOT_FIELDS = {"schema_version", "meta", "characters", "outline", "script"}
 META_FIELDS = {
     "title", "series", "episode", "author", "channel", "profile", "age_band",
@@ -255,7 +256,7 @@ def load_package_bytes(raw: bytes) -> tuple[str, dict[str, Any]]:
     inspection = inspect_members(members, archive=True)
     if inspection.get("compatibility") != "NATIVE_CURRENT" or inspection.get("status") != "PASS":
         details = [row.get("detail", "") for row in inspection.get("checks", []) if row.get("status") != "PASS"]
-        raise ValueError("ZIP không phải gói v4.1.6 hợp lệ: " + "; ".join(filter(None, details)))
+        raise ValueError("ZIP không phải gói prompt v4.1.6/v4.2.0 hợp lệ: " + "; ".join(filter(None, details)))
     story_raw = members.get("story.json")
     if story_raw is None:
         raise ValueError("ZIP thiếu story.json.")
@@ -270,7 +271,7 @@ def load_project_directory(root: Path) -> tuple[str, dict[str, Any]]:
     inspection = inspect_directory(root)
     if inspection.get("compatibility") != "NATIVE_CURRENT" or inspection.get("status") != "PASS":
         details = [row.get("detail", "") for row in inspection.get("checks", []) if row.get("status") != "PASS"]
-        raise ValueError("Thư mục không phải gói v4.1.6 hợp lệ: " + "; ".join(filter(None, details)))
+        raise ValueError("Thư mục không phải gói prompt v4.1.6/v4.2.0 hợp lệ: " + "; ".join(filter(None, details)))
     path = root / "story.json"
     text = path.read_text(encoding="utf-8")
     parse_story_text(text)
@@ -278,6 +279,6 @@ def load_project_directory(root: Path) -> tuple[str, dict[str, Any]]:
 
 
 __all__ = [
-    "PROMPT_VERSION", "SCHEMA_VERSION", "load_package_bytes", "load_project_directory",
+    "PROMPT_VERSION", "SUPPORTED_PROMPT_VERSIONS", "SCHEMA_VERSION", "load_package_bytes", "load_project_directory",
     "parse_story_text", "raw_script", "render_plain_script", "validate_story",
 ]

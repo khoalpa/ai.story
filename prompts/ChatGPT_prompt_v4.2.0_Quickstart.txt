@@ -1,0 +1,293 @@
+CHATGPT AUDIO STORY PACKAGE — v4.2.0
+QUICKSTART | HƯỚNG DẪN KHỞI CHẠY NHANH
+Ngày biên soạn: 04/11/2026
+Tài liệu gốc: ChatGPT_prompt_v4.2.0.txt
+Prompt version: 4.2.0 | Schema Stage 1–4: 4.1.3 | Character Pack version: 1.0
+
+====================================================================
+1. MỤC ĐÍCH & CÁCH SỬ DỤNG
+====================================================================
+
+Đây là tài liệu hướng dẫn thao tác nhanh, KHÔNG phải prompt thay thế và
+KHÔNG thay đổi bất kỳ quy định bắt buộc nào của bản v4.2.0.
+
+Cách bắt đầu:
+  (1) Đính kèm ChatGPT_prompt_v4.2.0.txt vào cuộc trò chuyện.
+  (2) Chọn một tác vụ ở mục 3 hoặc 4 của Quickstart này.
+  (3) Nếu tiếp tục công việc đã làm, đính kèm đúng ZIP/tệp nguồn.
+  (4) Kiểm tra trạng thái và tệp được giao trước khi chuyển bước.
+
+Không cần đính kèm Quickstart để chạy; đây là tài liệu dành cho người dùng.
+Nếu hướng dẫn này thiếu chi tiết, áp dụng bản prompt chính v4.2.0.
+Không lấy tên tệp ZIP hay mô tả trong chat làm bằng chứng rằng dữ liệu
+đã hoàn tất: phải đọc và kiểm tra nội dung có thể truy cập.
+
+====================================================================
+2. SƠ ĐỒ QUY TRÌNH
+====================================================================
+
+QUY TRÌNH TRUYỆN (chỉ chạy giai đoạn được yêu cầu):
+
+  Stage 1 — Viết truyện, hồ sơ nhân vật và continuity
+      |
+      v
+  Stage 2 — Ảnh ngang và visual plan
+      |
+      v
+  Stage 3 — Ảnh dọc tương ứng; bảo toàn dữ liệu kế thừa
+      |
+      v
+  Stage 4 — Prompt video (không mặc định tạo audio/video thật)
+
+TÁC VỤ ĐỘC LẬP:
+
+  Character Image Pack (CIP) — 4 ảnh PNG / nhân vật
+      |
+      +--> Xuất character_image_pack.zip riêng biệt
+      |
+      +--> Có thể liên kết FRONT vào Stage 2 KHI yêu cầu rõ
+
+CIP không phải Stage 5; không tự bật khi yêu cầu Stage 1–4.
+Stage 4 chỉ được thực hiện khi có yêu cầu prompt video.
+
+====================================================================
+3. LỆNH MẪU CHO STAGE 1–4
+====================================================================
+
+3.1. STAGE 1 — VIẾT TRUYỆN
+
+Lệnh mẫu:
+“Tạo gói truyện Stage 1. Profile YOUTH_SAFE, độ tuổi 7–10,
+ngôn ngữ tiếng Việt, thời lượng 5 phút, chủ đề trung thực.
+Tự chọn ý tưởng. Xuất ZIP và dừng sau Stage 1.”
+
+Đầu ra chính: kịch bản truyện (story.json), dữ liệu continuity
+(nếu áp dụng), báo cáo/manifest và ZIP theo hợp đồng Stage 1.
+Stage 1 không đòi hỏi phải có công cụ tạo ảnh.
+
+Có thể bắt đầu đơn giản bằng: “Tạo gói truyện”.
+Hệ thống sẽ xử lý thông tin profile còn thiếu theo mục 3 và 18
+của prompt chính; không cần điền mọi trường nếu không có yêu cầu riêng.
+
+3.2. STAGE 2 — TẠO ẢNH NGANG
+
+Đính kèm: ZIP Stage 1 phù hợp, hoặc story.json đã được kiểm.
+
+Lệnh mẫu:
+“Thực hiện Stage 2 từ ZIP Stage 1 đính kèm. Tạo ảnh ngang
+ở chế độ ZONE, kích thước MODEL_DEFAULT, reference nhân vật theo
+khả năng công cụ. Xuất ZIP Stage 2.”
+
+ZONE mặc định: 10 ảnh ngang theo chức năng
+cover, greeting, opening, introduction, development, climax,
+falling, ending, farewell, outro.
+
+Có thể chọn SCENE nếu muốn một ảnh cho từng scene theo quy định
+của mục 8. IMAGE_REFERENCE cần ảnh reference thật, đã kiểm;
+DESCRIPTION_ONLY dùng mô tả khóa nhận diện khi công cụ không hỗ trợ.
+Không biến IMAGE_REFERENCE thành DESCRIPTION_ONLY chỉ để vượt lỗi.
+
+3.3. STAGE 3 — TẠO ẢNH DỌC
+
+Đính kèm: ZIP Stage 2.
+
+Lệnh mẫu:
+“Thực hiện Stage 3 từ ZIP Stage 2 đính kèm. Tạo đủ ảnh dọc
+đối ứng ảnh ngang, kiểm sự nhất quán từng cặp, bảo toàn exact bytes
+của dữ liệu kế thừa và xuất ZIP Stage 3.”
+
+Ảnh dọc dùng MODEL_DEFAULT trừ khi người dùng chốt EXACT.
+Không tự sửa kịch bản, đổi nhân vật hoặc ghi đè dữ liệu nguồn.
+
+3.4. STAGE 4 — TẠO PROMPT VIDEO
+
+Đính kèm: ZIP Stage 3.
+
+Lệnh mẫu:
+“Thực hiện Stage 4 từ ZIP Stage 3 đính kèm. Tạo prompt video
+FULL_STORY, khung hình 16:9, trung lập với model đích; giữ toàn bộ
+lời kể. Xuất gói prompt video. Không tạo audio/video thật.”
+
+Dùng KEY_SCENES nếu chỉ cần tuyển chọn cảnh theo phạm vi được chọn.
+Stage 4 là prompt video, không đồng nghĩa với file MP4 hay TTS.
+
+3.5. TIẾP TỤC/SỬA LỖI GIAI ĐOẠN
+
+Lệnh mẫu:
+“Tiếp tục phần còn thiếu hoặc bị lỗi của giai đoạn hiện tại
+trong ZIP đính kèm. Giữ nguyên các tệp đã kiểm hợp lệ; xuất
+snapshot mới và ghi rõ remaining_work.”
+
+“Tiếp tục” khi giai đoạn chưa COMPLETE nghĩa là resume giai đoạn đó.
+Không tự suy nghĩa là chuyển giai đoạn hoặc tạo lại tất cả.
+
+====================================================================
+4. CHARACTER IMAGE PACK — 4 ẢNH RIÊNG/ NHÂN VẬT
+====================================================================
+
+4.1. KHỞI CHẠY ĐỘC LẬP TỪ BRIEF
+
+Đầu vào: mô tả nhân vật, hoặc story.json, hoặc ảnh nhân vật
+người dùng cung cấp kèm mô tả. Không bắt buộc có ZIP Stage 1.
+
+Lệnh sao chép:
+“Tạo Character Image Pack độc lập từ mô tả nhân vật dưới đây.
+Mỗi nhân vật có đúng 4 PNG: FRONT, SIDE, BACK, EXPRESSIONS.
+Giữ nhất quán gương mặt, tóc, vóc dáng, trang phục và phụ kiện.
+Dùng kích thước MODEL_DEFAULT. Kiểm từng tệp, xuất
+character_image_pack.zip và báo trạng thái thực tế.
+Mô tả nhân vật:
+- c001: [tên, tuổi/nhóm tuổi, ngoại hình, trang phục, dấu nhận diện]
+- c002: [tên, tuổi/nhóm tuổi, ngoại hình, trang phục, dấu nhận diện]”
+
+Lệnh từ truyện có sẵn:
+“Từ story.json/ZIP đính kèm, tạo Character Image Pack cho tất cả
+nhân vật trong story.characters. Giữ đúng character_id/canon;
+không thay đổi ZIP truyện. Xuất character_image_pack.zip riêng.”
+
+Lệnh chỉ chọn một số nhân vật:
+“Tạo Character Image Pack độc lập chỉ cho nhân vật có ID
+[c001, c003] từ story.json đính kèm; các nhân vật khác ngoài phạm vi.”
+
+4.2. BỐN VIEW BẮT BUỘC
+
+  FRONT       | front.png       | Toàn thân, chính diện, tư thế trung tính
+  SIDE        | side.png        | Toàn thân, nghiêng đúng 90 độ
+  BACK        | back.png        | Toàn thân, nhìn từ phía sau
+  EXPRESSIONS | expressions.png | Một PNG có 4 ô: bình thường, vui,
+              |                 | buồn, ngạc nhiên của CÙNG một nhân vật
+
+Tổng số ảnh = 4 x số nhân vật được chọn.
+FRONT/SIDE/BACK phải là ba ảnh góc nhìn thật, không phải
+bản nhân/crop/đổi tên từ cùng một ảnh. EXPRESSIONS là một tệp PNG
+cho mỗi nhân vật, dù bên trong có 4 ô.
+
+4.3. CẤU TRÚC ĐẦU RA
+
+character_image_pack.zip
+  character_pack.json
+  character_style_bible.txt
+  characters/<safe_id>/front.png
+  characters/<safe_id>/side.png
+  characters/<safe_id>/back.png
+  characters/<safe_id>/expressions.png
+  character_pack_report.json
+  character_pack_manifest.json
+
+Tệp ZIP chưa hoàn tất có tên character_image_pack_partial.zip.
+Hợp đồng metadata CIP là character_pack_version="1.0", riêng
+với schema_version="4.1.3" của Stage 1–4.
+
+4.4. KIỂM TRA TRƯỚC KHI CÔNG BỐ HOÀN TẤT
+
+- Có đúng 4 PNG thực tế và đúng view cho mỗi nhân vật được chọn.
+- Mỗi PNG đọc/giải mã được, có kích thước hợp lệ.
+- Nhận diện và phong cách nhất quán theo character_lock.
+- EXPRESSIONS có đủ 4 cảm xúc, không nhầm với 4 file riêng.
+- Các path, metadata, manifest nhất quán; ZIP mở lại và kiểm được.
+- Không xem thumbnail, lời mô tả hoặc prompt ảnh là file PNG đã giao.
+
+Trạng thái: COMPLETE (đủ ảnh và kiểm đạt), PARTIAL (còn thiếu ảnh,
+file bytes, ZIP hoặc kiểm bắt buộc), BLOCKED (không thể làm phần chính).
+Không ghi COMPLETE khi công cụ chỉ hiển thị hình nhưng không lấy được
+bytes cuối, hoặc mới viết prompt mà chưa có file ảnh.
+
+4.5. RESUME PACK
+
+Đính kèm đúng character_image_pack_partial.zip hoặc các tệp gốc.
+
+Lệnh mẫu:
+“Tiếp tục Character Image Pack từ ZIP đính kèm. Chỉ tạo lại
+những view FAILED/PENDING hoặc phải kiểm lại. Giữ các PNG đã kiểm
+hợp lệ, kiểm character_lock và xuất snapshot ZIP mới.”
+
+Nếu thay FRONT hoặc thay các đặc trưng nhận diện, phải xem lại
+những view liên quan; không giữ PASS cũ theo suy đoán.
+
+====================================================================
+5. KẾT NỐI CHARACTER IMAGE PACK VỚI STAGE 2
+====================================================================
+
+Liên kết KHÔNG tự động. Người dùng phải yêu cầu rõ.
+
+Lệnh mẫu:
+“Dùng ảnh FRONT đã READY của Character Image Pack đính kèm
+làm ảnh reference nhân vật cho Stage 2 của ZIP truyện đính kèm.
+Đối chiếu chính xác character_id, kiểm tệp và canon trước khi
+liên kết. Tạo snapshot Stage 2 mới, không sửa ZIP nguồn.”
+
+Nguyên tắc:
+- Chỉ lấy FRONT READY và đúng nhân vật; không đưa nguyên 4 ảnh
+  của CIP vào file set Stage 2.
+- Stage 2 vẫn dùng một ảnh reference tại characters/<id>.png
+  cho mỗi nhân vật trực quan được yêu cầu theo visual_plan.
+- Sao chép bytes reference sang snapshot Stage 2 mới; ghi nguồn
+  trong report hợp lệ, không thêm trường mới vào schema Stage 2.
+- Nếu Stage 2 đã COMPLETE, thay reference là một yêu cầu REPAIR;
+  cần xem lại ảnh ngang và những đầu ra Stage 3–4 phụ thuộc.
+- Nếu không có công cụ image reference, dùng DESCRIPTION_ONLY
+  theo quy tắc gốc và báo giới hạn; không nhận đã nhập ảnh thật.
+
+====================================================================
+6. QUY TẮC CHUNG CẦN NHỚ
+====================================================================
+
+(1) Không tự chuyển Stage hoặc bật CIP khi chưa có yêu cầu.
+(2) Đính kèm đúng tệp nguồn; khi có nhiều ZIP khác nhau, chọn rõ gói.
+(3) Giữ schema Stage 1–4 = 4.1.3; không sửa field/type/enum tùy ý.
+(4) Prompt version = 4.2.0; metadata CIP thuộc namespace 1.0 riêng.
+(5) MODEL_DEFAULT chấp nhận kích thước ảnh gốc model trả ra;
+    EXACT chỉ dùng khi người dùng chốt kích thước cụ thể.
+(6) Thiếu công cụ, file bytes hoặc kiểm bắt buộc: khai báo PARTIAL
+    hay BLOCKED chính xác; không tạo placeholder hoặc link giả.
+(7) Sau mỗi lần sửa, tạo snapshot mới; không âm thầm ghi đè nguồn.
+(8) Tệp ZIP chỉ được công bố đã kiểm sau khi thực sự mở lại và
+    kiểm các thành viên, đường dẫn và tính toàn vẹn có thể kiểm.
+(9) Không suy đã thực hiện kiểm thử đầu cuối từ một checklist
+    hoặc các ca chấp nhận CIP01–CIP12 chưa chạy.
+(10) Các quy tắc chi tiết về an toàn, continuity, thông số, retry,
+     báo cáo và bàn giao nằm trong prompt chính v4.2.0.
+
+====================================================================
+7. MẪU YÊU CẦU NGẮN NHẤT
+====================================================================
+
+Tạo truyện:
+  “Tạo gói truyện Stage 1, YOUTH_SAFE, 7–10 tuổi, tiếng Việt,
+   5 phút, chủ đề tình bạn. Xuất ZIP.”
+
+Tạo bộ ảnh nhân vật độc lập:
+  “Tạo Character Image Pack, 4 PNG/nhân vật từ brief đính kèm.
+   Xuất character_image_pack.zip riêng.”
+
+Tiếp tục Stage 2:
+  “Dùng ZIP Stage 1 đính kèm, tạo Stage 2 chế độ ZONE,
+   MODEL_DEFAULT, ảnh ngang và reference nhân vật.”
+
+Tiếp tục pack còn thiếu:
+  “Resume Character Image Pack từ ZIP partial đính kèm;
+   giữ các view READY đã kiểm và hoàn thiện view còn thiếu.”
+
+Liên kết pack vào gói truyện:
+  “Dùng FRONT READY trong character_image_pack.zip làm
+   reference Stage 2; tạo snapshot mới và bảo toàn nguồn.”
+
+====================================================================
+8. THAM CHIẾU NHANH TRONG PROMPT CHÍNH
+====================================================================
+
+Mục 0.1  — Khởi chạy nhanh và lệnh mẫu
+Mục 2    — Kiểm tra khả năng công cụ
+Mục 3–7  — Profile, script, trạng thái và schema Stage 1
+Mục 8    — Stage 2; ảnh ngang, reference, MODEL_DEFAULT/EXACT
+Mục 9    — Stage 3; ảnh dọc và bảo toàn payload
+Mục 10   — Stage 4; video prompt
+Mục 11   — Cấu trúc gói, manifest và kiểm ZIP
+Mục 18   — Routing, lệnh thường dùng và resume
+Mục 23   — Kiểm nội dung và nhất quán hình ảnh
+Mục 25   — Phụ thuộc, snapshot, resume
+Mục 28   — Character Image Pack độc lập, schema và tích hợp
+Mục 28.7 — Dùng ảnh FRONT của CIP làm reference Stage 2
+Mục 28.8 — Ca chấp nhận CIP01–CIP12 (không phải kết quả đã chạy)
+
+KẾT THÚC QUICKSTART — v4.2.0

@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from studio.prompt_contract import PROJECT_ROOT, SUPPORTED_PROMPT_FILENAME
+from studio.prompt_contract import (
+    PROJECT_ROOT,
+    SUPPORTED_PROMPT_FILENAME,
+    SUPPORTED_PROMPT_FILENAMES,
+)
 from studio.prompt_library import (
     _select_prompt_page,
     discover_prompt_files,
@@ -17,19 +21,20 @@ from studio.reference_samples import get_reference_dataset
 PROMPT = PROJECT_ROOT / "prompts" / SUPPORTED_PROMPT_FILENAME
 
 
-def test_discovery_returns_only_supported_prompt(tmp_path: Path) -> None:
-    for name in (SUPPORTED_PROMPT_FILENAME, "ChatGPT_prompt_v3.16.13.txt", "notes.txt"):
+def test_discovery_returns_all_supported_prompts(tmp_path: Path) -> None:
+    for name in (*SUPPORTED_PROMPT_FILENAMES, "ChatGPT_prompt_v3.16.13.txt", "notes.txt"):
         (tmp_path / name).write_text("x", encoding="utf-8")
-    assert discover_prompt_files(tmp_path) == [tmp_path / SUPPORTED_PROMPT_FILENAME]
+    assert discover_prompt_files(tmp_path) == [tmp_path / name for name in SUPPORTED_PROMPT_FILENAMES]
 
 
-def test_prompt_loader_parses_v416_numbered_sections() -> None:
+def test_prompt_loader_parses_v420_numbered_sections() -> None:
     document = load_prompt(PROMPT)
 
-    assert document.version == (4, 1, 6)
+    assert document.version == (4, 2, 0)
     assert document.modules[0].name == "0."
     assert document.modules[0].title == "PHẠM VI VÀ CÁCH DÙNG"
     assert any(module.name == "11.1." for module in document.modules)
+    assert any(module.name == "28.7." for module in document.modules)
 
 
 def test_prompt_loader_rejects_old_or_renamed_prompt(tmp_path: Path) -> None:

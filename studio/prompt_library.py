@@ -1,8 +1,4 @@
-"""Read the canonical v4.1.6 prompt and its shipped reference packages.
-
-This workspace is deliberately single-version. It does not discover, compare,
-upgrade, or provide a compatibility view for older prompt/package versions.
-"""
+"""Read supported v4 prompt contracts and their reference packages."""
 from __future__ import annotations
 
 import re
@@ -12,8 +8,7 @@ from typing import Any, Mapping
 
 from studio.prompt_contract import (
     PROJECT_ROOT,
-    SUPPORTED_PROMPT_FILENAME,
-    SUPPORTED_PROMPT_VERSION,
+    SUPPORTED_PROMPT_FILENAMES,
     load_prompt_contract,
 )
 from studio.reference_samples import (
@@ -64,9 +59,8 @@ class PromptDocument:
 
 
 def discover_prompt_files(directory: Path) -> list[Path]:
-    """Return only the one prompt contract supported by this application."""
-    path = directory / SUPPORTED_PROMPT_FILENAME
-    return [path] if path.is_file() else []
+    """Return supported prompt contracts in version order."""
+    return [directory / name for name in SUPPORTED_PROMPT_FILENAMES if (directory / name).is_file()]
 
 
 def _parse_modules(lines: tuple[str, ...]) -> tuple[PromptModule, ...]:
@@ -88,21 +82,24 @@ def _parse_modules(lines: tuple[str, ...]) -> tuple[PromptModule, ...]:
 
 
 def load_prompt(path: Path) -> PromptDocument:
-    """Load the exact canonical prompt; similarly named old prompts are rejected."""
-    if path.name != SUPPORTED_PROMPT_FILENAME:
-        raise ValueError(f"Chỉ hỗ trợ {SUPPORTED_PROMPT_FILENAME}.")
+    """Load an exact supported canonical prompt."""
+    if path.name not in SUPPORTED_PROMPT_FILENAMES:
+        raise ValueError(f"Chỉ hỗ trợ {', '.join(SUPPORTED_PROMPT_FILENAMES)}.")
     if not path.is_file():
-        raise ValueError("Không tìm thấy tệp prompt v4.1.6.")
+        raise ValueError("Không tìm thấy tệp prompt được hỗ trợ.")
     if path.stat().st_size > MAX_PROMPT_BYTES:
         raise ValueError("Tệp prompt lớn hơn giới hạn 5 MB.")
     try:
         text = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError as exc:
         raise ValueError(f"Prompt không phải UTF-8 hợp lệ: {exc}") from exc
-    if not text.startswith("CHATGPT AUDIO STORY PACKAGE — v4.1.6"):
-        raise ValueError("Nội dung không phải hợp đồng prompt v4.1.6.")
+    major, minor, patch = (int(part) for part in path.stem.removeprefix("ChatGPT_prompt_v").split("."))
+    version = (major, minor, patch)
+    version_label = ".".join(map(str, version))
+    if not text.startswith(f"CHATGPT AUDIO STORY PACKAGE — v{version_label}"):
+        raise ValueError(f"Nội dung không phải hợp đồng prompt v{version_label}.")
     lines = tuple(text.splitlines())
-    return PromptDocument(path, SUPPORTED_PROMPT_VERSION, text, lines, _parse_modules(lines))
+    return PromptDocument(path, version, text, lines, _parse_modules(lines))
 
 
 def search_prompt(document: PromptDocument, query: str, *, limit: int = 200) -> list[dict[str, object]]:
@@ -212,7 +209,7 @@ def _render_document(document: PromptDocument) -> None:
     import streamlit as st
 
     query = st.text_input(
-        "Tìm trong prompt v4.1.6",
+        f"Tìm trong prompt {document.version_label}",
         key="prompt_library_search",
         placeholder="Nhập quy tắc, gate hoặc từ khóa…",
     )
@@ -228,7 +225,7 @@ def _render_document(document: PromptDocument) -> None:
     selected_label = st.selectbox(
         "Mục",
         [module.label for module in document.modules],
-        key="prompt_module_v4.1.6",
+        key=f"prompt_module_{document.version_label}",
     )
     module = next(item for item in document.modules if item.label == selected_label)
     module_lines = _module_text(document, module)
@@ -254,7 +251,8 @@ def _render_structure(document: PromptDocument) -> None:
     columns[1].metric("Schema dữ liệu", contract.story_schema_version or "—")
     columns[2].metric("Mục", len(document.modules))
     columns[3].metric("Số dòng", f"{len(document.lines):,}")
-    st.caption("Prompt 4.1.6 và schema 4.1.3 là hai định danh độc lập; ứng dụng không chuyển đổi bằng thay chuỗi version.")
+    cip = " · Character Image Pack 1.0" if contract.supports_character_image_pack else ""
+    st.caption(f"Prompt {contract.version_label} và schema 4.1.3 là hai định danh độc lập{cip}.")
     st.dataframe(
         [
             {
@@ -326,13 +324,19 @@ def render_prompt_library_workspace(*, embedded: bool = False) -> None:
     if not embedded:
         st.set_page_config(page_title="Thông tin prompt", page_icon=":material/code_blocks:", layout="wide")
     st.header("Thông tin prompt")
-    st.caption("Hợp đồng duy nhất đang được hỗ trợ: prompt v4.1.6, schema dữ liệu v4.1.3.")
-    prompt_path = PROJECT_ROOT / "prompts" / SUPPORTED_PROMPT_FILENAME
+    st.caption("Hỗ trợ prompt v4.1.6 và v4.2.0; Stage 1–4 dùng schema dữ liệu v4.1.3.")
+    prompt_paths = discover_prompt_files(PROJECT_ROOT / "prompts")
+    selected_name = st.selectbox(
+        "Phiên bản prompt",
+        [path.name for path in reversed(prompt_paths)],
+        key="prompt_library_version",
+    )
+    prompt_path = next(path for path in prompt_paths if path.name == selected_name)
     try:
         document = load_prompt(prompt_path)
         contract = load_prompt_contract(prompt_path)
     except (OSError, UnicodeError, ValueError) as exc:
-        st.error(f"Không nạp được hợp đồng v4.1.6: {exc}")
+        st.error(f"Không nạp được hợp đồng prompt: {exc}")
         return
     st.caption(f"`{document.path.name}` · SHA-256 `{contract.sha256}`")
     try:
@@ -354,7 +358,7 @@ def render_prompt_library_workspace(*, embedded: bool = False) -> None:
         details.append(" · ".join(selected_dataset.tags))
     st.caption(" · ".join(details))
     reader, structure, packages, story = st.tabs(
-        ["Đọc prompt", "Cấu trúc v4.1.6", "ZIP mẫu", "Gói truyện mẫu"]
+        ["Đọc prompt", f"Cấu trúc {document.version_label}", "ZIP mẫu", "Gói truyện mẫu"]
     )
     with reader:
         _render_document(document)

@@ -13,11 +13,19 @@ from studio.workflow_package import inspect_directory, inspect_members, read_arc
 from studio.workflow_views import visual_bible_summary
 
 
-def test_contract_is_v416_with_independent_schema_version() -> None:
+def test_current_contract_is_v420_with_independent_schema_version() -> None:
     contract = load_prompt_contract()
-    assert contract.version_label == "4.1.6"
+    assert contract.version_label == "4.2.0"
     assert contract.story_schema_version == "4.1.3"
     assert contract.video_prompt_schema_version == "4.1.3"
+    assert contract.character_pack_version == "1.0"
+
+
+def test_v416_contract_remains_supported() -> None:
+    contract = prompt_contract_for_version("4.1.6")
+    assert contract.version_label == "4.1.6"
+    assert contract.story_schema_version == "4.1.3"
+    assert not contract.supports_character_image_pack
 
 
 def test_old_prompt_contract_is_rejected() -> None:
@@ -35,6 +43,10 @@ def test_v416_template_packages_pass_exact_inspection(name: str, stage: str, sam
     result = inspect_members(read_archive(path), archive=True)
     assert result["stage"] == stage
     assert result["status"] == "PASS"
+    assert result["integrity_status"] == "PASS"
+    assert result["stage_gate_status"] == "PASS"
+    assert result["overall_status"] == "PASS"
+    assert result["publish_status"] == "PASS"
     assert validate_archive(path).status == "PASS"
 
 
@@ -52,6 +64,9 @@ def test_overview_reads_v416_report_without_legacy_quality_projection(sample_sta
     metrics = dict(model["metrics"])
     assert model["workflow"]["stage"] == "STAGE4"
     assert model["verdict"] == "Gói đạt các phép kiểm tra đã chạy"
+    assert model["workflow"]["integrity_status"] == "PASS"
+    assert model["workflow"]["stage_gate_status"] == "PASS"
+    assert model["workflow"]["publish_status"] == "PASS"
     assert metrics["Trạng thái báo cáo"] == "COMPLETE"
     assert metrics["Kiểm định"] == "73/73"
     assert "Chất lượng gói" not in metrics

@@ -40,8 +40,8 @@ SEVERITY_LABELS = {
 def _validate_story_report(report: Mapping[str, Any]) -> None:
     required = {"schema_version", "prompt_version", "stage", "status", "input_sources",
                 "checks", "limitations", "remaining_work", "archive_validation"}
-    if report.get("schema_version") != "4.1.3" or report.get("prompt_version") != "4.1.6":
-        raise ValueError("Chỉ hỗ trợ validation_report.json của gói v4.1.6 (schema 4.1.3).")
+    if report.get("schema_version") != "4.1.3" or report.get("prompt_version") not in {"4.1.6", "4.2.0"}:
+        raise ValueError("Chỉ hỗ trợ validation_report.json của prompt v4.1.6/v4.2.0 (schema 4.1.3).")
     missing = sorted(required.difference(report))
     extra = sorted(set(report).difference(required))
     if missing or extra:
@@ -50,7 +50,7 @@ def _validate_story_report(report: Mapping[str, Any]) -> None:
             details.append("thiếu: " + ", ".join(missing))
         if extra:
             details.append("field ngoài schema: " + ", ".join(extra))
-        raise ValueError("Tệp không đúng closed schema validation_report.json v4.1.6; " + "; ".join(details))
+        raise ValueError("Tệp không đúng closed schema validation_report.json v4; " + "; ".join(details))
 
 
 def _all_gates_pass(report: Mapping[str, Any]) -> bool:
@@ -268,7 +268,7 @@ def render_story_validation_report(report: Mapping[str, Any], *, include_technic
     import streamlit as st
 
     _validate_story_report(report)
-    if report.get("prompt_version") == "4.1.6":
+    if report.get("prompt_version") in {"4.1.6", "4.2.0"}:
         checks = _items(report.get("checks"))
         passed = sum(row.get("status") in {"PASS", "NOT_APPLICABLE"} for row in checks)
         failed = sum(row.get("status") == "FAIL" for row in checks)
@@ -311,7 +311,7 @@ def render_story_validation_workspace(*, embedded: bool = False) -> None:
     if not embedded:
         st.set_page_config(page_title="Story Validation", page_icon=":material/rule:", layout="wide")
     st.header("Story Validation")
-    st.caption("Đọc validation_report.json v4.1.6 theo hướng ưu tiên mức độ sẵn sàng và nội dung cần sửa.")
+    st.caption("Đọc validation_report.json prompt v4.1.6/v4.2.0 theo hướng ưu tiên mức độ sẵn sàng và nội dung cần sửa.")
     st.html(
         """<style>
         .sv-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:1.1rem 1.2rem;border:1px solid color-mix(in srgb,currentColor 14%,transparent);border-radius:.8rem;margin:.25rem 0 1rem}

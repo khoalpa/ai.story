@@ -414,7 +414,7 @@ def _load_v416_package_directory(settings: dict[str, Any]) -> None:
         "stage": package.stage,
         "status": inspection.get("status"),
         "schema_version": "4.1.3",
-        "prompt_version": "4.1.6",
+        "prompt_version": inspection.get("manifest", {}).get("prompt_version"),
         "root": str(package.root),
     }
 
@@ -747,12 +747,12 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
     )
     col_left, col_right = st.columns([1.15, 1.0])
     with col_left:
-        st.markdown("#### Gói truyện v4.1.6")
+        st.markdown("#### Gói truyện prompt v4.1.6/v4.2.0")
         package_cols = st.columns([4.0, 1.35], vertical_alignment="bottom")
         package_cols[0].text_input(
             "Thư mục gói đã giải nén",
             key="video_story_package_input",
-            help="Video chỉ nạp gói có manifest schema 4.1.3 / prompt 4.1.6 hợp lệ.",
+            help="Video chỉ nạp gói có manifest schema 4.1.3 / prompt 4.1.6 hoặc 4.2.0 hợp lệ.",
         )
         package_cols[1].button(
             "Chọn thư mục",
@@ -764,7 +764,7 @@ def render_inputs_tab(settings: dict[str, Any]) -> None:
         if st.button("Kiểm tra và nạp gói", key="video_load_story_package", width="stretch"):
             try:
                 _load_v416_package_directory(settings)
-                st.success("Đã xác thực và nạp gói truyện v4.1.6.")
+                st.success("Đã xác thực và nạp gói truyện v4.1.6/v4.2.0.")
             except (OSError, ValueError, json.JSONDecodeError) as exc:
                 st.session_state["video_story_package_status"] = None
                 st.error(f"Không thể nạp gói: {exc}")

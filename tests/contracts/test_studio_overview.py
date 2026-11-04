@@ -13,6 +13,7 @@ from studio.workflow_views import workflow_stage_caption
 
 @pytest.mark.parametrize("status,message,kind", [
     ("PASS", "Gói đạt các phép kiểm tra đã chạy", "success"),
+    ("PARTIAL", "Gói đã kiểm định nhưng chưa hoàn tất", "warning"),
     ("NOT_VERIFIED", "Gói chưa được xác minh đầy đủ", "warning"),
     ("FAIL", "Gói có lỗi cần xử lý", "error"),
 ])
@@ -24,6 +25,8 @@ def test_workflow_status_drives_overview_banner_and_stage_caption(status, messag
         assert "chưa xác minh" not in caption
     elif status == "FAIL":
         assert "có lỗi" in caption
+    elif status == "PARTIAL":
+        assert "chưa hoàn tất" in caption
     else:
         assert "chưa xác minh đầy đủ" in caption
 
