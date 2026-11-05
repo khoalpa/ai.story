@@ -41,6 +41,76 @@ def _unique_strings(value: object, *, allow_empty: bool = True) -> bool:
             and all(_nonempty(item) for item in value) and len(value) == len(set(value)))
 
 
+def image_prompt_asset_diagnostics(
+    plan: Mapping[str, Any], story: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Return field-level, machine-readable diagnostics for image assets."""
+    story_characters = story.get("characters")
+    character_ids = {
+        row.get("character_id") for row in story_characters
+        if isinstance(row, Mapping) and isinstance(row.get("character_id"), str)
+    } if isinstance(story_characters, list) else set()
+    script = story.get("script")
+    script_ids = {
+        row.get("id") for row in script
+        if isinstance(row, Mapping) and isinstance(row.get("id"), str)
+    } if isinstance(script, list) else set()
+    assets = plan.get("assets")
+    if not isinstance(assets, list):
+        return []
+    diagnostics: list[dict[str, Any]] = []
+
+    def add(index: int, field: str, code: str, detail: str, **extra: Any) -> None:
+        diagnostics.append({"index": index, "field": field, "code": code, "detail": detail, **extra})
+
+    for index, row in enumerate(assets):
+        if not isinstance(row, Mapping):
+            add(index, "asset", "TYPE", f"assets[{index}] phải là object")
+            continue
+        missing = sorted(ASSET_FIELDS - set(row))
+        extra = sorted(set(row) - ASSET_FIELDS)
+        if missing:
+            add(index, "asset", "MISSING_FIELDS", f"Thiếu trường: {', '.join(missing)}", values=missing)
+        if extra:
+            add(index, "asset", "EXTRA_FIELDS", f"Trường không được phép: {', '.join(extra)}", values=extra)
+        scalar_rules = {
+            "role": _nonempty, "brief": _nonempty,
+            "landscape_prompt": _nonempty, "portrait_prompt": _nonempty,
+        }
+        asset_id, basename = row.get("asset_id"), row.get("basename")
+        if not isinstance(asset_id, str) or SAFE_ID.fullmatch(asset_id) is None:
+            add(index, "asset_id", "INVALID_VALUE", "Phải là ID chỉ gồm chữ, số, _ hoặc -")
+        if not isinstance(basename, str) or not _safe_basename(basename) or not basename.endswith(".png"):
+            add(index, "basename", "INVALID_VALUE", "Phải là basename an toàn kết thúc bằng .png")
+        for field, rule in scalar_rules.items():
+            if not rule(row.get(field)):
+                add(index, field, "EMPTY_VALUE", "Phải là chuỗi khác rỗng")
+        for field, allowed, allow_empty in (
+            ("source_script_ids", script_ids, False),
+            ("character_ids", character_ids, True),
+        ):
+            value = row.get(field)
+            if not isinstance(value, list):
+                add(index, field, "TYPE", "Phải là array string")
+                continue
+            if not allow_empty and not value:
+                add(index, field, "EMPTY_LIST", "Phải chứa ít nhất một story ID", allowed=sorted(allowed))
+            invalid_values = [item for item in value if not _nonempty(item)]
+            if invalid_values:
+                add(index, field, "INVALID_ITEMS", "Chứa phần tử không phải string khác rỗng", values=invalid_values)
+            duplicates = sorted({item for item in value if isinstance(item, str) and value.count(item) > 1})
+            if duplicates:
+                add(index, field, "DUPLICATES", f"ID bị trùng: {', '.join(duplicates)}", values=duplicates)
+            unknown = sorted({item for item in value if isinstance(item, str) and item not in allowed})
+            if unknown:
+                add(index, field, "UNKNOWN_REFERENCES", f"Không tồn tại trong story.json: {', '.join(unknown)}",
+                    values=unknown, allowed=sorted(allowed))
+        for field in ("must_show", "must_avoid"):
+            if not _unique_strings(row.get(field)):
+                add(index, field, "INVALID_LIST", "Phải là array string duy nhất")
+    return diagnostics
+
+
 def validate_image_prompt_plan(
     plan: Mapping[str, Any], story: Mapping[str, Any], story_raw: bytes,
     *, expected_prompt_version: str | None = None,
@@ -114,6 +184,10 @@ def validate_image_prompt_plan(
     names: list[str] = []
     asset_ids: list[str] = []
     visible_character_ids: set[str] = set()
+    asset_diagnostics = image_prompt_asset_diagnostics(plan, story)
+    diagnostics_by_index: dict[int, list[dict[str, Any]]] = {}
+    for diagnostic in asset_diagnostics:
+        diagnostics_by_index.setdefault(int(diagnostic["index"]), []).append(diagnostic)
     if not isinstance(assets, list) or not assets:
         errors.append("assets phải là array khác rỗng")
     else:
@@ -134,7 +208,12 @@ def validate_image_prompt_plan(
                      and _unique_strings(row.get("must_show"))
                      and _unique_strings(row.get("must_avoid")))
             if not valid:
-                errors.append(f"assets[{index}] không hợp lệ hoặc tham chiếu story sai")
+                details = [
+                    f"{item['field']}: {item['detail']}"
+                    for item in diagnostics_by_index.get(index, [])
+                ]
+                suffix = "; ".join(details) if details else "không hợp lệ"
+                errors.append(f"assets[{index}] {suffix}")
             if isinstance(asset_id, str):
                 asset_ids.append(asset_id)
             if isinstance(basename, str):
@@ -216,6 +295,6 @@ def render_image_prompt_plan(plan: Mapping[str, Any], *, root: Path | None = Non
 
 __all__ = [
     "ASSET_FIELDS", "CHARACTER_FIELDS", "PROMPT_ENCODING_FIELDS", "ROOT_FIELDS",
-    "ROOT_FIELDS_V1", "render_image_prompt_plan", "validate_image_prompt_bytes",
+    "ROOT_FIELDS_V1", "image_prompt_asset_diagnostics", "render_image_prompt_plan", "validate_image_prompt_bytes",
     "validate_image_prompt_plan",
 ]

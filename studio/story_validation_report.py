@@ -16,8 +16,9 @@ from studio.workflow_builder import (
     rerun_deterministic_gates_atomic,
     restore_integrity_backup,
     review_model_gate_atomic,
+    scaffold_missing_stage_gates_atomic,
 )
-from studio.workflow_package import read_archive
+from studio.workflow_package import read_archive, stage_gate_contract_diagnostics
 
 QUALITY_LABELS = {
     "causality": "Quan hệ nhân quả",
@@ -389,6 +390,54 @@ def _render_deterministic_gate_rerun(report: Mapping[str, Any], root: Path) -> N
             st.rerun()
 
 
+def _render_gate_contract_repair(report: Mapping[str, Any], root: Path) -> None:
+    import streamlit as st
+
+    if str(report.get("prompt_version")) not in {"5.2.0", "5.2.2"}:
+        return
+    diagnostics = stage_gate_contract_diagnostics(report)
+    missing = diagnostics["missing"]
+    if not missing:
+        return
+    aliases = {
+        "PORTRAIT_FILES": "IMAGE_FILES",
+        "PORTRAIT_CONTENT": "IMAGE_CONTENT",
+        "PAIRWISE_PARITY": "ORIENTATION_PARITY",
+        "STAGE2_SOURCE": "INHERITED_BYTES (chỉ là gợi ý nguồn)",
+    }
+    st.subheader("Sửa báo cáo theo hợp đồng")
+    st.warning(
+        f"Thiếu {len(missing)} gate bắt buộc: " + ", ".join(missing) + ". "
+        "Các kết quả PASS có tên cũ không được tự động dùng làm bằng chứng mới."
+    )
+    suggestions = [
+        {"Gate hiện có": old, "Gate hợp đồng gợi ý": new, "Cách xử lý": "Tạo gate chờ và kiểm lại"}
+        for old, new in aliases.items() if old in diagnostics["declared"]
+    ]
+    if suggestions:
+        st.dataframe(suggestions, hide_index=True, width="stretch")
+    backup_key = f"gate_contract_repair_backup_{root.resolve()}"
+    if backup_value := st.session_state.get(backup_key):
+        st.success("Lần chuẩn hóa gần nhất đã được lưu cùng bản sao lưu.")
+        if st.button("Hoàn tác chuẩn hóa gate", key=f"gate_contract_repair_undo_{root.resolve()}"):
+            try:
+                restore_integrity_backup(root, Path(str(backup_value)))
+            except (OSError, ValueError) as exc:
+                st.error(f"Hoàn tác thất bại: {exc}")
+            else:
+                st.session_state.pop(backup_key, None)
+                st.rerun()
+    if st.button("Chuẩn hóa báo cáo Stage", type="primary", key=f"gate_contract_repair_{root.resolve()}"):
+        try:
+            _inspection, backup, added = scaffold_missing_stage_gates_atomic(root)
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            st.error(f"Không thể chuẩn hóa báo cáo: {exc}")
+        else:
+            st.session_state[backup_key] = str(backup)
+            st.success("Đã thêm gate ở trạng thái chờ kiểm: " + ", ".join(added))
+            st.rerun()
+
+
 def _render_lineage_rebuild(report: Mapping[str, Any], root: Path) -> None:
     import streamlit as st
 
@@ -477,13 +526,26 @@ def render_story_validation_report(
         unchecked = sum(row.get("status") in {"NOT_CHECKED", "NOT_VERIFIED"} for row in checks)
         remaining_count = len(_items(report.get("remaining_work"))) + unchecked
         effective_status = effective_validation_status(report, package_inspection)
-        columns = st.columns(6)
+        contract_diagnostics = (
+            stage_gate_contract_diagnostics(report)
+            if str(report.get("prompt_version")) in {"5.2.0", "5.2.2"}
+            else None
+        )
+        columns = st.columns(7 if contract_diagnostics else 6)
         columns[0].metric("Trạng thái", effective_status)
         columns[1].metric("Stage", report.get("stage", "—"))
-        columns[2].metric("Kiểm tra đạt", f"{passed}/{len(checks)}")
+        columns[2].metric(
+            "Khai báo đạt" if contract_diagnostics else "Kiểm tra đạt",
+            f"{passed}/{len(checks)}",
+        )
         columns[3].metric("Không đạt", failed)
         columns[4].metric("Chưa kiểm tra", unchecked)
         columns[5].metric("Việc còn lại", remaining_count)
+        if contract_diagnostics:
+            columns[6].metric(
+                "Gate hợp đồng",
+                f"{len(contract_diagnostics['resolved_required'])}/{len(contract_diagnostics['required'])}",
+            )
         package_ready = package_inspection is None or (
             package_inspection.get("overall_status") == "PASS"
             and package_inspection.get("publish_status") == "PASS"
@@ -516,6 +578,7 @@ def render_story_validation_report(
         } for row in checks], hide_index=True, width="stretch")
         if root is not None and (root / "manifest.json").is_file():
             _render_lineage_rebuild(report, root)
+            _render_gate_contract_repair(report, root)
             _render_deterministic_gate_rerun(report, root)
             _render_manual_gate_review(report, root)
         limitations = _items(report.get("limitations"))

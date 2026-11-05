@@ -12,11 +12,11 @@ from studio.story_catalog import (
     validate_story_catalog,
     write_story_catalog,
 )
+from tests.package_fixtures import synthetic_story
 
 
 def _sample_story() -> dict:
-    path = next((PROJECT_ROOT / "samples").glob("*/story.json"))
-    return json.loads(path.read_text(encoding="utf-8"))
+    return synthetic_story()
 
 
 def _write_story(directory: Path, story: dict) -> bytes:

@@ -9,28 +9,27 @@ import pytest
 
 from studio.reference_samples import (
     REFERENCE_CHECKSUM_FILE,
-    REFERENCE_PACKAGE_DIRECTORY,
     load_reference_package,
     reference_checksums,
 )
 
 
-def test_missing_sample_is_an_actionable_failure(tmp_path: Path) -> None:
-    shutil.copyfile(REFERENCE_PACKAGE_DIRECTORY / REFERENCE_CHECKSUM_FILE, tmp_path / REFERENCE_CHECKSUM_FILE)
+def test_missing_sample_is_an_actionable_failure(tmp_path: Path, sample_archives_dir: Path) -> None:
+    shutil.copyfile(sample_archives_dir / REFERENCE_CHECKSUM_FILE, tmp_path / REFERENCE_CHECKSUM_FILE)
     with pytest.raises(ValueError, match="story_stage1.zip.*samples"):
         load_reference_package("story_stage1.zip", tmp_path)
 
 
-def test_changed_archive_bytes_are_rejected_before_schema_validation(tmp_path: Path) -> None:
-    shutil.copyfile(REFERENCE_PACKAGE_DIRECTORY / REFERENCE_CHECKSUM_FILE, tmp_path / REFERENCE_CHECKSUM_FILE)
-    (tmp_path / "story_stage1.zip").write_bytes((REFERENCE_PACKAGE_DIRECTORY / "story_stage1.zip").read_bytes() + b"changed")
+def test_changed_archive_bytes_are_rejected_before_schema_validation(tmp_path: Path, sample_archives_dir: Path) -> None:
+    shutil.copyfile(sample_archives_dir / REFERENCE_CHECKSUM_FILE, tmp_path / REFERENCE_CHECKSUM_FILE)
+    (tmp_path / "story_stage1.zip").write_bytes((sample_archives_dir / "story_stage1.zip").read_bytes() + b"changed")
     with pytest.raises(ValueError, match="Checksum ZIP mẫu không khớp"):
         load_reference_package("story_stage1.zip", tmp_path)
 
 
-def test_matching_checksum_does_not_bypass_stage_validation(tmp_path: Path) -> None:
-    raw = (REFERENCE_PACKAGE_DIRECTORY / "story_stage1.zip").read_bytes()
-    hashes = reference_checksums()
+def test_matching_checksum_does_not_bypass_stage_validation(tmp_path: Path, sample_archives_dir: Path) -> None:
+    raw = (sample_archives_dir / "story_stage1.zip").read_bytes()
+    hashes = reference_checksums(sample_archives_dir)
     hashes["story_stage2.zip"] = hashlib.sha256(raw).hexdigest()
     (tmp_path / REFERENCE_CHECKSUM_FILE).write_text("".join(f"{digest}  {name}\n" for name, digest in hashes.items()), encoding="utf-8")
     (tmp_path / "story_stage2.zip").write_bytes(raw)
@@ -38,15 +37,15 @@ def test_matching_checksum_does_not_bypass_stage_validation(tmp_path: Path) -> N
         load_reference_package("story_stage2.zip", tmp_path)
 
 
-def test_checksum_file_must_not_contain_duplicate_entries(tmp_path: Path) -> None:
-    raw = (REFERENCE_PACKAGE_DIRECTORY / REFERENCE_CHECKSUM_FILE).read_text(encoding="utf-8")
+def test_checksum_file_must_not_contain_duplicate_entries(tmp_path: Path, sample_archives_dir: Path) -> None:
+    raw = (sample_archives_dir / REFERENCE_CHECKSUM_FILE).read_text(encoding="utf-8")
     (tmp_path / REFERENCE_CHECKSUM_FILE).write_text(raw + raw.splitlines()[0] + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="trùng tên"):
         reference_checksums(tmp_path)
 
 
 def test_extracted_projects_are_isolated_and_leave_reference_bytes_untouched(
-    extract_sample_package: Callable[[str], Path], tmp_path: Path,
+    extract_sample_package: Callable[[str], Path], tmp_path: Path, sample_archives_dir: Path,
 ) -> None:
     first = extract_sample_package("story_stage1.zip")
     original = (first / "story.json").read_bytes()
@@ -55,16 +54,37 @@ def test_extracted_projects_are_isolated_and_leave_reference_bytes_untouched(
     assert first != second
     assert first.is_relative_to(tmp_path) and second.is_relative_to(tmp_path)
     assert (second / "story.json").read_bytes() == original
-    assert load_reference_package("story_stage1.zip")[0]["story.json"] == original
+    assert load_reference_package("story_stage1.zip", sample_archives_dir)[0]["story.json"] == original
 
 
-def test_reference_story_tab_works_without_output_directory(monkeypatch, tmp_path: Path) -> None:
+def test_reference_story_tab_works_without_output_directory(monkeypatch, tmp_path: Path, sample_archives_dir: Path) -> None:
     from streamlit.testing.v1 import AppTest
 
     monkeypatch.chdir(tmp_path)
-    app = AppTest.from_string("from studio.prompt_library import _render_reference_story\n_render_reference_story()", default_timeout=30)
+    app = AppTest.from_string(
+        "from pathlib import Path\n"
+        "from studio.prompt_library import _render_reference_story\n"
+        "from studio.reference_samples import ReferenceDataset\n"
+        f"dataset = ReferenceDataset('test', 'Test', Path({str(sample_archives_dir)!r}), '4.1.6', "
+        "{'STAGE4': 'story_video_prompts.zip'})\n_render_reference_story(dataset=dataset)",
+        default_timeout=30,
+    )
     app.run()
     assert not app.exception
     assert not app.error
     assert any(metric.value for metric in app.metric)
     assert not (tmp_path / "output").exists()
+
+
+def test_reference_story_without_selected_dataset_requests_selection(monkeypatch) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    def no_selection():
+        raise ValueError("Chưa chọn bộ tham chiếu và registry không cấu hình default_set.")
+
+    monkeypatch.setattr("studio.prompt_library.get_reference_dataset", no_selection)
+    app = AppTest.from_string("from studio.prompt_library import _render_reference_story\n_render_reference_story()")
+    app.run()
+    assert not app.exception
+    assert not app.error
+    assert app.info

@@ -431,7 +431,7 @@ def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
                         st.rerun()
     # image_files can be a downstream failure of an invalid visual basename;
     # the repair planner still has to prove that an extension-only fix is safe.
-    repairable_checks = {"manifest_files", "file_set", "file_digest", "image_files"}
+    repairable_checks = {"manifest_files", "file_set", "file_digest", "image_files", "image_prompts"}
     if result.get("archive") or not failed_checks or not failed_checks.issubset(repairable_checks):
         return
     try:
@@ -442,7 +442,50 @@ def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
     if not plan["actions"] and not plan["blockers"]:
         return
     st.subheader("Sửa tính toàn vẹn gói")
-    st.warning(f"Phát hiện {len(failed_checks)} lỗi kiểm định có thể phân tích tại máy.")
+    decisions = plan.get("decision_requests", [])
+    if decisions:
+        st.warning(f"Phát hiện lỗi; cần giải quyết {len(decisions)} lựa chọn trước khi sửa.")
+    else:
+        st.warning(f"Phát hiện {len(failed_checks)} lỗi kiểm định có thể sửa an toàn tại máy.")
+    resolutions: dict[str, Any] = {"exclude_paths": [], "asset_source_ids": {}}
+    if decisions:
+        st.markdown("**Lựa chọn của người dùng**")
+        for decision in decisions:
+            if decision["kind"] == "EXTRA_FILE":
+                path = str(decision["path"])
+                choice = st.radio(
+                    f"Tệp ngoài contract: {path}",
+                    ["Chưa quyết định", "Giữ trên đĩa, loại khỏi gói"],
+                    key=f"workflow_extra_{root.resolve()}_{path}", horizontal=True,
+                    help="Tệp không bị xóa; chỉ bị loại khỏi manifest và ZIP checkpoint.",
+                )
+                if choice == "Giữ trên đĩa, loại khỏi gói":
+                    resolutions["exclude_paths"].append(path)
+            elif decision["kind"] == "ASSET_SOURCE_IDS":
+                index = int(decision["index"])
+                role = decision.get("role") or "—"
+                st.caption(
+                    f"assets[{index}] · {decision.get('asset_id') or '—'} · {role} · "
+                    f"{decision.get('brief') or 'Không có brief'}"
+                )
+                scripts = decision.get("scripts", [])
+                options = [str(row["id"]) for row in scripts]
+                text_by_id = {str(row["id"]): str(row.get("text") or "") for row in scripts}
+                selected = st.multiselect(
+                    f"Story ID cho assets[{index}]",
+                    options,
+                    key=f"workflow_asset_sources_{root.resolve()}_{index}",
+                    format_func=lambda value, texts=text_by_id: f"{value} — {texts.get(value, '')[:100]}",
+                    placeholder="Chọn một hoặc nhiều đoạn truyện…",
+                )
+                if selected:
+                    resolutions["asset_source_ids"][str(index)] = selected
+        try:
+            resolved_plan = plan_directory_integrity_repair(root, resolutions=resolutions)
+        except (OSError, ValueError, KeyError) as exc:
+            st.error(f"Không thể kiểm tra lựa chọn: {exc}")
+        else:
+            plan = resolved_plan
     with st.expander("Xem trước thay đổi", expanded=True):
         for action in plan["actions"]:
             st.markdown(f"- {action['detail']}")
@@ -451,13 +494,17 @@ def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
                 st.caption(" · ".join(paths))
             changes = action.get("changes", [])
             if changes:
-                st.caption(" · ".join(f"{row['from']} → {row['to']}" for row in changes))
+                labels = []
+                for row in changes:
+                    location = f"assets[{row['index']}].{row['field']}: " if "index" in row else ""
+                    labels.append(f"{location}{row.get('from', '—')} → {row.get('to', 'loại bản trùng')}")
+                st.caption(" · ".join(labels))
         for blocker in plan["blockers"]:
             st.error(blocker)
     st.caption("Ứng dụng tạo bản sao lưu, sửa trên ứng viên, kiểm định toàn bộ rồi mới ghi manifest và ZIP checkpoint.")
-    if st.button("Tạo bản sao lưu và sửa tất cả", type="primary", disabled=not plan["can_repair"], key=f"workflow_repair_integrity_{root.resolve()}"):
+    if st.button("Xem trước đã xác nhận · tạo bản sao lưu và sửa", type="primary", disabled=not plan["can_repair"], key=f"workflow_repair_integrity_{root.resolve()}"):
         try:
-            repaired, backup = repair_directory_integrity(root)
+            repaired, backup = repair_directory_integrity(root, resolutions=resolutions)
         except (OSError, ValueError, KeyError) as exc:
             st.error(f"Sửa tính toàn vẹn thất bại: {exc}")
         else:

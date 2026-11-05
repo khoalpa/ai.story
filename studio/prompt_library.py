@@ -15,10 +15,13 @@ from studio.reference_samples import (
     REFERENCE_PACKAGE_DIRECTORY,
     REFERENCE_PACKAGE_NAMES,
     ReferenceDataset,
+    delete_reference_sidecar,
     get_reference_dataset,
     load_dataset_package,
     load_reference_package,
     load_reference_registry_tolerant,
+    suggest_reference_metadata,
+    write_reference_sidecar,
 )
 from studio.ui_components import (
     render_empty_state,
@@ -404,15 +407,24 @@ def _render_reference_story(
 
     if output_directory is None:
         try:
-            selected = dataset or get_reference_dataset()
-            if selected.project_directory is not None:
+            selected = dataset
+            if selected is None:
+                try:
+                    selected = get_reference_dataset()
+                except ValueError as exc:
+                    if "registry không cấu hình default_set" not in str(exc):
+                        raise
+                    st.info("Chọn một bộ tham chiếu để xem truyện mẫu.")
+                    return
+            if selected is not None and selected.project_directory is not None:
                 result = inspect_directory(selected.directory / selected.project_directory)
-            else:
-                _members, result = load_dataset_package(selected, "STAGE4")
+            elif selected is not None:
+                _members, result = load_dataset_package(selected, max(selected.packages))
         except (OSError, ValueError) as exc:
             st.error(str(exc))
             return
-        st.caption(f"Truyện tham khảo được đọc từ bộ `{selected.set_id}`.")
+        if selected is not None:
+            st.caption(f"Truyện tham khảo được đọc từ bộ `{selected.set_id}`.")
     else:
         result = inspect_directory(output_directory)
     columns = st.columns(4)
@@ -429,6 +441,77 @@ def _render_reference_story(
     st.dataframe(result.get("checks", []), hide_index=True, width="stretch")
     with st.expander("Manifest mẫu"):
         st.json(result.get("manifest", {}), expanded=False)
+
+
+def _render_reference_metadata_controls(dataset: ReferenceDataset) -> None:
+    import streamlit as st
+
+    if dataset.project_directory is None:
+        return
+    sidecar = dataset.directory / "reference-set.json"
+    exists = sidecar.is_file()
+    try:
+        metadata = suggest_reference_metadata(dataset.directory)
+    except (OSError, ValueError) as exc:
+        st.warning(f"Không thể chuẩn bị metadata bộ mẫu: {exc}")
+        return
+
+    label = "Chỉnh sửa metadata bộ mẫu" if exists else "Tạo metadata bộ mẫu"
+    with st.expander(label, expanded=False):
+        if not exists:
+            st.info(
+                "Project đang dùng metadata tạm từ manifest.json. File reference-set.json "
+                "sẽ nằm ngoài manifest và các ZIP canonical."
+            )
+        form_key = f"reference_metadata_{dataset.directory.resolve()}"
+        with st.form(form_key):
+            set_id = st.text_input("Set ID", value=str(metadata.get("set_id") or dataset.set_id))
+            title = st.text_input("Tiêu đề", value=str(metadata.get("title") or dataset.title))
+            prompt_version = st.text_input(
+                "Phiên bản prompt", value=str(metadata.get("prompt_version") or dataset.prompt_version)
+            )
+            raw_tags = metadata.get("tags") or []
+            tags = st.text_input("Tags", value=", ".join(str(tag) for tag in raw_tags))
+            submitted = st.form_submit_button(
+                "Lưu reference-set.json", type="primary", width="stretch"
+            )
+        if submitted:
+            candidate = dict(metadata)
+            candidate.update(
+                {
+                    "schema_version": 1,
+                    "set_id": set_id,
+                    "title": title,
+                    "prompt_version": prompt_version,
+                    "tags": [tag.strip() for tag in tags.split(",") if tag.strip()],
+                }
+            )
+            try:
+                write_reference_sidecar(dataset.directory, candidate, overwrite=exists)
+            except (OSError, ValueError) as exc:
+                st.error(f"Không thể lưu metadata: {exc}")
+            else:
+                st.success("Đã lưu reference-set.json; file không được thêm vào manifest hoặc ZIP.")
+                st.rerun()
+
+        if exists:
+            confirm = st.checkbox(
+                "Tôi xác nhận chỉ xóa metadata, không xóa project",
+                key=f"confirm_delete_reference_metadata_{dataset.set_id}",
+            )
+            if st.button(
+                "Xóa metadata",
+                key=f"delete_reference_metadata_{dataset.set_id}",
+                disabled=not confirm,
+                width="stretch",
+            ):
+                try:
+                    delete_reference_sidecar(dataset.directory)
+                except (OSError, ValueError) as exc:
+                    st.error(f"Không thể xóa metadata: {exc}")
+                else:
+                    st.success("Đã xóa reference-set.json; project và các ZIP được giữ nguyên.")
+                    st.rerun()
 
 
 def render_prompt_library_workspace(*, embedded: bool = False) -> None:
@@ -513,6 +596,14 @@ def render_prompt_library_workspace(*, embedded: bool = False) -> None:
     for warning in registry.warnings:
         st.warning(warning)
 
+    st.caption(
+        f"Đã tìm thấy {len(registry.datasets)} bộ · "
+        f"{registry.discovered_count} tự phát hiện · "
+        f"{registry.registered_count} đăng ký · "
+        f"{registry.duplicate_count} ID trùng · "
+        f"{registry.ignored_directory_count} thư mục bị bỏ qua."
+    )
+
     datasets = registry.datasets
     dataset_by_id = {dataset.set_id: dataset for dataset in datasets}
     options: list[str | None] = [None, *dataset_by_id]
@@ -563,6 +654,7 @@ def render_prompt_library_workspace(*, embedded: bool = False) -> None:
                 f"Bộ này dành cho prompt {selected_dataset.prompt_version}, không khớp {document.version_label}. "
                 "Bạn vẫn có thể kiểm tra bộ mẫu ở chế độ chỉ đọc."
             )
+        _render_reference_metadata_controls(selected_dataset)
     reader, structure, references = st.tabs(
         ["Tra cứu", "Tổng quan hợp đồng", "Dữ liệu tham chiếu"]
     )

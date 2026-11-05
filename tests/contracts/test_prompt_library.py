@@ -16,7 +16,7 @@ from studio.prompt_library import (
     load_prompt,
     search_prompt,
 )
-from studio.reference_samples import get_reference_dataset
+from studio.reference_samples import LEGACY_PACKAGE_STAGES, ReferenceDataset
 
 PROMPT = PROJECT_ROOT / "prompts" / SUPPORTED_PROMPT_FILENAME
 
@@ -73,8 +73,11 @@ def test_search_returns_line_and_numbered_section() -> None:
     assert "character image pack" in str(results[0]["Nội dung"]).casefold()
 
 
-def test_selected_reference_dataset_is_inspected() -> None:
-    dataset = get_reference_dataset()
+def test_selected_reference_dataset_is_inspected(sample_archives_dir: Path) -> None:
+    dataset = ReferenceDataset(
+        "test", "Synthetic packages", sample_archives_dir, "4.1.6",
+        {stage: name for name, stage in LEGACY_PACKAGE_STAGES.items()},
+    )
     rows = inspect_reference_packages(dataset=dataset)
 
     assert rows

@@ -9,6 +9,7 @@ from studio.story_validation_report import (
     _validate_story_report,
     effective_validation_status,
 )
+from studio.workflow_package import stage_gate_contract_diagnostics
 
 
 def _minimal_report() -> dict:
@@ -53,6 +54,23 @@ def test_unverified_package_is_not_presented_as_validation_failure() -> None:
 
 def test_standalone_report_keeps_its_declared_status() -> None:
     assert effective_validation_status({"status": "COMPLETE"}, None) == "COMPLETE"
+
+
+def test_stage3_contract_diagnostics_distinguish_declared_from_required_gates() -> None:
+    report = {
+        "prompt_version": "5.2.2", "stage": 3,
+        "checks": [
+            {"id": "PORTRAIT_FILES", "required": True, "status": "PASS"},
+            {"id": "INHERITED_BYTES", "required": True, "status": "PASS"},
+        ],
+    }
+
+    result = stage_gate_contract_diagnostics(report)
+
+    assert "PORTRAIT_FILES" in result["unexpected"]
+    assert "IMAGE_FILES" in result["missing"]
+    assert "ORIENTATION_PARITY" in result["missing"]
+    assert "INHERITED_BYTES" in result["resolved_required"]
 
 
 def test_manual_review_submit_is_not_stuck_behind_form_checkbox() -> None:

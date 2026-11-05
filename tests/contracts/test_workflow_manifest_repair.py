@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from studio.prompt_contract import prompt_contract_for_version
 from studio.workflow_builder import (
     build_workflow_package,
     manifest_digest_mismatches,
@@ -18,8 +19,10 @@ from studio.workflow_builder import (
     resolve_remaining_work_atomic,
     restore_integrity_backup,
     review_model_gate_atomic,
+    scaffold_missing_stage_gates_atomic,
 )
 from studio.workflow_package import inspect_directory, read_archive
+from tests.contracts.test_story_package_v520 import _stage1_files
 
 
 def _write_package(root: Path) -> None:
@@ -300,6 +303,43 @@ def test_manual_model_gate_review_updates_report_manifest_and_checkpoint(tmp_pat
     assert (backup / "validation_report.json").is_file()
 
 
+def test_scaffold_missing_contract_gate_is_atomic_and_does_not_copy_legacy_pass(tmp_path: Path) -> None:
+    payload, _ = build_workflow_package(
+        1, "CREATE", _stage1_files(), contract=prompt_contract_for_version("5.2.0"),
+    )
+    members = read_archive(payload)
+    report = json.loads(members["validation_report.json"])
+    report["checks"] = [row for row in report["checks"] if row["id"] != "JSON_PARSE"]
+    report["checks"].append({
+        "id": "LEGACY_JSON_PARSE", "status": "PASS", "method": "CODE", "required": True,
+        "target": "*.json", "details": "Kết quả từ bộ kiểm cũ.",
+    })
+    report["status"] = "PARTIAL"
+    report_raw = json.dumps(report, ensure_ascii=False, separators=(",", ":")).encode()
+    manifest = json.loads(members["manifest.json"])
+    manifest["status"] = "PARTIAL"
+    row = next(item for item in manifest["files"] if item["path"] == "validation_report.json")
+    row.update(size_bytes=len(report_raw), sha256=hashlib.sha256(report_raw).hexdigest())
+    members["validation_report.json"] = report_raw
+    members["manifest.json"] = json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode()
+    for name, raw in members.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    (tmp_path / "story_stage1.zip").write_bytes(payload)
+
+    result, backup, added = scaffold_missing_stage_gates_atomic(tmp_path)
+
+    assert result["integrity_status"] == "PASS"
+    assert added == ["JSON_PARSE"]
+    repaired = json.loads((tmp_path / "validation_report.json").read_bytes())
+    new_gate = next(item for item in repaired["checks"] if item["id"] == "JSON_PARSE")
+    assert new_gate["status"] == "NOT_CHECKED"
+    assert any(item["id"] == "LEGACY_JSON_PARSE" for item in repaired["checks"])
+    assert read_archive(tmp_path / "story_stage1.zip")["validation_report.json"] == (tmp_path / "validation_report.json").read_bytes()
+    assert (backup / "validation_report.json").is_file()
+
+
 def test_manual_gate_review_rejects_code_gate_and_weak_evidence(tmp_path: Path) -> None:
     _write_manual_review_package(tmp_path)
 
@@ -336,16 +376,21 @@ def test_stage_completion_plan_blocks_remaining_work(tmp_path: Path) -> None:
     assert any("remaining_work" in blocker for blocker in plan["blockers"])
 
 
-def test_stage_completion_plan_closes_obsolete_migration_rerun_work() -> None:
-    root = Path("samples/[DKTT-0005] Những Người Đi Chuyến Cuối")
+def test_stage_completion_plan_closes_obsolete_migration_rerun_work(migrated_stage3_project: Path) -> None:
+    from tests.package_fixtures import replace_json
+
+    root = migrated_stage3_project
+    report = json.loads((root / "validation_report.json").read_bytes())
+    for check in report["checks"]:
+        check["status"] = "PASS"
+    report["remaining_work"] = ["Chạy lại toàn bộ gate bắt buộc của prompt v5.2.0."]
+    replace_json(root, "validation_report.json", report)
 
     plan = plan_stage_completion(root)
 
     assert plan["can_complete"] is True or plan["already_complete"] is True
     assert plan["remaining_work"] == []
-    assert plan["auto_resolved_work"] in (
-        [], ["Chạy lại toàn bộ gate bắt buộc của prompt v5.2.0."],
-    )
+    assert plan["auto_resolved_work"] == report["remaining_work"]
 
 
 def test_resolve_remaining_work_updates_report_manifest_and_checkpoint(tmp_path: Path) -> None:

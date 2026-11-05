@@ -69,7 +69,7 @@ def test_overview_reads_v416_report_without_legacy_quality_projection(sample_sta
     assert model["workflow"]["stage_gate_status"] == "PASS"
     assert model["workflow"]["publish_status"] == "PASS"
     assert metrics["Trạng thái báo cáo"] == "COMPLETE"
-    assert metrics["Kiểm định"] == "73/73"
+    assert metrics["Kiểm định"] == "10/10"
     assert "Chất lượng gói" not in metrics
 
 

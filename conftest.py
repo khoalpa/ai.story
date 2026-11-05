@@ -16,7 +16,14 @@ os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
 
 
 @pytest.fixture(scope="session")
-def sample_package_members() -> Callable[[str], Mapping[str, bytes]]:
+def sample_archives_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    from tests.package_fixtures import write_legacy_archives
+
+    return write_legacy_archives(tmp_path_factory.mktemp("synthetic-packages"))
+
+
+@pytest.fixture(scope="session")
+def sample_package_members(sample_archives_dir: Path) -> Callable[[str], Mapping[str, bytes]]:
     """Cache verified, immutable archive members; never share writable test files."""
     from studio.reference_samples import load_reference_package
 
@@ -24,23 +31,11 @@ def sample_package_members() -> Callable[[str], Mapping[str, bytes]]:
 
     def load(name: str) -> Mapping[str, bytes]:
         if name not in cached:
-            members, _inspection = load_reference_package(name)
+            members, _inspection = load_reference_package(name, sample_archives_dir)
             cached[name] = MappingProxyType(members)
         return cached[name]
 
     return load
-
-
-@pytest.fixture(scope="session")
-def sample_archives_dir(sample_package_members: Callable[[str], Mapping[str, bytes]]) -> Path:
-    from studio.reference_samples import (
-        REFERENCE_PACKAGE_DIRECTORY,
-        REFERENCE_PACKAGE_NAMES,
-    )
-
-    for name in REFERENCE_PACKAGE_NAMES:
-        sample_package_members(name)
-    return REFERENCE_PACKAGE_DIRECTORY
 
 
 @pytest.fixture(scope="session")
@@ -74,3 +69,16 @@ def sample_stage1_project(extract_sample_package: Callable[[str], Path]) -> Path
 @pytest.fixture
 def sample_stage4_project(extract_sample_package: Callable[[str], Path]) -> Path:
     return extract_sample_package("story_video_prompts.zip")
+
+
+@pytest.fixture
+def migrated_stage3_project(sample_stage4_project: Path, tmp_path: Path) -> Path:
+    from studio.package_migration import migrate_extracted_package
+
+    result = migrate_extracted_package(sample_stage4_project)
+    destination = tmp_path / "migrated"
+    for name, raw in result.members.items():
+        path = destination / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    return destination

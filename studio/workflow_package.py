@@ -79,6 +79,35 @@ def _required_stage_gates(stage: Any, contract: PromptContract) -> set[str]:
     return required
 
 
+def required_stage_gate_ids(stage: Any, prompt_version: str) -> set[str]:
+    """Return the public, version-aware gate contract used by Studio diagnostics."""
+    return _required_stage_gates(stage, prompt_contract_for_version(prompt_version))
+
+
+def stage_gate_contract_diagnostics(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Compare declared checks with the gate contract without trusting their verdicts."""
+    prompt_version = str(report.get("prompt_version") or "")
+    required = required_stage_gate_ids(report.get("stage"), prompt_version)
+    checks = report.get("checks")
+    rows = checks if isinstance(checks, list) else []
+    declared = {
+        str(row.get("id")) for row in rows
+        if isinstance(row, Mapping) and isinstance(row.get("id"), str)
+    }
+    resolved = {
+        str(row.get("id")) for row in rows
+        if isinstance(row, Mapping) and row.get("required") is True
+        and row.get("status") in {"PASS", "NOT_APPLICABLE"}
+    }
+    return {
+        "required": sorted(required),
+        "declared": sorted(declared),
+        "missing": sorted(required - declared),
+        "unexpected": sorted(declared - required),
+        "resolved_required": sorted(required & resolved),
+    }
+
+
 def _v520_not_applicable(identifier: str, members: Mapping[str, bytes]) -> bool:
     """Return whether payload facts make a required v5.2 gate inapplicable."""
     if identifier == "SERIAL_CONTINUITY":
@@ -709,4 +738,4 @@ def inspect_directory(root: Path, *, overridden: bool = False, parent: Mapping[s
         return result
 
 
-__all__ = ["FILE_FIELDS", "MANIFEST_FIELDS", "PURPOSES", "STAGES", "VALIDATION_FIELDS", "WORKFLOW_FILES", "active_image_basenames", "aggregate_package_status", "inspect_directory", "inspect_members", "load_prompt_contract", "package_digest", "read_archive", "read_json", "safe_name"]
+__all__ = ["FILE_FIELDS", "MANIFEST_FIELDS", "PURPOSES", "STAGES", "VALIDATION_FIELDS", "WORKFLOW_FILES", "active_image_basenames", "aggregate_package_status", "inspect_directory", "inspect_members", "load_prompt_contract", "package_digest", "read_archive", "read_json", "required_stage_gate_ids", "safe_name", "stage_gate_contract_diagnostics"]

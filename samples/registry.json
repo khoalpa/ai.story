@@ -1,11 +1,5 @@
 {
   "schema_version": 1,
-  "default_set": "htkd-0001",
-  "sets": [
-    {
-      "id": "htkd-0001",
-      "path": "Tiem_Sua_Nhung_Loi_Hua",
-      "enabled": true
-    }
-  ]
+  "default_set": null,
+  "sets": []
 }

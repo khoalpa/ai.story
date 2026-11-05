@@ -13,12 +13,14 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from studio.image_prompt_validation import image_prompt_asset_diagnostics
 from studio.prompt_contract import (
     PromptContract,
     prompt_contract_for_version,
 )
 from studio.workflow_package import (
     FILE_FIELDS,
+    V520_GATE_METHODS,
     _expected_payload,
     active_image_basenames,
     inspect_members,
@@ -45,6 +47,67 @@ def _archive_bytes(members: Mapping[str, bytes]) -> bytes:
             info.external_attr = 0o100644 << 16
             archive.writestr(info, members[name])
     return buffer.getvalue()
+
+
+def _sync_image_prompt_dependents(files: dict[str, bytes]) -> dict[str, bytes]:
+    """Synchronize exact projections and invalidate evidence after asset edits."""
+    changed: dict[str, bytes] = {}
+    image_prompts = read_json(files["image_prompts.json"])
+    prompt_assets = image_prompts.get("assets")
+    if not isinstance(prompt_assets, list):
+        raise ValueError("image_prompts.assets phải là array")
+    prompt_by_basename = {
+        row.get("basename"): row for row in prompt_assets
+        if isinstance(row, Mapping) and isinstance(row.get("basename"), str)
+    }
+    if len(prompt_by_basename) != len(prompt_assets):
+        raise ValueError("image_prompts.assets phải có basename duy nhất")
+    if "visual_plan.json" in files:
+        visual_plan = read_json(files["visual_plan.json"])
+        visual_assets = visual_plan.get("assets")
+        if not isinstance(visual_assets, list):
+            raise ValueError("visual_plan.assets phải là array")
+        exact_fields = (
+            "basename", "role", "source_script_ids", "character_ids", "brief",
+            "landscape_prompt", "portrait_prompt",
+        )
+        for visual_asset in visual_assets:
+            if not isinstance(visual_asset, dict):
+                raise ValueError("visual_plan.assets[] phải là object")
+            basename = visual_asset.get("basename")
+            prompt_asset = prompt_by_basename.get(basename)
+            if prompt_asset is None:
+                raise ValueError(f"visual_plan asset không có image prompt tương ứng: {basename}")
+            for field in exact_fields:
+                visual_asset[field] = prompt_asset.get(field)
+        visual_raw = _json_bytes(visual_plan)
+        if visual_raw != files["visual_plan.json"]:
+            files["visual_plan.json"] = visual_raw
+            changed["visual_plan.json"] = visual_raw
+    if "validation_report.json" in files:
+        report = read_json(files["validation_report.json"])
+        archive_validation = report.get("archive_validation")
+        if not isinstance(archive_validation, dict):
+            raise ValueError("validation_report.archive_validation phải là object")
+        archive_validation.update({
+            "status": "NOT_CHECKED",
+            "details": "Checkpoint vừa được tái tạo; cần xác minh archive mới.",
+        })
+        affected = {
+            "SCHEMA_LINKS", "IMAGE_PROMPT_SCHEMA", "IMAGE_PROMPT_SOURCE_BINDING",
+            "IMAGE_PROMPT_CHARACTER_LINKS",
+        }
+        checks = report.get("checks")
+        if isinstance(checks, list):
+            for check in checks:
+                if isinstance(check, dict) and check.get("id") in affected:
+                    check["status"] = "NOT_CHECKED"
+                    check["details"] = "Cần chạy lại sau khi sửa ánh xạ asset/image prompt."
+        report_raw = _json_bytes(report)
+        if report_raw != files["validation_report.json"]:
+            files["validation_report.json"] = report_raw
+            changed["validation_report.json"] = report_raw
+    return changed
 
 
 def _stage_number(stage: object) -> int:
@@ -194,8 +257,13 @@ def _basename_normalization(
     return candidate, changes
 
 
-def plan_directory_integrity_repair(root: Path) -> dict[str, Any]:
+def plan_directory_integrity_repair(
+    root: Path, *, resolutions: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Describe deterministic, non-destructive repairs available for a package."""
+    resolutions = resolutions or {}
+    resolved_extra_paths = set(resolutions.get("exclude_paths", []))
+    resolved_asset_sources = resolutions.get("asset_source_ids", {})
     manifest = read_json((root / "manifest.json").read_bytes())
     rows = manifest.get("files")
     if not isinstance(rows, list):
@@ -218,6 +286,27 @@ def plan_directory_integrity_repair(root: Path) -> dict[str, Any]:
         actions.append({"kind": "REFRESH_DIGESTS", "detail": f"Tính lại size/hash cho {len(changed)} tệp.", "paths": changed})
     if missing:
         blockers.append("Thiếu payload: " + ", ".join(missing))
+    if "visual_plan.json" not in members:
+        try:
+            contract = prompt_contract_for_version(str(manifest.get("prompt_version") or ""))
+            stage = int(manifest["stage"])
+            expected = _expected_payload(
+                {"manifest.json": (root / "manifest.json").read_bytes(), **members},
+                stage, contract,
+            )
+            extras = sorted(listed - expected)
+            selected_extras = sorted(set(extras) & resolved_extra_paths)
+            if selected_extras:
+                actions.append({
+                    "kind": "EXCLUDE_EXTRA_FILES",
+                    "detail": f"Loại {len(selected_extras)} tệp ngoài contract khỏi manifest/checkpoint; giữ nguyên trên đĩa.",
+                    "paths": selected_extras,
+                })
+            unresolved_extras = [path for path in extras if path not in resolved_extra_paths]
+            if unresolved_extras:
+                blockers.append("Tệp ngoài file set cần người dùng quyết định: " + ", ".join(unresolved_extras))
+        except (KeyError, TypeError, ValueError) as exc:
+            blockers.append(f"Không thể suy ra file set: {exc}")
     if "visual_plan.json" in members:
         try:
             contract = prompt_contract_for_version(str(manifest.get("prompt_version") or ""))
@@ -246,7 +335,7 @@ def plan_directory_integrity_repair(root: Path) -> dict[str, Any]:
             } if isinstance(characters, list) else {}
             linkable: list[dict[str, str]] = []
             excludable: list[str] = []
-            unresolved: list[str] = []
+            unresolved_paths: list[str] = []
             linked_ids: set[str] = set()
             for path in extras:
                 candidate = Path(path)
@@ -261,7 +350,7 @@ def plan_directory_integrity_repair(root: Path) -> dict[str, Any]:
                     # Exclude it from manifest/checkpoint without deleting it.
                     excludable.append(path)
                 else:
-                    unresolved.append(path)
+                    unresolved_paths.append(path)
             characters_dir = root / "characters"
             disk_character_paths = (
                 sorted(
@@ -312,14 +401,129 @@ def plan_directory_integrity_repair(root: Path) -> dict[str, Any]:
                     "detail": f"Loại {len(excludable)} ảnh nhân vật không liên kết khỏi manifest/checkpoint; giữ nguyên file trong thư mục dự án.",
                     "paths": excludable,
                 })
-            if unresolved:
-                blockers.append("Tệp ngoài file set cần người dùng quyết định: " + ", ".join(unresolved))
+            resolved_unresolved = sorted(set(unresolved_paths) & resolved_extra_paths)
+            if resolved_unresolved:
+                actions.append({
+                    "kind": "EXCLUDE_EXTRA_FILES",
+                    "detail": f"Loại {len(resolved_unresolved)} tệp ngoài contract khỏi manifest/checkpoint; giữ nguyên trên đĩa.",
+                    "paths": resolved_unresolved,
+                })
+                unresolved_paths = [path for path in unresolved_paths if path not in resolved_extra_paths]
+            if unresolved_paths:
+                blockers.append("Tệp ngoài file set cần người dùng quyết định: " + ", ".join(unresolved_paths))
             absent = sorted(expected - listed)
             if absent:
                 blockers.append("Manifest thiếu tệp bắt buộc: " + ", ".join(absent))
         except (KeyError, TypeError, ValueError) as exc:
             blockers.append(f"Không thể suy ra file set: {exc}")
-    return {"actions": actions, "blockers": blockers, "can_repair": bool(actions) and not blockers}
+    if "image_prompts.json" in members and "story.json" in members:
+        try:
+            image_prompts = read_json(members["image_prompts.json"])
+            story = read_json(members["story.json"])
+            diagnostics = image_prompt_asset_diagnostics(image_prompts, story)
+            replacements: list[dict[str, Any]] = []
+            unresolved_diagnostics: list[dict[str, Any]] = []
+            for diagnostic in diagnostics:
+                resolution = resolved_asset_sources.get(str(diagnostic["index"]), [])
+                if (
+                    diagnostic["field"] == "source_script_ids"
+                    and diagnostic["code"] == "EMPTY_LIST"
+                    and isinstance(resolution, list) and resolution
+                    and all(value in diagnostic.get("allowed", []) for value in resolution)
+                ):
+                    replacements.append({
+                        "index": diagnostic["index"], "field": diagnostic["field"],
+                        "kind": "SET_REFERENCES", "from": [], "to": resolution,
+                    })
+                    continue
+                if diagnostic["code"] == "DUPLICATES":
+                    replacements.append({
+                        "index": diagnostic["index"], "field": diagnostic["field"],
+                        "kind": "DEDUPLICATE", "from": diagnostic["values"],
+                    })
+                    continue
+                if diagnostic["code"] == "UNKNOWN_REFERENCES":
+                    allowed_by_case = {str(value).casefold(): value for value in diagnostic.get("allowed", [])}
+                    mapping = {
+                        value: allowed_by_case[value.casefold()]
+                        for value in diagnostic["values"]
+                        if value.casefold() in allowed_by_case
+                    }
+                    if len(mapping) == len(diagnostic["values"]):
+                        replacements.append({
+                            "index": diagnostic["index"], "field": diagnostic["field"],
+                            "kind": "REMAP_REFERENCES", "mapping": mapping,
+                            "from": diagnostic["values"], "to": list(mapping.values()),
+                        })
+                        continue
+                unresolved_diagnostics.append(diagnostic)
+            if replacements:
+                actions.append({
+                    "kind": "REPAIR_IMAGE_PROMPT_ASSETS",
+                    "detail": f"Chuẩn hóa an toàn {len(replacements)} trường tham chiếu trong image_prompts.json.",
+                    "changes": replacements,
+                })
+                dependent_paths = [
+                    path for path in ("visual_plan.json", "validation_report.json")
+                    if path in members
+                ]
+                if dependent_paths:
+                    actions.append({
+                        "kind": "SYNC_IMAGE_PROMPT_DEPENDENTS",
+                        "detail": "Đồng bộ projection phụ thuộc và vô hiệu hóa bằng chứng cũ cần chạy lại.",
+                        "paths": dependent_paths,
+                    })
+                if not unresolved_diagnostics:
+                    # The current invalid asset references can make file-set
+                    # derivation fail before the repaired candidate exists.
+                    # Candidate inspection below remains the authoritative
+                    # safety check, so this derived blocker must not prevent
+                    # applying an otherwise deterministic repair.
+                    blockers = [
+                        blocker for blocker in blockers
+                        if not blocker.startswith("Không thể suy ra file set:")
+                    ]
+            if unresolved_diagnostics:
+                blockers.extend(
+                    f"assets[{row['index']}].{row['field']}: {row['detail']}"
+                    for row in unresolved_diagnostics
+                )
+        except (TypeError, ValueError) as exc:
+            blockers.append(f"Không thể phân tích image_prompts.json: {exc}")
+    decision_requests: list[dict[str, Any]] = []
+    for blocker in blockers:
+        prefix = "Tệp ngoài file set cần người dùng quyết định: "
+        if blocker.startswith(prefix):
+            decision_requests.extend(
+                {"kind": "EXTRA_FILE", "path": path.strip()}
+                for path in blocker.removeprefix(prefix).split(",") if path.strip()
+            )
+    if "image_prompts.json" in members and "story.json" in members:
+        try:
+            image_prompts = read_json(members["image_prompts.json"])
+            story = read_json(members["story.json"])
+            scripts = [
+                {"id": row.get("id"), "text": row.get("text", "")}
+                for row in story.get("script", []) if isinstance(row, Mapping) and isinstance(row.get("id"), str)
+            ]
+            assets = image_prompts.get("assets", [])
+            for diagnostic in image_prompt_asset_diagnostics(image_prompts, story):
+                if diagnostic["field"] == "source_script_ids" and diagnostic["code"] == "EMPTY_LIST":
+                    index = int(diagnostic["index"])
+                    asset = assets[index] if isinstance(assets, list) and index < len(assets) else {}
+                    decision_requests.append({
+                        "kind": "ASSET_SOURCE_IDS", "index": index,
+                        "asset_id": asset.get("asset_id") if isinstance(asset, Mapping) else None,
+                        "role": asset.get("role") if isinstance(asset, Mapping) else None,
+                        "brief": asset.get("brief") if isinstance(asset, Mapping) else None,
+                        "scripts": scripts,
+                    })
+        except (TypeError, ValueError):
+            pass
+    return {
+        "actions": actions, "blockers": blockers, "decision_requests": decision_requests,
+        "can_repair": bool(actions) and not blockers,
+    }
 
 
 def _backup_integrity_files(root: Path, names: list[str]) -> Path:
@@ -719,9 +923,95 @@ def rerun_deterministic_gates_atomic(
         raise
 
 
-def repair_directory_integrity(root: Path, *, contract: PromptContract | None = None) -> tuple[dict[str, Any], Path]:
+def scaffold_missing_stage_gates_atomic(
+    root: Path, *, contract: PromptContract | None = None,
+) -> tuple[dict[str, Any], Path, list[str]]:
+    """Add missing current-contract gates as unverified records and rebuild the checkpoint.
+
+    Legacy or unknown checks are deliberately retained as audit evidence. Their PASS
+    status is never copied to a current gate because similarly named gates can have a
+    wider target or require a different detector.
+    """
+    from studio.workflow_package import required_stage_gate_ids
+
+    manifest = read_json((root / "manifest.json").read_bytes())
+    contract = contract or prompt_contract_for_version(str(manifest.get("prompt_version") or ""))
+    if contract.version < (5, 2, 0):
+        raise ValueError("Chuẩn hóa gate chỉ hỗ trợ package v5.2.0 trở lên")
+    report = read_json((root / "validation_report.json").read_bytes())
+    checks = report.get("checks")
+    if not isinstance(checks, list):
+        raise ValueError("validation_report.checks phải là array")
+    declared = {
+        str(row.get("id")) for row in checks
+        if isinstance(row, Mapping) and isinstance(row.get("id"), str)
+    }
+    missing = sorted(required_stage_gate_ids(manifest.get("stage"), contract.version_label) - declared)
+    if not missing:
+        raise ValueError("Báo cáo đã khai báo đủ gate bắt buộc của hợp đồng")
+    legacy_hints = {
+        "IMAGE_FILES": "PORTRAIT_FILES",
+        "IMAGE_CONTENT": "PORTRAIT_CONTENT",
+        "ORIENTATION_PARITY": "PAIRWISE_PARITY",
+        "INHERITED_BYTES": "STAGE2_SOURCE",
+    }
+    for gate_id in missing:
+        methods = V520_GATE_METHODS[gate_id]
+        method = "MODEL_REVIEW" if "MODEL_REVIEW" in methods else "CODE" if "CODE" in methods else "TOOL"
+        source = legacy_hints.get(gate_id)
+        hint = f" Có gate cũ {source}; không kế thừa PASS vì phạm vi/bằng chứng có thể khác." if source in declared else ""
+        checks.append({
+            "id": gate_id,
+            "status": "NOT_CHECKED",
+            "method": method,
+            "required": True,
+            "target": "package payload",
+            "details": "Được AI Story Studio bổ sung theo hợp đồng hiện hành; cần chạy lại detector phù hợp." + hint,
+        })
+    report["status"] = "PARTIAL"
+    report_raw = _json_bytes(report)
+    rows = manifest.get("files")
+    if not isinstance(rows, list):
+        raise ValueError("manifest.files phải là array")
+    report_row = next(
+        (row for row in rows if isinstance(row, dict) and row.get("path") == "validation_report.json"), None,
+    )
+    if report_row is None:
+        raise ValueError("manifest không liệt kê validation_report.json")
+    report_row.update(size_bytes=len(report_raw), sha256=hashlib.sha256(report_raw).hexdigest())
+    manifest["status"] = "PARTIAL"
+    manifest_raw = _json_bytes(manifest)
+    files = {
+        row["path"]: report_raw if row["path"] == "validation_report.json" else (root / Path(row["path"])).read_bytes()
+        for row in rows if isinstance(row, Mapping) and isinstance(row.get("path"), str)
+    }
+    candidate = {"manifest.json": manifest_raw, **files}
+    inspection = inspect_members(candidate, archive=True, contract=contract)
+    if inspection.get("integrity_status") != "PASS":
+        failures = "; ".join(
+            str(row.get("detail")) for row in inspection.get("checks", [])
+            if isinstance(row, Mapping) and row.get("status") == "FAIL"
+        )
+        raise ValueError("Ứng viên chuẩn hóa không hợp lệ: " + failures)
+    stage = _stage_number(manifest.get("stage"))
+    checkpoint = CHECKPOINT_NAMES[stage]
+    backup = _backup_integrity_files(root, ["manifest.json", "validation_report.json", checkpoint])
+    try:
+        publish_package_atomic(root / "validation_report.json", report_raw)
+        publish_package_atomic(root / checkpoint, _archive_bytes(candidate))
+        publish_package_atomic(root / "manifest.json", manifest_raw)
+        return inspection, backup, missing
+    except Exception:
+        restore_integrity_backup(root, backup)
+        raise
+
+
+def repair_directory_integrity(
+    root: Path, *, contract: PromptContract | None = None,
+    resolutions: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], Path]:
     """Apply the safe repair plan, validate it, then publish with a backup."""
-    plan = plan_directory_integrity_repair(root)
+    plan = plan_directory_integrity_repair(root, resolutions=resolutions)
     if not plan["can_repair"]:
         raise ValueError("Không có phương án sửa tự động an toàn: " + "; ".join(plan["blockers"]))
     manifest = read_json((root / "manifest.json").read_bytes())
@@ -729,8 +1019,11 @@ def repair_directory_integrity(root: Path, *, contract: PromptContract | None = 
     rows = manifest["files"]
     files = {row["path"]: (root / Path(row["path"])).read_bytes() for row in rows}
     changed_files: dict[str, bytes] = {}
-    exclude_action = next((row for row in plan["actions"] if row["kind"] == "EXCLUDE_UNBOUND_CHARACTER_FILES"), None)
-    excluded = set(exclude_action.get("paths", [])) if exclude_action else set()
+    exclude_actions = [
+        row for row in plan["actions"]
+        if row["kind"] in {"EXCLUDE_UNBOUND_CHARACTER_FILES", "EXCLUDE_EXTRA_FILES"}
+    ]
+    excluded = {path for action in exclude_actions for path in action.get("paths", [])}
     for path in excluded:
         files.pop(path, None)
     basename_action = next((row for row in plan["actions"] if row["kind"] == "NORMALIZE_VISUAL_BASENAMES"), None)
@@ -761,6 +1054,21 @@ def repair_directory_integrity(root: Path, *, contract: PromptContract | None = 
             visual_plan["reference_mode"] = "IMAGE_REFERENCE"
         files["visual_plan.json"] = _json_bytes(visual_plan)
         changed_files["visual_plan.json"] = files["visual_plan.json"]
+    image_prompt_action = next((row for row in plan["actions"] if row["kind"] == "REPAIR_IMAGE_PROMPT_ASSETS"), None)
+    if image_prompt_action:
+        image_prompts = read_json(files["image_prompts.json"])
+        for change in image_prompt_action["changes"]:
+            asset = image_prompts["assets"][change["index"]]
+            values = asset[change["field"]]
+            if change["kind"] == "DEDUPLICATE":
+                asset[change["field"]] = list(dict.fromkeys(values))
+            elif change["kind"] == "REMAP_REFERENCES":
+                asset[change["field"]] = [change["mapping"].get(value, value) for value in values]
+            elif change["kind"] == "SET_REFERENCES":
+                asset[change["field"]] = list(change["to"])
+        files["image_prompts.json"] = _json_bytes(image_prompts)
+        changed_files["image_prompts.json"] = files["image_prompts.json"]
+        changed_files.update(_sync_image_prompt_dependents(files))
     updated = dict(manifest)
     existing_rows = {row["path"]: dict(row) for row in rows if row["path"] not in excluded}
     if link_action:
@@ -874,4 +1182,4 @@ def rebuild_checkpoint_chain(root: Path, **_: Any) -> dict[str, Any]:
     return result
 
 
-__all__ = ["build_workflow_package", "manifest_digest_mismatches", "plan_directory_integrity_repair", "publish_package_atomic", "publish_story_validation_report", "publish_stage1_checkpoint", "publish_stage2_checkpoint", "publish_stage4_release", "rebuild_checkpoint_chain", "repair_directory_integrity", "repair_directory_manifest", "rerun_deterministic_gates_atomic", "review_model_gate_atomic", "restore_integrity_backup"]
+__all__ = ["build_workflow_package", "manifest_digest_mismatches", "plan_directory_integrity_repair", "publish_package_atomic", "publish_story_validation_report", "publish_stage1_checkpoint", "publish_stage2_checkpoint", "publish_stage4_release", "rebuild_checkpoint_chain", "repair_directory_integrity", "repair_directory_manifest", "rerun_deterministic_gates_atomic", "review_model_gate_atomic", "scaffold_missing_stage_gates_atomic", "restore_integrity_backup"]

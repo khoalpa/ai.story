@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,7 @@ def test_audio_loads_verified_v416_project_by_default(sample_stage1_project: Pat
     state: dict[str, object] = {PROJECT_DIRECTORY_KEY: str(sample_stage1_project)}
 
     assert load_project_canonical_default(state) == story.resolve()
-    assert '"schema_version": "4.1.3"' in str(state["canonical_json_text"])
+    assert json.loads(str(state["canonical_json_text"]))["schema_version"] == "4.1.3"
     assert state[CANONICAL_PROJECT_SOURCE_KEY] == str(story.resolve())
     assert "SCRIPT:" in str(state[PENDING_PLAIN_SCRIPT_KEY])
 

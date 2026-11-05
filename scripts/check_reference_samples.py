@@ -17,16 +17,12 @@ from studio.reference_samples import (  # noqa: E402
     ReferenceDataset,
     discover_reference_datasets,
     get_reference_dataset,
+    load_reference_registry,
     validate_reference_dataset,
 )
 
 
-def check_tracked_dataset(dataset: ReferenceDataset) -> None:
-    required = {
-        (REFERENCE_ROOT / REFERENCE_REGISTRY_FILE).relative_to(ROOT).as_posix(),
-        (dataset.directory / REFERENCE_DATASET_FILE).relative_to(ROOT).as_posix(),
-    }
-    required.update((dataset.directory / name).relative_to(ROOT).as_posix() for name in dataset.package_names)
+def check_tracked_paths(required: set[str]) -> None:
     result = subprocess.run(
         ["git", "ls-files", "-z", "--", "samples"], cwd=ROOT,
         capture_output=True, text=True, encoding="utf-8", check=True, timeout=30,
@@ -34,6 +30,12 @@ def check_tracked_dataset(dataset: ReferenceDataset) -> None:
     missing = required - set(result.stdout.split("\0"))
     if missing:
         raise ValueError("Reference data is not tracked by Git: " + ", ".join(sorted(missing)))
+
+
+def check_tracked_dataset(dataset: ReferenceDataset) -> None:
+    required = {(dataset.directory / REFERENCE_DATASET_FILE).relative_to(ROOT).as_posix()}
+    required.update((dataset.directory / name).relative_to(ROOT).as_posix() for name in dataset.package_names)
+    check_tracked_paths(required)
 
 
 def main() -> int:
@@ -44,10 +46,19 @@ def main() -> int:
     choice = parser.add_mutually_exclusive_group()
     choice.add_argument("--set", dest="set_id", help="Validate one reference set by stable ID")
     choice.add_argument("--all", action="store_true", help="Validate every enabled reference set")
+    choice.add_argument("--registered", action="store_true", help="Validate only enabled registry entries, without local discovery")
     parser.add_argument("--require-tracked", action="store_true", help="Require registry, manifest and archives in Git")
     args = parser.parse_args()
     try:
-        datasets = discover_reference_datasets() if args.all else (get_reference_dataset(args.set_id),)
+        datasets: tuple[ReferenceDataset, ...]
+        if args.registered:
+            datasets = tuple(dataset for dataset in load_reference_registry()[0] if dataset.enabled)
+        else:
+            datasets = discover_reference_datasets() if args.all else (get_reference_dataset(args.set_id),)
+        if args.require_tracked:
+            check_tracked_paths({(REFERENCE_ROOT / REFERENCE_REGISTRY_FILE).relative_to(ROOT).as_posix()})
+        if not datasets:
+            print("No enabled reference datasets; package contracts are covered by generated test fixtures.")
         failed = False
         for dataset in datasets:
             if args.require_tracked:

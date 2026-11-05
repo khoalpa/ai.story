@@ -162,8 +162,8 @@ def test_rejects_unsupported_and_tampered_sources(tmp_path: Path) -> None:
         migrate_extracted_package(source)
 
 
-def test_migrates_extracted_v416_stage4_to_v520_stage3(tmp_path: Path) -> None:
-    members, _ = load_reference_package("story_video_prompts.zip")
+def test_migrates_extracted_v416_stage4_to_v520_stage3(tmp_path: Path, sample_archives_dir: Path) -> None:
+    members, _ = load_reference_package("story_video_prompts.zip", sample_archives_dir)
     source = tmp_path / "legacy"
     source.mkdir()
     for name, raw in members.items():
@@ -181,24 +181,31 @@ def test_migrates_extracted_v416_stage4_to_v520_stage3(tmp_path: Path) -> None:
     assert result.inspection["integrity_status"] == "PASS"
 
 
-def test_v4_migration_normalizes_ready_references_to_image_reference() -> None:
-    source = Path("samples/[DKTT-0004] Chiếc bàn còn một ngăn kéo kẹt")
+def test_v4_migration_normalizes_ready_references_to_image_reference(sample_stage4_project: Path) -> None:
+    from tests.package_fixtures import replace_json
+
+    source = sample_stage4_project
+    plan = json.loads((source / "visual_plan.json").read_bytes())
+    plan["reference_mode"] = "DESCRIPTION_ONLY"
+    for asset in plan["assets"]:
+        asset["character_ids"] = ["c001", "c003"]
+    replace_json(source, "visual_plan.json", plan)
 
     result = migrate_extracted_package(source)
 
     visual = json.loads(result.members["visual_plan.json"])
     prompts = json.loads(result.members["image_prompts.json"])
     assert visual["reference_mode"] == "IMAGE_REFERENCE"
-    assert {row["character_id"] for row in visual["characters"]} == {"c001", "c002", "c004"}
+    assert {row["character_id"] for row in visual["characters"]} == {"c001", "c003"}
     assert all(row["reference_status"] == "READY" for row in visual["characters"])
     assert {row["character_id"] for row in prompts["character_locks"]} == {
-        "c001", "c002", "c003", "c004",
+        "c001", "c002", "c003",
     }
     assert result.inspection["integrity_status"] == "PASS"
 
 
-def test_rebuilds_v520_stage3_lineage_with_verified_parent_bytes() -> None:
-    source = Path("samples/[DKTT-0005] Những Người Đi Chuyến Cuối")
+def test_rebuilds_v520_stage3_lineage_with_verified_parent_bytes(migrated_stage3_project: Path) -> None:
+    source = migrated_stage3_project
 
     result = rebuild_v520_checkpoint_chain(source)
 
