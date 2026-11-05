@@ -13,8 +13,8 @@ from typing import Any, Mapping
 from studio.workflow_package import inspect_directory, inspect_members, read_archive
 
 SCHEMA_VERSION = "4.1.3"
-PROMPT_VERSION = "4.2.0"
-SUPPORTED_PROMPT_VERSIONS = {"4.1.6", "4.2.0"}
+PROMPT_VERSION = "5.2.2"
+SUPPORTED_PROMPT_VERSIONS = {"4.1.6", "4.2.0", "5.0.0", "5.1.0", "5.2.0", "5.2.2"}
 SUPPORTED_STAGES = {"STAGE1", "STAGE2", "STAGE3", "STAGE4"}
 VIDEO_READY_STAGES = {"STAGE2", "STAGE3", "STAGE4"}
 
@@ -72,9 +72,11 @@ def _require_current(inspection: Mapping[str, Any], *, source: str) -> None:
     manifest = inspection.get("manifest")
     if not isinstance(manifest, Mapping):
         raise ValueError(f"{source} thiếu manifest.json v4.1.6 hợp lệ.")
-    if manifest.get("schema_version") != SCHEMA_VERSION or manifest.get("prompt_version") not in SUPPORTED_PROMPT_VERSIONS:
+    prompt_version = manifest.get("prompt_version")
+    expected_manifest_schema = "5.0.0" if prompt_version in {"5.0.0", "5.1.0", "5.2.0", "5.2.2"} else SCHEMA_VERSION
+    if manifest.get("schema_version") != expected_manifest_schema or prompt_version not in SUPPORTED_PROMPT_VERSIONS:
         raise ValueError(
-            f"{source} phải dùng schema {SCHEMA_VERSION} và prompt 4.1.6/4.2.0; "
+            f"{source} phải dùng prompt v5 hoặc v4 legacy với schema manifest tương ứng; "
             "gói cũ không được hỗ trợ."
         )
 

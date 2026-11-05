@@ -56,3 +56,18 @@ def test_video_inputs_present_three_clear_steps() -> None:
     body = source[inputs:run]
     for heading in ("1. Nguồn âm thanh", "2. Hình ảnh", "3. Đầu ra"):
         assert heading in body
+
+
+def test_package_migration_is_a_guided_summary_first_flow() -> None:
+    source = Path("studio/workflow_views.py").read_text(encoding="utf-8")
+    start = source.index("def render_package_migration(")
+    end = source.index("\ndef workflow_stage_caption", start)
+    body = source[start:end]
+    check = body.index('"Kiểm tra và xem thay đổi"')
+    preview = body.index('st.markdown("#### 2. Xem thay đổi")')
+    export = body.index('st.markdown("#### 3. Xuất gói")')
+    assert check < preview < export
+    assert 'with st.expander("Chi tiết kỹ thuật", expanded=False)' in body
+    assert '("Lưu thành thư mục mới", "Tải file ZIP")' in body
+    assert "Gói gốc sẽ không bị thay đổi" in body
+    assert 'if source_version == TARGET_VERSION:' in body

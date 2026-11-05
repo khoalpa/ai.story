@@ -1,4 +1,4 @@
-"""Character Image Pack v1.0 contract, deterministic builder and Stage 2 linker."""
+"""Character Image Pack v1.0 builder and contract-aware story-package linker."""
 from __future__ import annotations
 
 import hashlib
@@ -13,12 +13,17 @@ from typing import Any, Mapping
 from PIL import Image, UnidentifiedImageError
 
 from studio.artifact_validation import strict_json_bytes
-from studio.prompt_contract import PromptContract, load_prompt_contract
+from studio.prompt_contract import (
+    PromptContract,
+    load_prompt_contract,
+    prompt_contract_for_version,
+)
 from studio.workflow_builder import build_workflow_package
 from studio.workflow_package import read_archive
 
 PACK_VERSION = "1.0"
 PROMPT_VERSION = "4.2.0"
+PROMPT_VERSIONS = {"4.2.0", "5.0.0", "5.1.0", "5.2.0", "5.2.2"}
 SCOPE = "CHARACTER_IMAGE_PACK"
 VIEWS = ("FRONT", "SIDE", "BACK", "EXPRESSIONS")
 VIEW_FILES = {view: view.casefold() + ".png" for view in VIEWS}
@@ -137,12 +142,13 @@ def inspect_character_pack(members: Mapping[str, bytes], *, archive: bool = Fals
                         valid = bool(valid and image_ok)
                         expected_images.add(planned)
             chars_ok = bool(chars_ok and valid)
-    pack_ok = set(pack) == PACK_FIELDS and pack.get("character_pack_version") == PACK_VERSION and pack.get("prompt_version") == PROMPT_VERSION and isinstance(pack.get("style_lock"), str) and bool(pack["style_lock"].strip()) and source_ok and chars_ok
+    prompt_version = pack.get("prompt_version")
+    pack_ok = set(pack) == PACK_FIELDS and pack.get("character_pack_version") == PACK_VERSION and prompt_version in PROMPT_VERSIONS and isinstance(pack.get("style_lock"), str) and bool(pack["style_lock"].strip()) and source_ok and chars_ok
 
     status_values = {"COMPLETE", "PARTIAL", "BLOCKED"}
-    report_ok = set(report) == REPORT_FIELDS and report.get("character_pack_version") == PACK_VERSION and report.get("prompt_version") == PROMPT_VERSION and report.get("scope") == SCOPE and report.get("status") in status_values and all(isinstance(report.get(key), list) for key in ("input_sources", "checks", "limitations", "remaining_work")) and isinstance(report.get("archive_validation"), Mapping)
+    report_ok = set(report) == REPORT_FIELDS and report.get("character_pack_version") == PACK_VERSION and report.get("prompt_version") == prompt_version and report.get("scope") == SCOPE and report.get("status") in status_values and all(isinstance(report.get(key), list) for key in ("input_sources", "checks", "limitations", "remaining_work")) and isinstance(report.get("archive_validation"), Mapping)
     rows = manifest.get("files")
-    manifest_ok = set(manifest) == MANIFEST_FIELDS and manifest.get("character_pack_version") == PACK_VERSION and manifest.get("prompt_version") == PROMPT_VERSION and manifest.get("scope") == SCOPE and manifest.get("status") == report.get("status") and isinstance(rows, list)
+    manifest_ok = set(manifest) == MANIFEST_FIELDS and manifest.get("character_pack_version") == PACK_VERSION and manifest.get("prompt_version") == prompt_version and manifest.get("scope") == SCOPE and manifest.get("status") == report.get("status") and isinstance(rows, list)
     indexed: dict[str, Mapping[str, Any]] = {}
     if isinstance(rows, list):
         paths: list[str] = []
@@ -187,7 +193,7 @@ def build_character_pack(pack: Mapping[str, Any], style_bible: str, images: Mapp
         raise ValueError("character_style_bible.txt không được rỗng")
     files = {"character_pack.json": _json_bytes(pack), "character_style_bible.txt": style_bible.encode("utf-8"), "character_pack_report.json": _json_bytes(report), **dict(images)}
     rows = [{"path": path, "size_bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()} for path, raw in sorted(files.items())]
-    manifest = {"character_pack_version": PACK_VERSION, "prompt_version": PROMPT_VERSION, "scope": SCOPE, "status": report.get("status"), "files": rows}
+    manifest = {"character_pack_version": PACK_VERSION, "prompt_version": report.get("prompt_version"), "scope": SCOPE, "status": report.get("status"), "files": rows}
     members = {**files, "character_pack_manifest.json": _json_bytes(manifest)}
     payload = _archive_bytes(members)
     reopened = read_character_pack(payload)
@@ -198,6 +204,64 @@ def build_character_pack(pack: Mapping[str, Any], style_bible: str, images: Mapp
     return payload, inspection
 
 
+def link_character_pack_to_stage1(stage1: bytes | Mapping[str, bytes], character_pack: bytes | Mapping[str, bytes],
+                                  mappings: Mapping[str, str], *, contract: PromptContract | None = None) -> tuple[bytes, dict[str, Any]]:
+    """Create a PARTIAL v5.2 Stage-1 repair using reviewed CIP FRONT bytes."""
+    contract = contract or load_prompt_contract()
+    if contract.version < (5, 2, 0):
+        raise ValueError("Liên kết CIP vào Stage 1 yêu cầu prompt v5.2.0 trở lên")
+    stage_members = dict(stage1) if isinstance(stage1, Mapping) else read_archive(stage1)
+    cip_members = dict(character_pack) if isinstance(character_pack, Mapping) else read_character_pack(character_pack)
+    cip_result = inspect_character_pack(cip_members, archive=True)
+    if cip_result["status"] != "PASS":
+        raise ValueError("Character Image Pack chưa vượt kiểm tra deterministic")
+    manifest = _json(stage_members["manifest.json"])
+    if manifest.get("stage") != 1 or manifest.get("prompt_version") != contract.version_label:
+        raise ValueError("Cần snapshot Stage 1 cùng prompt contract để liên kết CIP")
+    image_prompts = _json(stage_members["image_prompts.json"])
+    locks = image_prompts.get("character_locks")
+    if not isinstance(locks, list):
+        raise ValueError("image_prompts.character_locks không hợp lệ")
+    by_lock = {row.get("character_id"): row for row in locks if isinstance(row, dict)}
+    by_source = {row.get("source_character_id"): row for row in cip_result["pack"]["characters"]}
+    files = {name: raw for name, raw in stage_members.items() if name != "manifest.json"}
+    linked: list[str] = []
+    for character_id, source_id in mappings.items():
+        lock = by_lock.get(character_id)
+        source = by_source.get(source_id)
+        if lock is None:
+            raise ValueError(f"Không tìm thấy character_lock {character_id!r}")
+        if source is None:
+            raise ValueError(f"Không tìm thấy source_character_id {source_id!r} trong CIP")
+        front = source["images"]["FRONT"]
+        if front.get("status") != "READY" or not isinstance(front.get("path"), str):
+            raise ValueError(f"Ảnh FRONT của {source_id!r} chưa READY")
+        target = f"characters/{character_id}.png"
+        files[target] = cip_members[front["path"]]
+        lock["planned_reference_path"] = target
+        linked.append(character_id)
+    if set(mappings) != set(linked):
+        raise ValueError("Ánh xạ CIP chưa được áp dụng đầy đủ")
+    files["image_prompts.json"] = _json_bytes(image_prompts)
+    report = _json(files["validation_report.json"])
+    report["status"] = "PARTIAL"
+    report["input_sources"] = [*report.get("input_sources", []),
+                               "Character Image Pack | linked_front_ids=" + ",".join(sorted(linked))]
+    report["limitations"] = [*report.get("limitations", []),
+                             "Reference nhân vật đã đổi; các review hình ảnh phụ thuộc hết hiệu lực."]
+    report["remaining_work"] = [*report.get("remaining_work", []),
+                                "Chạy lại IMAGE_PROMPT_CHARACTER_LINKS, IMAGE_REFERENCE_FILES và IMAGE_REFERENCE_CONTENT."]
+    for check in report.get("checks", []):
+        if isinstance(check, dict) and check.get("id") in {
+            "IMAGE_PROMPT_CHARACTER_LINKS", "IMAGE_REFERENCE_FILES", "IMAGE_REFERENCE_CONTENT",
+        }:
+            check["status"] = "NOT_CHECKED"
+            check["details"] = "Đã reset do liên kết Character Image Pack vào Stage 1."
+    files["validation_report.json"] = _json_bytes(report)
+    payload, inspection = build_workflow_package(1, "REPAIR", files, parent=stage_members, contract=contract)
+    return payload, {**inspection, "linked_character_ids": sorted(linked), "requires_visual_review": True}
+
+
 def link_character_pack_to_stage2(stage2: bytes | Mapping[str, bytes], character_pack: bytes | Mapping[str, bytes], mappings: Mapping[str, str], *, contract: PromptContract | None = None) -> tuple[bytes, dict[str, Any]]:
     """Create a PARTIAL Stage 2 repair snapshot using reviewed CIP FRONT bytes.
 
@@ -205,8 +269,10 @@ def link_character_pack_to_stage2(stage2: bytes | Mapping[str, bytes], character
     Existing snapshots are never mutated and downstream visual gates are reset.
     """
     contract = contract or load_prompt_contract()
-    if contract.version_label != PROMPT_VERSION:
-        raise ValueError("Liên kết Character Image Pack yêu cầu contract prompt 4.2.0")
+    if contract.version >= (5, 2, 0):
+        raise ValueError("Prompt v5.2 liên kết Character Image Pack bằng repair Stage 1")
+    if contract.version_label not in PROMPT_VERSIONS:
+        raise ValueError("Liên kết Character Image Pack yêu cầu contract prompt 4.2.0 hoặc v5.x được hỗ trợ")
     stage_members = dict(stage2) if isinstance(stage2, Mapping) else read_archive(stage2)
     cip_members = dict(character_pack) if isinstance(character_pack, Mapping) else read_character_pack(character_pack)
     cip_result = inspect_character_pack(cip_members, archive=True)
@@ -244,9 +310,9 @@ def link_character_pack_to_stage2(stage2: bytes | Mapping[str, bytes], character
     plan["reference_mode"] = "IMAGE_REFERENCE"
     files["visual_plan.json"] = _json_bytes(plan)
     report = _json(files["validation_report.json"])
-    report["prompt_version"] = PROMPT_VERSION
+    report["prompt_version"] = contract.version_label
     report["status"] = "PARTIAL"
-    report["input_sources"] = [*report.get("input_sources", []), "Character Image Pack | prompt_version=4.2.0 | linked_front_ids=" + ",".join(sorted(linked))]
+    report["input_sources"] = [*report.get("input_sources", []), f"Character Image Pack | prompt_version={contract.version_label} | linked_front_ids=" + ",".join(sorted(linked))]
     report["limitations"] = [*report.get("limitations", []), "Ảnh tham chiếu FRONT đã thay đổi; cần nhìn soát lại ảnh ngang và các artifact phụ thuộc."]
     report["remaining_work"] = [*report.get("remaining_work", []), "Chạy lại CHARACTER_IDENTITY, IMAGE_FILES và các gate hình ảnh Stage 2 sau liên kết CIP."]
     for check in report.get("checks", []):
@@ -259,7 +325,7 @@ def link_character_pack_to_stage2(stage2: bytes | Mapping[str, bytes], character
 
 
 def render_character_pack_workspace() -> None:
-    """Render CIP inspection and explicit Stage 2 linking controls."""
+    """Render CIP inspection and contract-aware Stage-1/legacy Stage-2 linking."""
     import streamlit as st
 
     st.caption("CIP là artifact độc lập, không phải Stage 5. Việc tải pack lên không tự sửa gói truyện.")
@@ -282,32 +348,41 @@ def render_character_pack_workspace() -> None:
          "name": row.get("name"), **{view: row.get("images", {}).get(view, {}).get("status") for view in VIEWS}}
         for row in characters if isinstance(row, Mapping)
     ], hide_index=True, width="stretch")
-    stage_upload = st.file_uploader("Stage 2 ZIP để liên kết FRONT (tùy chọn)", type=["zip"], key="character_pack_stage2_upload")
+    stage_upload = st.file_uploader("Stage 1 v5.2 hoặc Stage 2 legacy để liên kết FRONT (tùy chọn)", type=["zip"], key="character_pack_stage2_upload")
     if stage_upload is None or result["status"] != "PASS":
         return
     try:
         stage_members = read_archive(stage_upload.getvalue())
-        plan = _json(stage_members["visual_plan.json"])
-        stage_ids = {str(value) for row in plan.get("characters", []) if isinstance(row, Mapping) and isinstance((value := row.get("character_id")), str)}
+        manifest = _json(stage_members["manifest.json"])
+        stage_contract = prompt_contract_for_version(str(manifest.get("prompt_version") or ""))
+        stage_number = manifest.get("stage")
+        source_document = _json(stage_members["image_prompts.json"] if stage_number == 1 else stage_members["visual_plan.json"])
+        source_rows = source_document.get("character_locks" if stage_number == 1 else "characters", [])
+        stage_ids = {str(value) for row in source_rows if isinstance(row, Mapping) and isinstance((value := row.get("character_id")), str)}
         source_ids = {str(value) for row in characters if isinstance(row, Mapping) and isinstance((value := row.get("source_character_id")), str)}
         exact = {value: value for value in sorted(stage_ids & source_ids)}
         if not exact:
             st.warning("Không có ID trùng chính xác; cần ánh xạ có chủ đích ngoài giao diện này.")
             return
         st.caption("Ánh xạ ID chính xác: " + ", ".join(exact))
-        if st.button("Tạo repair snapshot Stage 2", type="primary", key="character_pack_link"):
-            payload, linked = link_character_pack_to_stage2(stage_members, members, exact, contract=load_prompt_contract())
+        label = "Tạo repair snapshot Stage 1" if stage_number == 1 else "Tạo repair snapshot Stage 2 legacy"
+        if st.button(label, type="primary", key="character_pack_link"):
+            linker = link_character_pack_to_stage1 if stage_number == 1 else link_character_pack_to_stage2
+            payload, linked = linker(stage_members, members, exact, contract=stage_contract)
             st.session_state["character_pack_linked_payload"] = payload
+            st.session_state["character_pack_linked_stage"] = stage_number
             st.success(f"Đã tạo snapshot PARTIAL; cần review lại: {', '.join(linked['linked_character_ids'])}")
     except (KeyError, OSError, ValueError, zipfile.BadZipFile) as exc:
         st.error(str(exc))
     payload = st.session_state.get("character_pack_linked_payload")
     if isinstance(payload, bytes):
-        st.download_button("Tải story_stage2_cip_repair.zip", payload, file_name="story_stage2_cip_repair.zip", mime="application/zip")
+        stage_number = int(st.session_state.get("character_pack_linked_stage") or 1)
+        filename = f"story_stage{stage_number}_cip_repair.zip"
+        st.download_button(f"Tải {filename}", payload, file_name=filename, mime="application/zip")
 
 
 __all__ = [
-    "PACK_VERSION", "PROMPT_VERSION", "SCOPE", "VIEWS", "build_character_pack",
-    "inspect_character_pack", "link_character_pack_to_stage2", "read_character_pack",
+    "PACK_VERSION", "PROMPT_VERSION", "PROMPT_VERSIONS", "SCOPE", "VIEWS", "build_character_pack",
+    "inspect_character_pack", "link_character_pack_to_stage1", "link_character_pack_to_stage2", "read_character_pack",
     "render_character_pack_workspace",
 ]

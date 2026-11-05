@@ -81,10 +81,12 @@ mức độ sẵn sàng của ảnh trước khi dựng slideshow.
 Các tài liệu biên soạn chuẩn nằm trong `prompts/`, theo tên
 `ChatGPT_prompt_vX.Y.Z.txt`; tên tệp có thể có thêm tiền tố số như `01-`. Runtime
 luôn chọn phiên bản semantic mới nhất, đồng thời ghi nhận phiên bản và SHA-256.
-Prompt 4.2.0 là nguồn mặc định cho gói mới. Prompt 4.1.6 tiếp tục được hỗ trợ
-để đọc, kiểm tra và xử lý các snapshot hiện có mà không thay version payload.
+Prompt 5.2.2 revision r2 là nguồn mặc định cho gói mới: Stage 1 tạo story cùng
+prompt ảnh/video, pipeline kết thúc ở Stage 3. Prompt 4.1.6, 4.2.0 và các bản v5
+trước đó tiếp tục được hỗ trợ để đọc, kiểm tra, migration và xử lý snapshot mà
+không tự ý thay version payload.
 
-Kiểm tra một thư mục đầu ra hoặc gói truyện prompt v4.1.6/v4.2.0 bằng lệnh:
+Kiểm tra một thư mục đầu ra hoặc gói truyện prompt v5 hoặc legacy v4 bằng lệnh:
 
 ```bash
 ai-story-audit output
@@ -119,8 +121,9 @@ chúng không sửa hay thay thế dữ liệu chuẩn.
   sử này ghi nhận revision, kết quả, ghi chú và fingerprint nội dung; nó không
   thay thế bằng chứng nguồn gốc ảnh hoặc kiểm định ngữ nghĩa.
 
-Các công cụ trên giữ nguyên định dạng package bốn giai đoạn, schema JSON nguồn
-và hợp đồng bàn giao từ Audio sang Video.
+Các công cụ trên giữ nguyên schema JSON nguồn và hợp đồng bàn giao từ Audio sang
+Video. Gói v5 dùng pipeline ba giai đoạn; gói v4 legacy vẫn được đọc theo cấu
+trúc bốn giai đoạn cũ.
 
 ## Nhịp đọc Audio
 

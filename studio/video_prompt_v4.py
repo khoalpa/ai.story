@@ -8,6 +8,8 @@ from typing import Any, Mapping
 from studio.workflow_package import read_json, safe_name
 
 V4_FIELDS = {"schema_version", "source_mode", "target_model", "coverage", "timing_basis", "timing_config", "clips", "limitations"}
+CLIP_FIELDS = {"clip_id", "source_spans", "estimated_seconds", "aspect_ratio", "reference_paths", "prompt", "narration", "audio_note", "transition"}
+TIMING_FIELDS = {"method_id", "rate_per_minute", "evidence_locator"}
 
 
 def validate_v4_plan(
@@ -116,3 +118,55 @@ def validate_v4_plan(
     return {"errors": errors, "checks": [], "clips": rows, "duration": duration,
             "needs_confirmation": len(clips) > 60, "continuity_status": "NOT_VERIFIED" if errors else "PASS",
             "speech_timing_status": "NOT_APPLICABLE", "speech_timing": []}
+
+
+def validate_v5_plan(plan: Mapping[str, Any], *, members: Mapping[str, bytes]) -> dict[str, Any]:
+    """Apply the closed v5 Stage-1 contract on top of legacy span validation."""
+    result = validate_v4_plan(plan, root=None, members=members)
+    errors = list(result["errors"])
+    if set(plan) != V4_FIELDS:
+        errors.append("video_prompts root không đúng closed schema")
+    if plan.get("source_mode") != "STORY_ONLY":
+        errors.append("V5 yêu cầu source_mode=STORY_ONLY")
+    target = plan.get("target_model")
+    if target is not None and (not isinstance(target, str) or not target.strip()):
+        errors.append("target_model phải là string không rỗng hoặc null")
+    limitations = plan.get("limitations")
+    if (not isinstance(limitations, list) or not all(isinstance(item, str) and item.strip() for item in limitations)
+            or len(limitations) != len(set(limitations))):
+        errors.append("limitations phải là array string duy nhất")
+    timing = plan.get("timing_config")
+    if not isinstance(timing, Mapping) or set(timing) != TIMING_FIELDS:
+        errors.append("timing_config không đúng closed schema")
+    else:
+        basis = plan.get("timing_basis")
+        method, rate, evidence = timing.get("method_id"), timing.get("rate_per_minute"), timing.get("evidence_locator")
+        if basis == "UNAVAILABLE" and (method != "NONE" or rate is not None or evidence is not None):
+            errors.append("UNAVAILABLE yêu cầu timing_config NONE/null/null")
+        elif basis == "MEASURED" and (method != "ALIGNED_SPAN_TIMING_V1" or rate is not None
+                                      or not isinstance(evidence, str) or not evidence.strip()):
+            errors.append("MEASURED yêu cầu timing evidence theo span")
+        elif basis == "ESTIMATED" and (not isinstance(method, str) or not method.strip()
+                                        or (rate is not None and (type(rate) not in {int, float}
+                                                                  or not math.isfinite(rate) or rate <= 0))):
+            errors.append("ESTIMATED yêu cầu method và rate hợp lệ")
+    raw_clips = plan.get("clips")
+    if isinstance(raw_clips, list):
+        for index, clip in enumerate(raw_clips, 1):
+            if not isinstance(clip, Mapping) or set(clip) != CLIP_FIELDS:
+                errors.append(f"Clip {index}: không đúng closed schema")
+                continue
+            if clip.get("aspect_ratio") not in {"16:9", "9:16"}:
+                errors.append(f"Clip {index}: aspect_ratio không hợp lệ")
+            if not isinstance(clip.get("prompt"), str) or not clip["prompt"].strip():
+                errors.append(f"Clip {index}: prompt phải là string không rỗng")
+            if not isinstance(clip.get("audio_note"), str) or not isinstance(clip.get("transition"), str):
+                errors.append(f"Clip {index}: audio_note/transition phải là string")
+            if clip.get("reference_paths") != []:
+                errors.append(f"Clip {index}: V5 Stage 1 yêu cầu reference_paths=[]")
+    result["errors"] = list(dict.fromkeys(errors))
+    result["continuity_status"] = "NOT_VERIFIED" if result["errors"] else "PASS"
+    return result
+
+
+__all__ = ["V4_FIELDS", "validate_v4_plan", "validate_v5_plan"]

@@ -9,14 +9,16 @@ import hashlib
 import os
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
-CURRENT_PROMPT_VERSION = (4, 2, 0)
-CURRENT_PROMPT_FILENAME = "ChatGPT_prompt_v4.2.0.txt"
-SUPPORTED_PROMPT_VERSIONS = ((4, 1, 6), CURRENT_PROMPT_VERSION)
+CURRENT_PROMPT_VERSION = (5, 2, 2)
+CURRENT_PROMPT_FILENAME = "ChatGPT_prompt_v5.2.2.txt"
+SUPPORTED_PROMPT_VERSIONS = (
+    (4, 1, 6), (4, 2, 0), (5, 0, 0), (5, 1, 0), (5, 2, 0), CURRENT_PROMPT_VERSION,
+)
 SUPPORTED_PROMPT_FILENAMES = tuple(
     f"ChatGPT_prompt_v{'.'.join(map(str, version))}.txt"
     for version in SUPPORTED_PROMPT_VERSIONS
@@ -75,6 +77,8 @@ class PromptContract:
     current_config_registry: Mapping[str, Any] | None = None
     character_pack_version: str | None = None
     supports_character_image_pack: bool = False
+    image_prompt_version: str | None = None
+    image_prompt_file_name: str = "image_prompts.json"
 
     @property
     def version_label(self) -> str:
@@ -145,8 +149,22 @@ def prompt_contract_for_version(version_label: str, *, directory: Path | None = 
         return load_prompt_contract(directory / filename)
     for candidate in prompt_directories():
         path = candidate / filename
-        if path.is_file():
+        try:
             return load_prompt_contract(path)
+        except FileNotFoundError:
+            continue
+    # Some legacy v5 packages remain readable even when their full authoring
+    # document is not installed. Their deterministic projection is versioned
+    # here; an empty digest makes clear that no source prompt bytes were loaded.
+    if version >= (5, 0, 0):
+        current = load_prompt_contract(canonical_prompt_path())
+        return replace(
+            current,
+            path=Path(filename),
+            version=version,
+            sha256="",
+            image_prompt_version="1.1" if version >= (5, 2, 0) else "1.0",
+        )
     raise FileNotFoundError(f"Không tìm thấy {filename}")
 
 
@@ -292,7 +310,7 @@ def load_prompt_contract(path: Path | None = None) -> PromptContract:
     version_label = ".".join(map(str, version))
     if not text.startswith(f"CHATGPT AUDIO STORY PACKAGE — v{version_label}"):
         raise ValueError(f"Nội dung prompt không phải hợp đồng v{version_label}")
-    # v4.1.6 is a prose-first, self-contained contract.  These values are a
+    # v4/v5 are prose-first, self-contained contracts. These values are a
     # typed projection of its public schema, not aliases copied from an older
     # registry and not the result of replacing version strings.
     basenames = (
@@ -304,7 +322,7 @@ def load_prompt_contract(path: Path | None = None) -> PromptContract:
         path=resolved, version=version,
         sha256=hashlib.sha256(raw).hexdigest(), image_basenames=basenames,
         landscape_size=(0, 0), portrait_size=(0, 0),
-        story_validation_schema_version="4.1.3",
+        story_validation_schema_version="5.0.0" if version >= (5, 0, 0) else "4.1.3",
         package_quality_schema_version="4.1.3",
         series_anchor_schema_version="4.1.3",
         story_quality_commitment_schema_version="4.1.3",
@@ -312,8 +330,9 @@ def load_prompt_contract(path: Path | None = None) -> PromptContract:
             "GREETING", "OPENING", "INTRODUCTION", "DEVELOPMENT",
             "CLIMAX", "FALLING", "ENDING", "FAREWELL",
         ),
-        workflow_manifest_schema_version="4.1.3",
-        workflow_package_stages=("STAGE1", "STAGE2", "STAGE3", "STAGE4"),
+        workflow_manifest_schema_version="5.0.0" if version >= (5, 0, 0) else "4.1.3",
+        workflow_package_stages=("STAGE1", "STAGE2", "STAGE3") if version >= (5, 0, 0)
+        else ("STAGE1", "STAGE2", "STAGE3", "STAGE4"),
         workflow_package_purposes=(), workflow_operation_modes=(),
         workflow_mutation_statuses=(), video_prompt_schema_version="4.1.3",
         story_schema_version="4.1.3", video_prompt_file_name="video_prompts.json",
@@ -327,8 +346,13 @@ def load_prompt_contract(path: Path | None = None) -> PromptContract:
         current_public_schema_registry=MappingProxyType({}),
         current_enum_registry=MappingProxyType({}),
         current_config_registry=MappingProxyType({}),
-        character_pack_version="1.0" if version == (4, 2, 0) else None,
-        supports_character_image_pack=version == (4, 2, 0),
+        character_pack_version="1.0" if version >= (4, 2, 0) else None,
+        supports_character_image_pack=version >= (4, 2, 0),
+        image_prompt_version=(
+            "1.1" if version >= (5, 2, 0)
+            else "1.0" if version >= (5, 0, 0)
+            else None
+        ),
     )
 
     # Parser for registry-based pre-v4 prompts intentionally remains below as

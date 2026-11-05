@@ -51,6 +51,15 @@ class ReferenceDataset:
         return tuple(self.packages.values())
 
 
+@dataclass(frozen=True)
+class ReferenceRegistry:
+    """Usable datasets plus non-fatal errors from individual registry entries."""
+
+    datasets: tuple[ReferenceDataset, ...]
+    default_set: str | None
+    warnings: tuple[str, ...] = ()
+
+
 def _safe_child(root: Path, relative: str, *, field: str) -> Path:
     if not relative or Path(relative).is_absolute():
         raise ValueError(f"{field} phải là đường dẫn tương đối không rỗng.")
@@ -76,6 +85,8 @@ def _parse_dataset(entry: Mapping[str, Any], root: Path) -> ReferenceDataset:
     if re.fullmatch(r"[a-z0-9][a-z0-9._-]{1,63}", set_id) is None:
         raise ValueError(f"set_id không hợp lệ: {set_id!r}.")
     directory = _safe_child(root, str(entry.get("path") or set_id), field="path")
+    if not directory.is_dir():
+        raise ValueError(f"Không tìm thấy thư mục của bộ {set_id!r}: {directory}.")
     manifest_path = directory / REFERENCE_DATASET_FILE
     manifest = _read_json_object(manifest_path) if manifest_path.is_file() else dict(entry)
     declared_id = str(manifest.get("set_id") or set_id).strip().lower()
@@ -125,6 +136,41 @@ def load_reference_registry(root: Path = REFERENCE_ROOT) -> tuple[tuple[Referenc
     if default not in {dataset.set_id for dataset in datasets if dataset.enabled}:
         raise ValueError(f"default_set {default!r} không tồn tại hoặc đã bị tắt.")
     return datasets, default
+
+
+def load_reference_registry_tolerant(root: Path = REFERENCE_ROOT) -> ReferenceRegistry:
+    """Load valid entries without allowing one broken dataset to hide the rest."""
+    path = root / REFERENCE_REGISTRY_FILE
+    document = _read_json_object(path)
+    if document.get("schema_version") != 1:
+        raise ValueError(f"schema_version của {path} phải bằng 1.")
+    entries = document.get("sets")
+    if not isinstance(entries, list) or not entries or not all(isinstance(row, dict) for row in entries):
+        raise ValueError(f"{path} phải khai báo danh sách bộ tham chiếu.")
+
+    datasets: list[ReferenceDataset] = []
+    warnings: list[str] = []
+    seen_ids: set[str] = set()
+    for index, entry in enumerate(entries, start=1):
+        try:
+            dataset = _parse_dataset(entry, root)
+            if dataset.set_id in seen_ids:
+                raise ValueError(f"{path} chứa set_id trùng nhau: {dataset.set_id!r}.")
+            seen_ids.add(dataset.set_id)
+            if dataset.enabled:
+                datasets.append(dataset)
+        except (OSError, ValueError) as exc:
+            entry_id = str(entry.get("id") or entry.get("set_id") or f"mục {index}")
+            warnings.append(f"Bộ {entry_id!r} không khả dụng: {exc}")
+
+    requested_default = str(document.get("default_set") or "").strip().lower()
+    available_ids = {dataset.set_id for dataset in datasets}
+    default = requested_default if requested_default in available_ids else None
+    if requested_default and default is None:
+        warnings.append(
+            f"Bộ mặc định {requested_default!r} không khả dụng; hãy chọn một bộ khác hoặc không dùng bộ mẫu."
+        )
+    return ReferenceRegistry(tuple(datasets), default, tuple(warnings))
 
 
 def discover_reference_datasets(root: Path = REFERENCE_ROOT) -> tuple[ReferenceDataset, ...]:

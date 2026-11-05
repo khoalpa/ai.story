@@ -35,11 +35,15 @@ for package in ("audio", "video", "studio"):
     module = importlib.import_module(package)
     assert Path(module.__file__).resolve().is_relative_to(prefix), module.__file__
 contract = load_prompt_contract()
-assert contract.version_label == "4.2.0"
+assert contract.version_label == "5.2.2"
 assert contract.path.resolve().is_relative_to(prefix), contract.path
-legacy_contract = prompt_contract_for_version("4.1.6")
-assert legacy_contract.version_label == "4.1.6"
-assert legacy_contract.path.resolve().is_relative_to(prefix), legacy_contract.path
+for version in ("4.1.6", "4.2.0", "5.2.0"):
+    legacy_contract = prompt_contract_for_version(version)
+    assert legacy_contract.version_label == version
+    assert legacy_contract.path.resolve().is_relative_to(prefix), legacy_contract.path
+release_root = prefix / "share" / "ai-story" / "releases" / "v5.2.2-r3"
+assert (release_root / "release_policy_v5.2.2_r3.json").is_file()
+assert (release_root / "Bao_cao_Prompt_v5.2.2_r3.md").is_file()
 assert values(config())
 for launcher in ("audio.gui_entry", "video.gui_entry", "studio.gui_entry"):
     app = AppTest.from_string(f"from {launcher} import main\nmain()\n", default_timeout=60)

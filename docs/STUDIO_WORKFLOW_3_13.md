@@ -14,9 +14,11 @@
   JSON tổng, prompt text và ZIP gồm job từng clip; đây không phải công cụ render video.
 - **Tài nguyên** hiển thị metadata/provenance nguồn; đủ số ảnh không tự chứng minh đủ commit.
 
-Ứng dụng không ghi đè artifact, giải nén lên thư mục người dùng, chuyển stage tự động,
-gọi generator hoặc tự migrate legacy. Package builder API có thể rebuild archive mới và
-atomic-publish khi caller yêu cầu; UI hiện vẫn chỉ đọc. Các nút export chỉ tạo bytes
+Ứng dụng không ghi đè artifact nguồn, giải nén ZIP lên thư mục người dùng, chuyển stage tự động
+hoặc gọi generator. Mục **Nâng cấp gói đã giải nén** tạo snapshot v5.2 riêng từ gói v5.0/v5.1,
+hoặc từ gói v4 Stage 4 đầy đủ; gói v4 được ánh xạ sang Stage 3. Snapshot luôn mang trạng thái
+`PARTIAL`, không kế thừa gate PASS, và chỉ được ghi vào thư mục mới/trống. Package builder API
+có thể rebuild archive mới và atomic-publish khi caller yêu cầu. Các nút export chỉ tạo bytes
 download dẫn xuất ngoài `story.zip`; `video_prompts.json` vẫn là source of truth duy nhất.
 
 ## Phạm vi kiểm tra đã triển khai
@@ -64,8 +66,9 @@ FULL_STORY trên 120 clip hiển thị cảnh báo xác nhận; mở viewer khô
 - ZIP export chứa canonical source, target payload, prompt JSON từng clip, bản text,
   reference map và generation order. Flow graph tạo dependency
   `last_frame_to_first_frame` cho clip yêu cầu `CHAINED_LAST_FRAME`.
-- Legacy router chỉ activate exact basename/version allowlist. Thiếu fixture/gate của
-  phiên bản gốc thì dừng ở `MIGRATION_REQUIRED`, không materialize package CURRENT.
+- Migration chỉ activate exact version allowlist `4.1.6`, `4.2.0`, `5.0.0`, `5.1.0`.
+  Với v4, chỉ Stage 4 có đủ `visual_plan.json` và `video_prompts.json` để chuyển deterministic;
+  Stage 1–3 dừng ở `UNSUPPORTED_SOURCE`. Nguồn sai integrity dừng ở `SOURCE_INVALID`.
 - Tệp thay thế nội dung/báo cáo là bản xem thử, không ghi đè dữ liệu và không giữ xác minh
   của gói trên đĩa. Output audio/video không thay đổi trạng thái gói truyện.
 

@@ -1,0 +1,79 @@
+{
+  "policy_version": "1.1-r2",
+  "target_prompt_version": "5.2.2",
+  "prompt_revision": "r2",
+  "schema_changes": false,
+  "profiles": {
+    "PRODUCTION_READY_SPEC": {
+      "meaning": "Prompt document released under relaxed specification-level policy; NOT a certified deployment or COMPLETE story package",
+      "required": [
+        "prompt_quickstart_revision_consistent",
+        "schema_identifiers_unchanged",
+        "all_seven_regression_suites_exit_zero",
+        "control_fixture_mechanical_validator_clean",
+        "no_known_unresolved_P0_in_document",
+        "limitations_recorded"
+      ],
+      "not_required_for_document_release": [
+        "native_tokenizer_production_test",
+        "production_audio_test",
+        "production_image_test",
+        "real_end_to_end_pipeline",
+        "79_formal_acceptance_execution"
+      ],
+      "never_waive": [
+        "no_forged_PASS",
+        "no_forged_COMPLETE",
+        "no_invalid_or_unsafe_ZIP",
+        "required_runtime_stage_gates"
+      ]
+    },
+    "STRICT_DEPLOYMENT_VERIFIED": {
+      "meaning": "Production-ready verified, only with deployed-tool evidence and acceptance sign-off",
+      "must_pass": [
+        "all_required_gates",
+        "native_tokenizer_no_truncation_t5_512",
+        "real_images_identity_continuity_parity",
+        "full_artifact_schema_and_zip",
+        "real_3_stage_pipeline",
+        "serial_and_resume",
+        "79_acceptance_cases",
+        "semantic_and_safety_review",
+        "release_signoff"
+      ],
+      "can_waive": []
+    },
+    "CONTROLLED_PILOT": {
+      "meaning": "Pilot for internal evaluation; may carry NOT_CHECKED/NOT_RUN items in a separately disclosed evidence ledger",
+      "must_pass": [
+        "repeatable_regression_runs",
+        "mechanical_zip_manifest_schema_security_checks_on_control_fixture",
+        "no_fabricated_complete_or_check_status"
+      ],
+      "waiver_candidates": [
+        "native_tokenizer",
+        "forced_alignment",
+        "real_image_generation",
+        "79_case_acceptance",
+        "end_to_end_production"
+      ],
+      "must_disclose": [
+        "every_waiver",
+        "PARTIAL_artifact_status",
+        "production_ready_false"
+      ],
+      "never_waive": [
+        "no_forged_report_PASS",
+        "no_unsafe_zip",
+        "no_manifest_hash_corruption",
+        "no_false_complete"
+      ]
+    }
+  },
+  "reporting": {
+    "release_label_outside_canonical_schema": true,
+    "pipeline_deployment": "UNVERIFIED",
+    "allow_unverified_runtime_gates_to_pass": false,
+    "notes": "No runtime image/tokenizer/audio production test was performed as part of specification-level release."
+  }
+}

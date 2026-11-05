@@ -19,6 +19,15 @@ def test_story_package_loader_reports_present_missing_and_invalid_files(tmp_path
     assert set(reports) == {"story"}
     assert statuses["story"] == "Có dữ liệu"
     assert statuses["validation"].startswith("Không hợp lệ:")
+    assert statuses["anchor"] == "Không áp dụng"
+
+
+def test_serial_story_keeps_missing_anchor_as_required(tmp_path: Path) -> None:
+    (tmp_path / "story.json").write_text(
+        json.dumps({"meta": {"profile": "SERIAL_DETECTIVE"}, "characters": [], "outline": [], "script": []}),
+        encoding="utf-8",
+    )
+    _reports, statuses = load_story_package(tmp_path)
     assert statuses["anchor"] == "Thiếu"
 
 
@@ -61,6 +70,14 @@ def test_story_overview_only_maps_missing_story_report_statuses() -> None:
     assert "for key, (_filename, label, _validator) in REPORT_SPECS.items()" in source
     assert "REPORT_SPECS[key][1] for key, value in statuses.items()" not in source
     assert set(REPORT_SPECS) == {"story", "validation", "anchor"}
+
+
+def test_story_studio_uses_empty_state_for_empty_project_directory() -> None:
+    source = Path("studio/story_studio.py").read_text(encoding="utf-8")
+
+    assert '"Thư mục dữ liệu dự án đang trống"' in source
+    assert "not project_directory_has_files(directory)" in source
+    assert "not _has_active_overrides(st.session_state, directory)" in source
 
 
 def test_scene_visual_plan_supplies_active_images_and_zone_reader_aliases(tmp_path: Path) -> None:

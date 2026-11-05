@@ -160,7 +160,7 @@ def render_project_tools_workspace(*, embedded: bool = False) -> None:
         "Artifact cần audit",
         value=str((Path.cwd() / "output").resolve()),
         key="studio_prompt_audit_path",
-        help="Thư mục output hoặc ZIP prompt v4.1.6/v4.2.0. Gói cũ hơn không được hỗ trợ.",
+        help="Thư mục output hoặc ZIP prompt v5/v4 legacy. Gói cũ hơn không được hỗ trợ.",
     )
     if st.button("Prompt conformance audit", key="studio_tool_prompt_audit"):
         results = validate_project(Path(audit_path).expanduser(), contract)

@@ -183,6 +183,43 @@ def _check_label(name: str) -> str:
     return labels.get(name, name.replace("_", " ").title())
 
 
+def quality_failure_reasons(summary: Mapping[str, Any]) -> list[str]:
+    """Translate failed quality checks into measured, actionable explanations."""
+    quality = _object(summary.get("quality"))
+    failed_checks = [str(name) for name in summary.get("failed_checks", [])]
+    measured = _object(quality.get("measured"))
+    target = _object(quality.get("target"))
+    reasons: list[str] = []
+    for check in failed_checks:
+        if check == "true_peak":
+            actual = measured.get("true_peak_dbtp")
+            target_peak = target.get("true_peak_dbtp")
+            if (type(actual) is int or type(actual) is float) and (type(target_peak) is int or type(target_peak) is float):
+                allowed = float(target_peak) + 0.2
+                reasons.append(
+                    f"True peak {float(actual):g} dBTP vượt ngưỡng {allowed:g} dBTP; "
+                    "hãy render lại với headroom AAC."
+                )
+                continue
+        if check == "visual_ssim":
+            mismatches = [
+                sample for sample in _items(quality.get("visual_samples"))
+                if type(sample.get("ssim")) in {int, float} and float(sample["ssim"]) < 0.90
+            ]
+            if mismatches:
+                examples = ", ".join(
+                    f"{Path(str(sample.get('reference') or 'ảnh')).name} ({float(sample['ssim']):.3f})"
+                    for sample in mismatches
+                )
+                reasons.append(
+                    f"{len(mismatches)} khung hình không khớp tài nguyên hiện tại: {examples}; "
+                    "hãy render lại từ bộ ảnh hiện tại."
+                )
+                continue
+        reasons.append(f"{_check_label(check)} chưa đạt.")
+    return reasons
+
+
 def render_video_deliveries(
     variants: Mapping[str, Mapping[str, Any]], directory: Path
 ) -> None:
@@ -207,6 +244,8 @@ def render_video_deliveries(
             st.success("**Sẵn sàng xuất bản** · Video và toàn bộ phép kiểm tra chất lượng đều đạt.")
         elif summary["issues"]:
             st.warning("**Cần kiểm tra** · " + " ".join(summary["issues"]))
+            for reason in quality_failure_reasons(summary):
+                st.markdown(f"- {reason}")
         columns = st.columns(6)
         values = (
             ("Kết quả", "Đạt" if summary["passed"] else "Không đạt"),
@@ -309,5 +348,6 @@ __all__ = [
     "DEFAULT_VIDEO_REPORTS", "QUALITY_SUFFIX", "RESULT_SUFFIX", "VIDEO_PREVIEW_STYLE",
     "apply_video_report_override", "build_video_delivery_summary",
     "discover_video_report_names", "inspect_video_variant", "load_video_deliveries",
-    "read_video_report", "render_video_deliveries", "video_report_identity",
+    "quality_failure_reasons", "read_video_report", "render_video_deliveries",
+    "video_report_identity",
 ]

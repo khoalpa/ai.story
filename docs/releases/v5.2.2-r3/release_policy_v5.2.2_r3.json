@@ -1,0 +1,53 @@
+{
+  "policy_version": "1.1-r3",
+  "target_prompt_version": "5.2.2",
+  "prompt_revision": "r3",
+  "schema_changes": false,
+  "profiles": {
+    "PRODUCTION_READY_SPEC": {
+      "meaning": "Prompt document released under relaxed specification-level policy; NOT a certified deployment or COMPLETE story package",
+      "required": [
+        "prompt_quickstart_revision_consistent",
+        "schema_identifiers_unchanged",
+        "regression_suite_exit_zero",
+        "control_fixture_mechanical_validator_clean",
+        "no_known_unresolved_P0_in_document",
+        "limitations_recorded"
+      ],
+      "not_required_for_document_release": [
+        "native_tokenizer_production_test",
+        "production_audio_test",
+        "production_image_test",
+        "real_end_to_end_pipeline",
+        "79_formal_acceptance_execution"
+      ],
+      "never_waive": [
+        "no_forged_PASS",
+        "no_forged_COMPLETE",
+        "no_invalid_or_unsafe_ZIP",
+        "required_runtime_stage_gates"
+      ]
+    },
+    "STRICT_DEPLOYMENT_VERIFIED": {
+      "meaning": "Production-ready verified only with deployed-tool evidence and acceptance sign-off",
+      "must_pass": [
+        "all_required_gates",
+        "real_images_identity_continuity_parity",
+        "full_artifact_schema_and_zip",
+        "real_3_stage_pipeline",
+        "serial_and_resume",
+        "79_acceptance_cases",
+        "semantic_and_safety_review",
+        "release_signoff"
+      ],
+      "can_waive": []
+    }
+  },
+  "reporting": {
+    "release_label_outside_canonical_schema": true,
+    "pipeline_deployment": "UNVERIFIED",
+    "allow_unverified_runtime_gates_to_pass": false,
+    "tokenizer_gate": "REMOVED_IN_R3",
+    "notes": "T5-512 is not a runtime gate in revision r3. No runtime image, tokenizer, audio, or end-to-end production test was performed as part of this specification-level release."
+  }
+}

@@ -8,6 +8,12 @@ import zipfile
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping
 
+from studio.package_migration import (
+    SUPPORTED_SOURCE_VERSIONS,
+    TARGET_VERSION,
+    migrate_extracted_package,
+    publish_migrated_package,
+)
 from studio.package_quality_report import _items, _object
 from studio.project_review import (
     DIRECTORY_SOURCE,
@@ -25,6 +31,7 @@ from studio.workflow_builder import (
     plan_directory_integrity_repair,
     plan_stage_completion,
     repair_directory_integrity,
+    resolve_remaining_work_atomic,
     restore_integrity_backup,
 )
 from studio.workflow_package import (
@@ -36,6 +43,219 @@ from studio.workflow_package import (
 )
 
 STAGE_LABELS = ("Truyện & nhân vật", "Landscape", "Portrait & gói audio", "Prompt video")
+
+
+def image_prompt_schema_repair_candidate(result: Mapping[str, Any]) -> bool:
+    """Return whether the package has only the guarded image-prompts failure."""
+    failed = {
+        str(row.get("check")) for row in result.get("checks", [])
+        if isinstance(row, Mapping) and row.get("status") == "FAIL"
+    }
+    return not result.get("archive") and failed == {"image_prompts"}
+
+
+def _image_prompt_change_rows(root: Path, migrated: Mapping[str, bytes]) -> list[dict[str, str]]:
+    before = read_json((root / "image_prompts.json").read_bytes())
+    after = read_json(migrated["image_prompts.json"])
+    keys = sorted(set(before) | set(after))
+    rows: list[dict[str, str]] = []
+    for key in keys:
+        if key not in before:
+            change = "Thêm"
+        elif key not in after:
+            change = "Xóa trường ngoài schema"
+        elif before[key] != after[key]:
+            change = "Chuẩn hóa"
+        else:
+            continue
+        rows.append({"trường": key, "thay đổi": change})
+    return rows
+
+
+def render_image_prompt_schema_repair(
+    root: Path, result: Mapping[str, Any], state: MutableMapping[str, Any],
+) -> None:
+    """Offer an immutable v5.2 repair next to an image-prompts-only failure."""
+    if not image_prompt_schema_repair_candidate(result):
+        return
+    import streamlit as st
+
+    key_prefix = f"image_prompt_schema_repair_{root.resolve()}"
+    result_key = f"{key_prefix}_result"
+    st.subheader("Sửa schema image_prompts")
+    st.warning(
+        "Có thể tạo một gói REPAIR an toàn: chuẩn hóa image_prompts.json sang v5.2.2 "
+        "mà không sửa story hoặc ảnh. Gói nguồn sẽ không bị ghi đè."
+    )
+    if st.button("Phân tích phương án sửa", type="primary", key=f"{key_prefix}_build"):
+        try:
+            state[result_key] = migrate_extracted_package(root)
+        except (OSError, ValueError, KeyError) as exc:
+            state.pop(result_key, None)
+            st.error(f"Không thể tạo phương án sửa: {exc}")
+    migration = state.get(result_key)
+    if migration is None:
+        return
+    try:
+        changes = _image_prompt_change_rows(root, migration.members)
+    except (OSError, ValueError, KeyError) as exc:
+        st.error(f"Không thể tạo bản xem trước: {exc}")
+        return
+    with st.expander("Xem trước thay đổi", expanded=True):
+        st.dataframe(changes, hide_index=True, width="stretch")
+        st.caption(
+            "Phiên bản đích: image_prompt_version 1.1 · prompt_version 5.2.2 · "
+            "prompt_encoding T5-512 · source_story SHA-256 được đồng bộ."
+        )
+        st.warning(
+            "Snapshot sau sửa có trạng thái PARTIAL; các gate v5.2.2 chuyển thành "
+            "NOT_CHECKED và phải được kiểm định lại trước khi publish."
+        )
+    st.download_button(
+        "Tải ZIP REPAIR", data=migration.archive_bytes,
+        file_name=migration.archive_name, mime="application/zip",
+        key=f"{key_prefix}_download",
+    )
+    default_destination = root.parent / f"{root.name}_image_prompts_repaired"
+    destination = Path(st.text_input(
+        "Thư mục đích mới", value=str(default_destination),
+        key=f"{key_prefix}_destination",
+        help="Chỉ ghi vào thư mục mới hoặc thư mục đang trống; không ghi đè nguồn.",
+    )).expanduser()
+    if st.button("Ghi gói REPAIR vào thư mục mới", key=f"{key_prefix}_publish"):
+        try:
+            written = publish_migrated_package(migration, destination)
+        except (OSError, ValueError) as exc:
+            st.error(f"Không thể ghi gói REPAIR: {exc}")
+        else:
+            st.success(f"Đã ghi gói, ZIP và migration_report.json tại {written}")
+
+
+def render_package_migration(root: Path, state: MutableMapping[str, Any]) -> None:
+    """Render a guided, immutable migration flow for an extracted package."""
+    import streamlit as st
+
+    key_prefix = f"package_migration_{root.resolve()}"
+    manifest_path = root / "manifest.json"
+    if not manifest_path.is_file():
+        st.info(
+            "Không tìm thấy manifest.json. Hãy chọn thư mục của một gói đã giải nén "
+            "để kiểm tra khả năng nâng cấp."
+        )
+        return
+
+    try:
+        manifest = read_json(manifest_path.read_bytes())
+        source_version = manifest.get("prompt_version")
+        source_stage = manifest.get("stage")
+    except (OSError, ValueError) as exc:
+        st.error(f"Không thể đọc manifest.json: {exc}")
+        return
+
+    # A healthy current package needs no migration. Contextual v5.2 schema repair is
+    # offered later, next to its verification failure.
+    if source_version == TARGET_VERSION:
+        return
+
+    st.subheader(f"Nâng cấp gói lên v{TARGET_VERSION}")
+    st.caption("Gói gốc sẽ không bị thay đổi. Bản nâng cấp được tạo thành một gói mới.")
+    supported = source_version in SUPPORTED_SOURCE_VERSIONS
+    stage_supported = (
+        source_stage == 4 if isinstance(source_version, str) and source_version.startswith("4.")
+        else type(source_stage) is int and source_stage in {1, 2, 3}
+    )
+    target_stage = 3 if isinstance(source_version, str) and source_version.startswith("4.") else source_stage
+    summary_columns = st.columns(4)
+    summary_columns[0].metric("Phiên bản nguồn", f"v{source_version}" if source_version else "Không rõ")
+    summary_columns[1].metric("Phiên bản đích", f"v{TARGET_VERSION}")
+    summary_columns[2].metric("Stage", f"{source_stage} → {target_stage}" if source_stage else "Không rõ")
+    summary_columns[3].metric(
+        "Khả năng nâng cấp", "Sẵn sàng" if supported and stage_supported else "Không hỗ trợ",
+    )
+    st.markdown("**1. Kiểm tra nguồn  →  2. Xem thay đổi  →  3. Xuất gói**")
+
+    if not supported or not stage_supported:
+        versions = ", ".join(f"v{version}" for version in SUPPORTED_SOURCE_VERSIONS if version != TARGET_VERSION)
+        st.error(
+            f"Gói này chưa thể nâng cấp trực tiếp. Phiên bản được hỗ trợ: {versions}; "
+            "gói v4 phải là Stage 4 đầy đủ."
+        )
+        return
+
+    result_key = f"{key_prefix}_result"
+    error_key = f"{key_prefix}_error"
+    if st.button(
+        "Kiểm tra và xem thay đổi", type="primary", key=f"{key_prefix}_build",
+        help="Kiểm tra tính toàn vẹn rồi tạo bản nâng cấp trong bộ nhớ.",
+    ):
+        state.pop(error_key, None)
+        try:
+            with st.spinner("Đang kiểm tra và tạo bản nâng cấp…"):
+                state[result_key] = migrate_extracted_package(root)
+        except (OSError, ValueError, KeyError) as exc:
+            state.pop(result_key, None)
+            state[error_key] = str(exc)
+
+    if state.get(error_key):
+        message = str(state[error_key])
+        if message.startswith("SOURCE_INVALID:"):
+            message = "Gói nguồn không vượt qua kiểm tra tính toàn vẹn. " + message.removeprefix("SOURCE_INVALID:").strip()
+        st.error(message)
+        st.caption("Hãy khôi phục các file gốc theo manifest rồi kiểm tra lại.")
+
+    result = state.get(result_key)
+    if result is None:
+        return
+
+    transformed = list(result.report.get("transformed_files", []))
+    preserved = list(result.report.get("preserved_files", []))
+    st.success(
+        f"Đã kiểm tra và tạo bản nâng cấp v{result.source_version} → "
+        f"v{result.target_version}. Gói gốc được giữ nguyên."
+    )
+    st.markdown("#### 2. Xem thay đổi")
+    st.dataframe([
+        {"Nội dung": "Phiên bản", "Kết quả": f"v{result.source_version} → v{result.target_version}"},
+        {"Nội dung": "Stage", "Kết quả": f"Stage {result.report.get('source_stage')} → Stage {result.report.get('target_stage')}"},
+        {"Nội dung": "File được cập nhật", "Kết quả": len(transformed)},
+        {"Nội dung": "File được giữ nguyên", "Kết quả": len(preserved)},
+        {"Nội dung": "Trạng thái kiểm định", "Kết quả": "Cần chạy lại các kiểm định bắt buộc"},
+        {"Nội dung": "Gói nguồn", "Kết quả": "Không thay đổi"},
+    ], hide_index=True, width="stretch")
+    if transformed:
+        st.markdown("**Đã thực hiện:** " + ", ".join(f"`{name}`" for name in transformed))
+    st.warning("Việc cần làm tiếp: chạy lại toàn bộ kiểm định bắt buộc của v5.2.2.")
+    with st.expander("Chi tiết kỹ thuật", expanded=False):
+        st.json(result.report)
+
+    st.markdown("#### 3. Xuất gói")
+    export_mode = st.radio(
+        "Cách xuất", ("Lưu thành thư mục mới", "Tải file ZIP"), horizontal=True,
+        key=f"{key_prefix}_export_mode",
+        help="Lưu thành thư mục để tiếp tục làm việc trong Studio; tải ZIP để gửi hoặc lưu trữ.",
+    )
+    if export_mode == "Tải file ZIP":
+        st.download_button(
+            f"Tải gói v{TARGET_VERSION}", data=result.archive_bytes,
+            file_name=result.archive_name, mime="application/zip", type="primary",
+            key=f"{key_prefix}_download",
+        )
+        return
+
+    default_destination = root.parent / f"{root.name}_v{TARGET_VERSION.replace('.', '_')}"
+    destination = Path(st.text_input(
+        "Thư mục đích mới", value=str(default_destination),
+        key=f"{key_prefix}_destination",
+        help="Chỉ ghi vào thư mục mới hoặc thư mục đang trống.",
+    )).expanduser()
+    if st.button(f"Lưu gói v{TARGET_VERSION}", type="primary", key=f"{key_prefix}_publish"):
+        try:
+            written = publish_migrated_package(result, destination)
+            state[f"{key_prefix}_written"] = str(written)
+        except (OSError, ValueError) as exc:
+            st.error(f"Không thể lưu gói: {exc}")
+    if state.get(f"{key_prefix}_written"):
+        st.success(f"Đã lưu gói và migration_report.json tại {state[f'{key_prefix}_written']}")
 
 
 def workflow_stage_caption(name: str, current_stage: Any, status: str) -> str:
@@ -102,11 +322,13 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
         1 for row in result.get("files", [])
         if isinstance(row, Mapping) and str(row.get("path", "")).startswith("landscape/")
     )
-    labels = list(STAGE_LABELS)
+    is_v5 = manifest.get("prompt_version") in {"5.0.0", "5.1.0", "5.2.0", "5.2.2"}
+    active_stages = STAGES[:3] if is_v5 else STAGES
+    labels = list(STAGE_LABELS[:3] if is_v5 else STAGE_LABELS)
     if image_count:
         labels[1] = f"{image_count} landscape"
         labels[2] = f"{image_count} portrait & gói audio"
-    for column, name, label in zip(st.columns(4), STAGES, labels):
+    for column, name, label in zip(st.columns(len(active_stages)), active_stages, labels):
         column.markdown(f"**{name} · {label}**")
         column.caption(workflow_stage_caption(name, stage, status))
     if status == "PASS" and publish_status == "PASS":
@@ -136,7 +358,7 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
         st.caption("Nguyên nhân chưa thể publish: " + "; ".join(blockers) + ".")
     st.caption(f"Toàn vẹn & parent trực tiếp: {integrity_status} · Trạng thái manifest: {completion_status} · "
                f"Toàn bộ gate của stage: {gate_status} · Đủ điều kiện publish: {publish_status}")
-    st.caption("Chuyển stage thủ công. Stage 3/4 không yêu cầu audio/video đã render. Báo cáo tự khai PASS không thay thế detector.")
+    st.caption("Chuyển stage thủ công. V5 kết thúc ở Stage 3; audio/video render nằm ngoài package stage. Báo cáo tự khai PASS không thay detector.")
     if result.get("next_stage"):
         st.caption(f"Bước kế tiếp theo manifest: {result['next_stage']} · chỉ thực hiện khi toàn bộ gate đầu vào đạt.")
     if result.get("expected_count") is not None:
@@ -170,6 +392,32 @@ def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
             if completion["blockers"]:
                 for blocker in completion["blockers"]:
                     st.warning(blocker)
+                remaining_work = completion.get("remaining_work", [])
+                if remaining_work:
+                    st.caption("Chỉ đóng những đầu việc đã được kiểm tra thực tế; thao tác sẽ lưu bằng chứng và cập nhật hash/checkpoint.")
+                    with st.form(f"workflow_resolve_work_{root.resolve()}"):
+                        selected_work = st.multiselect(
+                            "Đầu việc đã giải quyết", remaining_work,
+                            placeholder="Chọn một hoặc nhiều đầu việc…",
+                        )
+                        resolver = st.text_input("Người xác nhận", placeholder="Tên hoặc định danh")
+                        resolution_evidence = st.text_area(
+                            "Bằng chứng đóng đầu việc",
+                            placeholder="Nêu tài sản đã kiểm tra, tiêu chí và kết luận…",
+                            help="Bắt buộc; tối thiểu 12 ký tự.",
+                        )
+                        resolve_submitted = st.form_submit_button("Lưu và đóng đầu việc", type="primary")
+                    if resolve_submitted:
+                        try:
+                            _inspection, backup = resolve_remaining_work_atomic(
+                                root, selected_work, resolution_evidence, reviewer=resolver,
+                            )
+                        except (OSError, KeyError, TypeError, ValueError) as exc:
+                            st.error(f"Không thể đóng đầu việc: {exc}")
+                        else:
+                            st.session_state[backup_key] = str(backup)
+                            st.success("Đã đóng đầu việc được chọn và đồng bộ report/manifest/checkpoint.")
+                            st.rerun()
             else:
                 st.caption(" · ".join(completion["changes"]))
                 if st.button("Xác minh và hoàn tất Stage", key=f"workflow_complete_{root.resolve()}"):
@@ -181,7 +429,9 @@ def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
                         st.session_state[backup_key] = str(backup)
                         st.success("Stage đã COMPLETE; manifest/hash đã đồng bộ và post-write validation đạt.")
                         st.rerun()
-    repairable_checks = {"manifest_files", "file_set", "file_digest"}
+    # image_files can be a downstream failure of an invalid visual basename;
+    # the repair planner still has to prove that an extension-only fix is safe.
+    repairable_checks = {"manifest_files", "file_set", "file_digest", "image_files"}
     if result.get("archive") or not failed_checks or not failed_checks.issubset(repairable_checks):
         return
     try:
@@ -199,6 +449,9 @@ def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
             paths = action.get("paths") or [row["path"] for row in action.get("links", [])]
             if paths:
                 st.caption(" · ".join(paths))
+            changes = action.get("changes", [])
+            if changes:
+                st.caption(" · ".join(f"{row['from']} → {row['to']}" for row in changes))
         for blocker in plan["blockers"]:
             st.error(blocker)
     st.caption("Ứng dụng tạo bản sao lưu, sửa trên ứng viên, kiểm định toàn bộ rồi mới ghi manifest và ZIP checkpoint.")
@@ -208,9 +461,9 @@ def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
         except (OSError, ValueError, KeyError) as exc:
             st.error(f"Sửa tính toàn vẹn thất bại: {exc}")
         else:
-            if repaired.get("status") == "PASS":
+            if repaired.get("integrity_status") == "PASS":
                 st.session_state[backup_key] = str(backup)
-                st.success("Đã sửa, tạo lại ZIP checkpoint và kiểm định toàn bộ thành công.")
+                st.success("Đã sửa tính toàn vẹn, tạo lại ZIP checkpoint và hậu kiểm thành công.")
                 st.rerun()
 
 
@@ -272,7 +525,7 @@ def render_video_plan(plan: Mapping[str, Any], *, key_prefix: str = "video_plan"
     import streamlit as st
 
     if not plan:
-        st.info("Chưa có video_prompts.json; artifact này chỉ bắt buộc ở Stage 4.")
+        st.info("Chưa có video_prompts.json; v5 yêu cầu từ Stage 1, v4 legacy chỉ bắt buộc ở Stage 4.")
         return
     from studio.video_prompt_validation import validate_video_prompt_plan
     model = validate_video_prompt_plan(plan, root=root, members=members)
@@ -508,7 +761,8 @@ def render_visual_bible(document: Mapping[str, Any], *, root: Path | None = None
 def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: MutableMapping[str, Any]) -> None:
     import streamlit as st
 
-    st.caption("ZIP được đọc trong bộ nhớ và phải đúng prompt v4.1.6/v4.2.0; gói phiên bản cũ hơn bị từ chối.")
+    st.caption("ZIP được đọc trong bộ nhớ và phải đúng prompt v5 hoặc v4 legacy được hỗ trợ.")
+    render_package_migration(root, state)
     resolved_root = str(root.resolve())
     if state.get(VERIFICATION_ROOT_KEY) != resolved_root:
         state[VERIFICATION_ROOT_KEY] = resolved_root
@@ -534,7 +788,7 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Mut
         if source == UPLOADED_ZIP_SOURCE:
             uploaded = st.file_uploader("Gói cần kiểm định", type=["zip"], key=f"workflow_zip_{root.resolve()}")
             if uploaded is None and not state.get(VERIFICATION_UPLOAD_BYTES_KEY):
-                st.info("Chọn ZIP prompt v4.1.6/v4.2.0: story_stage1.zip, story_stage2.zip, story.zip hoặc story_video_prompts.zip.")
+                st.info("Chọn ZIP v5 Stage 1–3 hoặc ZIP legacy v4 Stage 1–4.")
                 return
             if uploaded is not None:
                 state[VERIFICATION_UPLOAD_BYTES_KEY] = uploaded.getvalue()
@@ -555,10 +809,11 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Mut
         (st.success if comparison["status"] == "PASS" else st.error)(comparison["detail"])
     st.dataframe(result["checks"], hide_index=True, width="stretch")
     if source == DIRECTORY_SOURCE:
+        render_image_prompt_schema_repair(root, result, state)
         render_manifest_repair(root, result)
     st.caption("Phạm vi kiểm tra: schema manifest, allowlist, hash/size, ownership, CRC và parent trực tiếp khi được cung cấp. Không chứng nhận an toàn/nội dung/mỹ thuật chỉ từ metadata.")
     if result["compatibility"] != "NATIVE_CURRENT":
-        st.error("UNSUPPORTED: gói không đúng prompt v4.1.6/v4.2.0 và sẽ không được mở ở chế độ tương thích.")
+        st.error("UNSUPPORTED: gói không đúng prompt v5 hoặc v4 legacy được hỗ trợ.")
     st.dataframe(result["files"], hide_index=True, width="stretch")
     with st.expander("Manifest nguồn"):
         st.json(result["manifest"], expanded=False)

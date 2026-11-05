@@ -23,7 +23,7 @@ rather than manufacturing a `PASS`.
 
 1. Add the new `ChatGPT_prompt_vX.Y.Z.txt` to `prompts/`; do not overwrite an older
    version when its history is still useful.
-2. Run `pytest -q tests/contracts/test_prompt_contract.py`. A changed projected
+2. Run `pytest -q tests/contracts/test_prompt_library.py tests/contracts/test_story_package_v416.py`. A changed projected
    literal intentionally fails until the corresponding runtime consumer and test
    expectation are reviewed.
 3. Run `pytest -q tests/contracts` and `ruff check studio tests/contracts`.

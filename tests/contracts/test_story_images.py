@@ -138,3 +138,15 @@ def test_related_views_use_shared_thumbnail_component() -> None:
     assert "render_aspect_cover_gallery" in overview
     assert "image_assets_for_context" in story
     assert "render_image_thumbnail" in video
+
+
+def test_thumbnail_uses_double_click_zoom_without_a_text_button() -> None:
+    source = Path("studio/story_images.py").read_text(encoding="utf-8")
+    assert "image.addEventListener('dblclick'" in source
+    assert "doc.body.appendChild(overlay)" in source
+    assert "img[data-story-image]" in source
+    assert "media_file_mgr.add(" in source
+    render_source = source[source.index("def render_image_thumbnail"):source.index("def _enable_double_click_zoom")]
+    assert "thumbnail_bytes(" not in render_source
+    assert 'st.button("Phóng to"' not in source
+    assert "@st.dialog" not in source

@@ -389,6 +389,55 @@ hr {
     padding: 0.7rem 0.2rem;
     border-bottom: 1px solid var(--studio-border-soft);
 }
+.story-toc-title {
+    margin: 0.15rem 0 0.65rem;
+    color: var(--studio-text-muted);
+    font-size: var(--studio-font-size-xs);
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.story-scene-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--studio-space-2);
+    margin-top: var(--studio-space-4);
+    padding: 0.55rem 0.2rem;
+    border-bottom: 1px solid var(--studio-border);
+    color: var(--studio-text-muted);
+    font-size: var(--studio-font-size-xs);
+    font-weight: 700;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+}
+.story-line--focus {
+    max-width: 76ch;
+    margin-inline: auto;
+    grid-template-columns: 5rem 1fr;
+    font-size: 1.04rem;
+    line-height: 1.72;
+}
+.story-line--read .story-line-meta {
+    opacity: 0.58;
+}
+.story-line--inspect {
+    background: var(--studio-surface);
+}
+.story-line--inspect .story-cue {
+    font-family: var(--studio-font-mono);
+    font-size: 0.72rem;
+}
+.story-heading {
+    background: linear-gradient(135deg, var(--studio-surface), transparent 72%);
+}
+[data-testid="stRadio"]:has(+ [data-testid="stCaptionContainer"]) label[data-baseweb="radio"] {
+    padding: 0.48rem 0.55rem;
+    border-radius: var(--studio-radius-control);
+}
+[data-testid="stRadio"]:has(+ [data-testid="stCaptionContainer"]) label[data-baseweb="radio"]:has(input:checked) {
+    background: var(--studio-primary-soft);
+    font-weight: 650;
+}
 .story-line-meta {
     display: flex;
     gap: 0.5rem;
@@ -430,6 +479,13 @@ hr {
     .story-line {
         grid-template-columns: 1fr;
         gap: 0.25rem;
+    }
+    .story-line--focus {
+        font-size: 1rem;
+        line-height: 1.62;
+    }
+    .story-scene-heading {
+        margin-top: var(--studio-space-3);
     }
     [data-testid="stMetricValue"],
     [data-testid="stMetricValue"] * {

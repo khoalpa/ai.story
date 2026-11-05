@@ -6,8 +6,18 @@ from html import escape
 from pathlib import Path
 from typing import Any, BinaryIO, Mapping
 
+from studio.package_migration import (
+    publish_rebuilt_checkpoint_chain,
+    rebuild_v520_checkpoint_chain,
+)
 from studio.package_quality_report import _items, _object, _read_report, _short_digest
 from studio.report_semantics import display_score, gate_is_not_applicable, gate_summary
+from studio.workflow_builder import (
+    rerun_deterministic_gates_atomic,
+    restore_integrity_backup,
+    review_model_gate_atomic,
+)
+from studio.workflow_package import read_archive
 
 QUALITY_LABELS = {
     "causality": "Quan hệ nhân quả",
@@ -40,8 +50,9 @@ SEVERITY_LABELS = {
 def _validate_story_report(report: Mapping[str, Any]) -> None:
     required = {"schema_version", "prompt_version", "stage", "status", "input_sources",
                 "checks", "limitations", "remaining_work", "archive_validation"}
-    if report.get("schema_version") != "4.1.3" or report.get("prompt_version") not in {"4.1.6", "4.2.0"}:
-        raise ValueError("Chỉ hỗ trợ validation_report.json của prompt v4.1.6/v4.2.0 (schema 4.1.3).")
+    expected = {"4.1.6": "4.1.3", "4.2.0": "4.1.3", "5.0.0": "5.0.0", "5.1.0": "5.0.0", "5.2.0": "5.0.0", "5.2.2": "5.0.0"}.get(str(report.get("prompt_version")))
+    if expected is None or report.get("schema_version") != expected:
+        raise ValueError("Chỉ hỗ trợ validation_report.json của prompt v5 hoặc v4 legacy.")
     missing = sorted(required.difference(report))
     extra = sorted(set(report).difference(required))
     if missing or extra:
@@ -66,6 +77,21 @@ def _status_text(value: Any) -> str:
         "ASSESSED_PASS": "Đánh giá đạt",
         "REFINEMENT_ACCEPTED": "Đã chấp nhận",
     }.get(str(value), str(value or "Không rõ").replace("_", " ").title())
+
+
+def effective_validation_status(report: Mapping[str, Any], package_inspection: Mapping[str, Any] | None) -> str:
+    """Prefer the local package verdict over the report's self-declared status."""
+    if package_inspection is None:
+        return str(report.get("status") or "UNKNOWN")
+    overall = str(package_inspection.get("overall_status") or "NOT_VERIFIED")
+    publish = str(package_inspection.get("publish_status") or "NOT_VERIFIED")
+    if overall == "PASS" and publish == "PASS":
+        return str(report.get("status") or "UNKNOWN")
+    if overall == "FAIL":
+        return "FAIL"
+    if overall == "PARTIAL":
+        return "PARTIAL"
+    return "NOT_VERIFIED"
 
 
 def _render_header(report: Mapping[str, Any]) -> None:
@@ -264,30 +290,234 @@ def _render_technical(report: Mapping[str, Any]) -> None:
         st.json(report, expanded=False)
 
 
-def render_story_validation_report(report: Mapping[str, Any], *, include_technical: bool = True) -> None:
+def _render_manual_gate_review(report: Mapping[str, Any], root: Path) -> None:
+    import streamlit as st
+
+    reviewable = [
+        row for row in _items(report.get("checks"))
+        if row.get("method") == "MODEL_REVIEW" and row.get("status") not in {"PASS", "NOT_APPLICABLE"}
+    ]
+    backup_key = f"manual_gate_review_backup_{root.resolve()}"
+    if backup_value := st.session_state.get(backup_key):
+        st.success("Lần kiểm định thủ công gần nhất đã được lưu và hậu kiểm toàn vẹn.")
+        if st.button("Hoàn tác lần kiểm định gần nhất", key=f"manual_gate_undo_{root.resolve()}"):
+            try:
+                restore_integrity_backup(root, Path(str(backup_value)))
+            except (OSError, ValueError) as exc:
+                st.error(f"Hoàn tác thất bại: {exc}")
+            else:
+                st.session_state.pop(backup_key, None)
+                st.rerun()
+    if not reviewable:
+        st.info("Không còn gate MODEL_REVIEW đang chờ hoặc không đạt.")
+        return
+    st.subheader("Kiểm định thủ công")
+    st.caption("Duyệt từng gate; không áp dụng cho detector CODE. Bằng chứng được ghi vào validation_report.json và checkpoint được tạo lại.")
+    identifiers = [str(row.get("id")) for row in reviewable]
+    with st.form(f"manual_gate_review_{root.resolve()}"):
+        selected = st.selectbox("Gate cần duyệt", identifiers)
+        current = next(row for row in reviewable if str(row.get("id")) == selected)
+        st.write(f"**Đối tượng:** {current.get('target', '—')}")
+        st.caption(str(current.get("details") or "Chưa có mô tả."))
+        decision = st.radio("Kết quả", ["PASS", "FAIL"], horizontal=True,
+                            format_func=lambda value: "Đạt" if value == "PASS" else "Không đạt")
+        reviewer = st.text_input("Người kiểm định", placeholder="Tên hoặc định danh người duyệt")
+        evidence = st.text_area(
+            "Bằng chứng và nhận xét",
+            placeholder="Nêu tài sản đã xem, tiêu chí đối chiếu và kết luận cụ thể…",
+            help="Bắt buộc; tối thiểu 12 ký tự. Không dùng ghi chú chung chung như ‘đã xem’.",
+        )
+        confirmed = st.checkbox("Tôi đã trực tiếp xem/đánh giá đối tượng nêu trên.")
+        # Widgets inside st.form do not trigger a rerun until submission. Tying
+        # `disabled` to this checkbox therefore leaves the button stuck in its
+        # initial disabled state even after the user checks the box.
+        submitted = st.form_submit_button("Lưu kết quả kiểm định", type="primary")
+    if submitted:
+        if not confirmed:
+            st.error("Cần xác nhận đã trực tiếp xem/đánh giá đối tượng trước khi lưu.")
+            return
+        try:
+            _inspection, backup = review_model_gate_atomic(
+                root, selected, decision, evidence, reviewer=reviewer,
+            )
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            st.error(f"Không thể lưu kiểm định: {exc}")
+        else:
+            st.session_state[backup_key] = str(backup)
+            st.success(f"Đã lưu {selected}={decision}, cập nhật manifest/checkpoint và hậu kiểm thành công.")
+            st.rerun()
+
+
+def _render_deterministic_gate_rerun(report: Mapping[str, Any], root: Path) -> None:
+    import streamlit as st
+
+    pending = [
+        row for row in _items(report.get("checks"))
+        if row.get("method") == "CODE" and row.get("status") == "NOT_CHECKED"
+    ]
+    if not pending:
+        return
+    backup_key = f"deterministic_gate_backup_{root.resolve()}"
+    if backup_value := st.session_state.get(backup_key):
+        st.success("Lần hậu kiểm tự động gần nhất đã được lưu và tạo lại checkpoint.")
+        if st.button("Hoàn tác hậu kiểm tự động", key=f"deterministic_gate_undo_{root.resolve()}"):
+            try:
+                restore_integrity_backup(root, Path(str(backup_value)))
+            except (OSError, ValueError) as exc:
+                st.error(f"Hoàn tác thất bại: {exc}")
+            else:
+                st.session_state.pop(backup_key, None)
+                st.rerun()
+    st.subheader("Hậu kiểm tự động sau migration")
+    st.caption(
+        f"Có {len(pending)} gate CODE đang chờ. Ứng dụng chỉ cập nhật gate có bằng chứng "
+        "deterministic; MODEL_REVIEW và TOOL không được tự động nâng thành PASS."
+    )
+    parent_upload = st.file_uploader(
+        "Gói cha trực tiếp (tùy chọn, cần cho INHERITED_BYTES)", type=["zip"],
+        key=f"deterministic_gate_parent_{root.resolve()}",
+    )
+    if st.button("Chạy hậu kiểm tự động", type="primary", key=f"deterministic_gate_run_{root.resolve()}"):
+        try:
+            parent = read_archive(parent_upload.getvalue()) if parent_upload is not None else None
+            _inspection, backup, updated = rerun_deterministic_gates_atomic(root, parent=parent)
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            st.error(f"Hậu kiểm tự động thất bại: {exc}")
+        else:
+            st.session_state[backup_key] = str(backup)
+            st.success("Đã xác minh: " + ", ".join(updated))
+            st.rerun()
+
+
+def _render_lineage_rebuild(report: Mapping[str, Any], root: Path) -> None:
+    import streamlit as st
+
+    pending = {
+        str(row.get("id")) for row in _items(report.get("checks"))
+        if row.get("status") in {"NOT_CHECKED", "NOT_VERIFIED"}
+    }
+    if pending != {"INHERITED_BYTES"} or report.get("stage") != 3:
+        return
+    key_prefix = f"lineage_rebuild_{root.resolve()}"
+    result_key = f"{key_prefix}_result"
+    st.subheader("Tái tạo chuỗi checkpoint sau migration")
+    st.warning(
+        "image_prompts.json đã thay đổi canonical bytes. Cần dựng lại Stage 1 → Stage 2 → "
+        "Stage 3 để tạo bằng chứng kế thừa mới; chuỗi hiện tại sẽ không bị ghi đè."
+    )
+    if st.button("Phân tích và dựng chuỗi mới", type="primary", key=f"{key_prefix}_build"):
+        try:
+            st.session_state[result_key] = rebuild_v520_checkpoint_chain(root)
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            st.session_state.pop(result_key, None)
+            st.error(f"Không thể dựng lại lineage: {exc}")
+    result = st.session_state.get(result_key)
+    if result is None:
+        return
+    with st.expander("Xem trước chuỗi checkpoint", expanded=True):
+        st.dataframe([
+            {
+                "Checkpoint": name,
+                "Kích thước": len(raw),
+                "INHERITED_BYTES": "—" if stage == 1 else "PASS",
+            }
+            for stage, (name, raw) in enumerate(result.archives.items(), 1)
+        ], hide_index=True, width="stretch")
+        st.caption("Các gate chưa có bằng chứng độc lập vẫn giữ NOT_CHECKED; không kế thừa PASS giả.")
+    st.markdown("#### Chọn cách xuất")
+    save_column, download_column = st.columns(2, gap="large")
+    with save_column:
+        with st.container(border=True):
+            st.markdown("##### Lưu thành thư mục mới")
+            st.caption(
+                "Lưu đủ ba checkpoint và báo cáo để tiếp tục làm việc trong Studio."
+            )
+            default_destination = root.parent / f"{root.name}_lineage_rebuilt"
+            destination = Path(st.text_input(
+                "Thư mục đích", value=str(default_destination),
+                key=f"{key_prefix}_destination",
+                help="Chỉ ghi vào thư mục mới hoặc thư mục đang trống.",
+            )).expanduser()
+            if st.button(
+                "Lưu chuỗi checkpoint", type="primary", key=f"{key_prefix}_publish",
+                use_container_width=True,
+            ):
+                try:
+                    written = publish_rebuilt_checkpoint_chain(result, destination)
+                except (OSError, ValueError) as exc:
+                    st.error(f"Không thể lưu chuỗi checkpoint: {exc}")
+                else:
+                    st.success(f"Đã lưu ba checkpoint và báo cáo tại {written}")
+    with download_column:
+        with st.container(border=True):
+            st.markdown("##### Tải file ZIP")
+            st.caption("Tải riêng một checkpoint để gửi hoặc lưu trữ; không ghi file vào thư mục dự án.")
+            archive_name = st.selectbox(
+                "Checkpoint", tuple(result.archives), index=len(result.archives) - 1,
+                key=f"{key_prefix}_download_name",
+            )
+            st.download_button(
+                f"Tải {archive_name}", data=result.archives[archive_name],
+                file_name=archive_name, mime="application/zip",
+                key=f"{key_prefix}_download", use_container_width=True,
+            )
+
+
+def render_story_validation_report(
+    report: Mapping[str, Any], *, include_technical: bool = True, root: Path | None = None,
+    package_inspection: Mapping[str, Any] | None = None,
+) -> None:
     import streamlit as st
 
     _validate_story_report(report)
-    if report.get("prompt_version") in {"4.1.6", "4.2.0"}:
+    if report.get("prompt_version") in {"4.1.6", "4.2.0", "5.0.0", "5.1.0", "5.2.0", "5.2.2"}:
         checks = _items(report.get("checks"))
         passed = sum(row.get("status") in {"PASS", "NOT_APPLICABLE"} for row in checks)
         failed = sum(row.get("status") == "FAIL" for row in checks)
-        columns = st.columns(5)
-        columns[0].metric("Trạng thái", report.get("status", "—"))
+        unchecked = sum(row.get("status") in {"NOT_CHECKED", "NOT_VERIFIED"} for row in checks)
+        remaining_count = len(_items(report.get("remaining_work"))) + unchecked
+        effective_status = effective_validation_status(report, package_inspection)
+        columns = st.columns(6)
+        columns[0].metric("Trạng thái", effective_status)
         columns[1].metric("Stage", report.get("stage", "—"))
         columns[2].metric("Kiểm tra đạt", f"{passed}/{len(checks)}")
         columns[3].metric("Không đạt", failed)
-        columns[4].metric("Việc còn lại", len(_items(report.get("remaining_work"))))
-        if report.get("status") == "COMPLETE" and not failed:
+        columns[4].metric("Chưa kiểm tra", unchecked)
+        columns[5].metric("Việc còn lại", remaining_count)
+        package_ready = package_inspection is None or (
+            package_inspection.get("overall_status") == "PASS"
+            and package_inspection.get("publish_status") == "PASS"
+        )
+        if report.get("status") == "COMPLETE" and not failed and package_ready:
             st.success("Báo cáo hoàn tất; mọi phép kiểm bắt buộc đã đạt hoặc không áp dụng.")
         else:
-            st.error("Báo cáo chưa hoàn tất hoặc còn phép kiểm không đạt.")
+            st.error("Báo cáo hoặc hậu kiểm package chưa đạt; chưa thể coi Stage là hoàn tất.")
+        if package_inspection is not None and not package_ready:
+            st.warning(
+                "validation_report.json tự khai "
+                f"{report.get('status', 'UNKNOWN')}, nhưng hậu kiểm package kết luận "
+                f"{package_inspection.get('overall_status', 'NOT_VERIFIED')}."
+            )
+            package_failures = [
+                row for row in _items(package_inspection.get("checks"))
+                if row.get("status") not in {"PASS", "WARN"}
+            ]
+            if package_failures:
+                st.dataframe([{
+                    "Hậu kiểm": row.get("check", "—"),
+                    "Kết quả": _status_text(row.get("status")),
+                    "Chi tiết": row.get("detail", "—"),
+                } for row in package_failures], hide_index=True, width="stretch")
         st.subheader("Các phép kiểm tra")
         st.dataframe([{
             "ID": row.get("id", "—"), "Kết quả": _status_text(row.get("status")),
             "Phương pháp": row.get("method", "—"), "Bắt buộc": row.get("required", "—"),
             "Đối tượng": row.get("target", "—"), "Chi tiết": row.get("details", "—"),
         } for row in checks], hide_index=True, width="stretch")
+        if root is not None and (root / "manifest.json").is_file():
+            _render_lineage_rebuild(report, root)
+            _render_deterministic_gate_rerun(report, root)
+            _render_manual_gate_review(report, root)
         limitations = _items(report.get("limitations"))
         if limitations:
             with st.expander(f"Giới hạn đã ghi nhận ({len(limitations)})"):
@@ -311,7 +541,7 @@ def render_story_validation_workspace(*, embedded: bool = False) -> None:
     if not embedded:
         st.set_page_config(page_title="Story Validation", page_icon=":material/rule:", layout="wide")
     st.header("Story Validation")
-    st.caption("Đọc validation_report.json prompt v4.1.6/v4.2.0 theo hướng ưu tiên mức độ sẵn sàng và nội dung cần sửa.")
+    st.caption("Đọc validation_report.json prompt v5 hoặc v4 legacy theo hướng ưu tiên mức độ sẵn sàng và nội dung cần sửa.")
     st.html(
         """<style>
         .sv-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:1.1rem 1.2rem;border:1px solid color-mix(in srgb,currentColor 14%,transparent);border-radius:.8rem;margin:.25rem 0 1rem}

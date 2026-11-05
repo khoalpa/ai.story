@@ -9,7 +9,13 @@ OVERVIEW_DIRECTORY_KEY = "studio_overview_output_dir"
 STORY_DIRECTORY_KEY = "story_studio_directory"
 STORY_DIRECTORY_WIDGET_KEY = "story_studio_directory_input"
 STORY_PROJECT_SYNC_KEY = "story_studio_project_directory_seen"
+CATALOG_DIRECTORY_KEY = "story_catalog_directory"
 VIDEO_PROJECT_PATH_DEFAULTS_KEY = "video_project_path_defaults"
+
+
+def project_directory_has_files(directory: Path) -> bool:
+    """Return whether a project directory contains at least one data file."""
+    return directory.is_dir() and any(path.is_file() for path in directory.rglob("*"))
 
 
 def project_path_defaults(directory: Path, *, aspect: str = "landscape") -> dict[str, str]:
@@ -168,12 +174,41 @@ def choose_story_directory(state: MutableMapping[str, Any]) -> str | None:
             root.destroy()
 
 
+def choose_catalog_directory(state: MutableMapping[str, Any]) -> str | None:
+    """Choose the independent root scanned for story packages."""
+    root = None
+    try:
+        from tkinter import Tk, filedialog
+
+        root = Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askdirectory(
+            parent=root,
+            initialdir=existing_picker_directory(str(state.get(CATALOG_DIRECTORY_KEY) or "")),
+            mustexist=True,
+            title="Chọn thư mục chứa các gói truyện",
+        )
+        if selected:
+            value = str(Path(selected).expanduser().resolve())
+            state[CATALOG_DIRECTORY_KEY] = value
+            state.pop("story_catalog_directory_error", None)
+            return value
+        return None
+    except Exception as exc:
+        state["story_catalog_directory_error"] = f"Không thể mở hộp thoại chọn thư mục: {exc}"
+        return None
+    finally:
+        if root is not None:
+            root.destroy()
+
+
 __all__ = [
-    "OVERVIEW_DIRECTORY_KEY", "PROJECT_DIRECTORY_KEY", "STORY_DIRECTORY_KEY",
+    "CATALOG_DIRECTORY_KEY", "OVERVIEW_DIRECTORY_KEY", "PROJECT_DIRECTORY_KEY", "STORY_DIRECTORY_KEY",
     "STORY_PROJECT_SYNC_KEY",
     "VIDEO_PROJECT_PATH_DEFAULTS_KEY",
     "STORY_DIRECTORY_WIDGET_KEY", "apply_project_directory", "choose_project_directory",
-    "choose_story_directory",
+    "choose_catalog_directory", "choose_story_directory",
     "commit_story_directory_widget", "existing_picker_directory",
-    "prepare_story_directory_widget", "project_path_defaults",
+    "prepare_story_directory_widget", "project_directory_has_files", "project_path_defaults",
 ]

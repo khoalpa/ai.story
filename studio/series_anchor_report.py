@@ -1,10 +1,12 @@
 """Friendly Streamlit viewer for series_anchor.json files."""
 from __future__ import annotations
 
+import json
 from html import escape
 from pathlib import Path
 from typing import Any, BinaryIO, Mapping
 
+from studio.artifact_validation import validate_series_anchor_bytes
 from studio.package_quality_report import _items, _object, _read_report
 
 STATUS_LABELS = {
@@ -19,12 +21,110 @@ STATUS_LABELS = {
 
 
 def _validate_series_anchor(report: Mapping[str, Any]) -> None:
-    required = {"series", "canon", "continuity", "episode_ledger", "canon_change_log"}
-    missing = sorted(required.difference(report))
-    if missing:
-        raise ValueError(
-            "Tệp không đúng định dạng series_anchor.json; thiếu: " + ", ".join(missing)
-        )
+    """Use the canonical dual-schema validator instead of assuming legacy keys."""
+    try:
+        raw = json.dumps(report, ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Tệp không đúng định dạng series_anchor.json: {exc}") from exc
+    result = validate_series_anchor_bytes(raw)
+    if result.status != "PASS":
+        raise ValueError("Tệp không đúng định dạng series_anchor.json; " + "; ".join(result.errors))
+
+
+def _series_anchor_view(report: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Project normalized v4.2.0 anchors onto the existing presentation model."""
+    if "series_state" not in report:
+        return report
+    state = _object(report.get("series_state"))
+    characters = [
+        {
+            **row,
+            "role": "Nhân vật series",
+            "age_or_range": "—",
+            "introduced_episode": "—",
+            "identity_traits": [*row.get("established_facts", []), *row.get("known_facts", [])],
+        }
+        for row in _items(report.get("characters"))
+    ]
+    open_threads = [
+        {**row, "summary": row.get("description"), "status": "open", "last_updated_episode": "—"}
+        for row in _items(report.get("open_threads"))
+    ]
+    resolved_threads = [
+        {**row, "summary": row.get("description"), "status": "resolved", "last_updated_episode": "—"}
+        for row in _items(report.get("resolved_threads"))
+    ]
+    clues = [
+        {
+            **row,
+            "clue_type": "series",
+            "content": row.get("observation"),
+            "state": str(row.get("status") or "unknown").casefold(),
+        }
+        for row in _items(state.get("clues"))
+    ]
+    consequences = [
+        {
+            **row,
+            "summary": row.get("description"),
+            "affected_ids": [],
+            "status": str(row.get("status") or "unknown").casefold(),
+        }
+        for row in _items(state.get("consequences"))
+        if row.get("status") == "ACTIVE"
+    ]
+    next_contract = _object(state.get("next_episode_contract"))
+    adapted_contract = {
+        "required_threads": next_contract.get("required_thread_ids", []),
+        "required_obligations": [],
+        "target_arc_milestone": next_contract.get("episode", "—"),
+        "required_state_transitions": [],
+        "character_pressure": next_contract.get("premise", ""),
+        "forbidden_reveals": next_contract.get("forbidden_resolutions", []),
+        "continuity_warnings": [],
+        "allowed_new_elements": [],
+    } if next_contract else {}
+    return {
+        "schema_version": report.get("schema_version"),
+        "series": {
+            "title": report.get("series_title"),
+            "status": str(state.get("status") or "UNKNOWN").casefold(),
+            "channel": "—", "author": "—", "premise": next_contract.get("premise"),
+            "planned_arc_episodes": next_contract.get("episode") or report.get("last_completed_episode"),
+        },
+        "canon": {
+            "investigation_team": characters,
+            "recurring_characters": [],
+            "recurring_locations": [],
+            "world_rules": {},
+            "canon_facts": report.get("canon_facts", []),
+            "master_mystery": {"arc_milestones": [
+                {**row, "summary": row.get("description"), "status": str(row.get("status") or "unknown").casefold()}
+                for row in _items(state.get("milestones"))
+            ]},
+        },
+        "continuity": {
+            "revision": "—", "latest_episode": report.get("last_completed_episode", 0),
+            "open_threads": [*open_threads, *resolved_threads],
+            "clue_ledger": clues,
+            "unresolved_consequences": consequences,
+            "knowledge_states": [], "relationship_states": [],
+            "recurring_assets": state.get("visual_locks", []),
+            "timeline_cursor": f"Sau tập {report.get('last_completed_episode', 0)}",
+            "next_episode_contract": adapted_contract,
+        },
+        "episode_ledger": [
+            {
+                "episode_number": row.get("episode"), "title": row.get("summary"),
+                "resolved_threads": [], "opened_threads": [], "clue_changes": [],
+                "anchor_revision": "—",
+            }
+            for row in _items(report.get("episode_summaries"))
+        ],
+        "canon_change_log": [],
+        "_source_format": "NORMALIZED_V420",
+        "_source": report,
+    }
 
 
 def _status_text(value: Any) -> str:
@@ -288,32 +388,33 @@ def _render_technical(report: Mapping[str, Any]) -> None:
         width="stretch",
     )
     with st.expander("Xem JSON gốc"):
-        st.json(report, expanded=False)
+        st.json(report.get("_source", report), expanded=False)
 
 
 def render_series_anchor_report(report: Mapping[str, Any], *, include_technical: bool = True) -> None:
     import streamlit as st
 
     _validate_series_anchor(report)
-    _render_header(report)
+    view = _series_anchor_view(report)
+    _render_header(view)
     labels = ["Tổng quan", "Canon", "Continuity", "Tập tiếp theo", "Lịch sử tập"]
     if include_technical:
         labels.append("Kỹ thuật")
     tabs = st.tabs(labels)
     overview, canon, continuity, next_episode, history = tabs[:5]
     with overview:
-        _render_overview(report)
+        _render_overview(view)
     with canon:
-        _render_canon(report)
+        _render_canon(view)
     with continuity:
-        _render_continuity(report)
+        _render_continuity(view)
     with next_episode:
-        _render_next_episode(report)
+        _render_next_episode(view)
     with history:
-        _render_history(report)
+        _render_history(view)
     if include_technical:
         with tabs[5]:
-            _render_technical(report)
+            _render_technical(view)
 
 
 def render_series_anchor_workspace(*, embedded: bool = False) -> None:

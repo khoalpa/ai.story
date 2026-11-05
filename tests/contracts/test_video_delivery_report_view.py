@@ -13,6 +13,7 @@ from studio.video_delivery_report import (
     discover_video_report_names,
     inspect_video_variant,
     load_video_deliveries,
+    quality_failure_reasons,
     read_video_report,
     video_report_identity,
 )
@@ -115,6 +116,24 @@ def test_video_preserves_long_subtitle_lines(tmp_path: Path) -> None:
     loaded = read_video_report(BytesIO(json.dumps(quality).encode()), "quality")
     summary = inspect_video_variant("video", {"quality": loaded}, tmp_path)
     assert summary["long_lines"] == lines
+
+
+def test_quality_failure_reasons_include_measurements_and_mismatched_images(tmp_path: Path) -> None:
+    quality = _quality(passed=False)
+    quality["target"] = {"true_peak_dbtp": -1.5}
+    quality["measured"] = {"true_peak_dbtp": -1.22}
+    quality["checks"] = {"true_peak": False, "visual_ssim": False}
+    quality["visual_samples"] = [
+        {"reference": "cover.png", "ssim": 0.457},
+        {"reference": "opening.png", "ssim": 0.995},
+    ]
+    summary = inspect_video_variant("video_portrait", {"quality": quality}, tmp_path)
+
+    assert quality_failure_reasons(summary) == [
+        "True peak -1.22 dBTP vượt ngưỡng -1.3 dBTP; hãy render lại với headroom AAC.",
+        "1 khung hình không khớp tài nguyên hiện tại: cover.png (0.457); "
+        "hãy render lại từ bộ ảnh hiện tại.",
+    ]
 
 
 @pytest.mark.parametrize("kind", ["result", "quality"])

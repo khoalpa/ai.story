@@ -1,0 +1,40 @@
+CHATGPT AUDIO STORY PACKAGE — v5.2.2 QUICKSTART
+Prompt version: 5.2.2 | Revision: r3 | Story/visual/video schema: 4.1.3 | Package schema: 5.0.0 | image_prompt_version: 1.1 | Character Pack: 1.0 | Catalog: 1.0
+
+Điều chỉnh revision r3: BỎ gate T5-512; không có yêu cầu xác minh tokenizer hoặc giới hạn 512 token.
+
+Bản đặc tả Production-ready theo tiêu chuẩn rút gọn (PRODUCTION_READY_SPEC); pipeline thực tế chưa được chứng nhận. Bản vận hành đầy đủ, tự chứa. Đính kèm ChatGPT_prompt_v5.2.2.txt và story_catalog.json v1.0 khi có; chỉ dùng quickstart để định tuyến, không thay prompt chính.
+
+ROUTING
+- “Tạo gói truyện” chưa rõ profile/anchor: hỏi một lần đủ 3 lựa chọn: 1. Trẻ em/thiếu niên; 2. Người trưởng thành; 3. Trinh thám nhiều tập.
+- Có series_anchor.json hợp lệ: SERIAL_DETECTIVE, last_completed_episode=0 → START tập 1; N>=1 → CREATE_NEXT tập N+1. Không hỏi lại profile/số tập, không fallback standalone khi anchor lỗi.
+- Stage 1: kịch bản, reference canonical hoặc DESCRIPTION_ONLY được chấp thuận, image_prompts.json, video_prompts.json FULL_STORY; giao story_stage1.zip nếu COMPLETE.
+- Stage 2: dùng Stage 1 COMPLETE tạo visual_plan, visual_bible và ảnh ngang trong story_stage2.zip.
+- Stage 3: dùng Stage 2 hợp lệ tạo ảnh dọc, kiểm parity, xuất story.zip.
+- Character Image Pack (4 ảnh FRONT/SIDE/BACK/EXPRESSIONS mỗi nhân vật) là tác vụ độc lập; không tự khởi chạy. Audio/video thực và pilot ngoài 3 stage.
+
+CÁC GATE QUAN TRỌNG — v5.2.2
+1. Reference Stage 1 (mục 5.2): IMAGE_REFERENCE cần FRONT thật, bytes/PNG/nhìn soát/manifest đạt; DESCRIPTION_ONLY_APPROVED chỉ khi người dùng chấp thuận rõ và dùng NOT_APPLICABLE có ghi nguồn; REFERENCE_PENDING không COMPLETE. Không có image tool KHÔNG tự động miễn reference.
+2. Không áp dụng tokenizer T5-512 (mục 5.3/7.1): không tải/đối chiếu tokenizer, không đo hoặc chặn Stage 1 vì 512 token. Nếu report vẫn giữ IMAGE_PROMPT_T5_TOKENS, ghi required=false, status=NOT_APPLICABLE và nêu chưa kiểm. Các gate khác vẫn bắt buộc.
+3. Catalog (mục 3.1): CATALOG_VERIFIED nếu đã đọc catalog thực; FIRST_STORY_BASELINE chỉ khi có xác nhận rõ đây là truyện đầu tiên của dự án mới, 0 truyện so, ghi limitation; LIMITED_NO_CATALOG cho trường hợp thiếu catalog còn lại, chỉ PARTIAL nếu user chấp thuận, nếu chưa chấp thuận BLOCKED. Serial CREATE_NEXT N>=1 không dùng baseline.
+4. CIP đã có trước Stage 1: chỉ khi user yêu cầu nhập, đối chiếu đúng ID và FRONT READY, copy exact bytes FRONT ngay khi khởi tạo Stage 1; nếu Stage 1 đã tồn tại mới dùng repair. Không chép SIDE/BACK/EXPRESSIONS vào story package.
+5. COMPLETE: tất cả required checks PASS hoặc NOT_APPLICABLE thật sự, JSON/schema/file set/manifest đúng, ZIP kiểm postzip đạt. Nhãn nghiệp vụ chỉ được ghi trong checks[].details/limitations/lời giao, không thêm enum/key JSON.
+6. ADULT_STANDARD phải tuân thủ chính sách nội dung của nền tảng.
+
+TÍNH TƯƠNG THÍCH
+- Giữ story/visual_plan/video_prompts schema_version 4.1.3; report/manifest 5.0.0; image_prompt_version 1.1; character_pack_version 1.0; catalog 1.0. Tệp metadata mới ghi prompt_version 5.2.2. Không rewrite payload kế thừa chỉ để đổi version. Giữ exact bytes/hash của nguồn hợp lệ và kiểm lại ảnh/phụ thuộc khi sửa nguồn.
+
+LỆNH MẪU
+- “Đọc catalog và tạo Stage 1 YOUTH_SAFE 10 phút; nếu thiếu công cụ reference, đề xuất DESCRIPTION_ONLY để tôi quyết định.”
+- “Đây là truyện đầu tiên của dự án mới, chưa có catalog. Tạo Stage 1 theo FIRST_STORY_BASELINE.”
+- “Nhập FRONT từ Character Image Pack đã kiểm vào Stage 1 ngay khi khởi tạo, rồi tạo gói.”
+- “Từ story_stage1.zip COMPLETE, tạo Stage 2 đủ ảnh ngang.”
+- “Dùng Stage 2 tạo đủ ảnh dọc, kiểm parity, đóng story.zip.”
+
+Kiểm thử: T01–T60, R61–R67 và CIP01–CIP12 là các tình huống chấp nhận, KHÔNG phải kết quả đã chạy. Phân biệt rà soát văn bản, kiểm cơ học, mô phỏng và end-to-end với ảnh/audio/video thật. Xem mục 3.1, 5.2–5.3, 7.1, 11, 26.1, 27, 28.7 prompt chính.
+
+PHÁT HÀNH PROMPT r3 — TIÊU CHUẨN RÚT GỌN
+- Không yêu cầu kiểm thử sản xuất thật với tokenizer, audio và ảnh, cũng không yêu cầu E2E/79 formal acceptance để phát hành TÀI LIỆU PROMPT ở cấp PRODUCTION_READY_SPEC, nếu kiểm tĩnh + regression + ZIP/schema trên fixture đạt và có evidence.
+- Đây không phải PIPELINE_DEPLOYMENT=VERIFIED; các kết quả chưa kiểm giữ NOT_CHECKED/NOT_RUN trong evidence.
+- IMAGE_PROMPT_T5_TOKENS đã được loại khỏi các gate Stage 1; thiếu tokenizer không làm Stage 1 PARTIAL. Gói Stage 2/3 tiếp tục tuân thủ toàn bộ điều kiện khác.
+- Release note/policy độc lập ngoài story.zip, không thay đổi schema hoặc đưa validator vào gói truyện chính thức. Xem mục 0.2 prompt chính.

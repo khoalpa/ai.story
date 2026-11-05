@@ -10,6 +10,7 @@ from studio.reference_samples import (
     discover_reference_datasets,
     get_reference_dataset,
     load_reference_registry,
+    load_reference_registry_tolerant,
 )
 
 
@@ -91,3 +92,25 @@ def test_registry_rejects_duplicate_ids(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="trùng"):
         load_reference_registry(tmp_path)
+
+
+def test_tolerant_registry_keeps_valid_sets_and_reports_broken_default(tmp_path: Path) -> None:
+    _write_set(tmp_path, "second")
+    (tmp_path / "registry.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "default_set": "missing",
+            "sets": [
+                {"id": "missing", "path": "does-not-exist"},
+                {"id": "second", "path": "second"},
+            ],
+        }),
+        encoding="utf-8",
+    )
+
+    registry = load_reference_registry_tolerant(tmp_path)
+
+    assert [dataset.set_id for dataset in registry.datasets] == ["second"]
+    assert registry.default_set is None
+    assert any("Không tìm thấy thư mục" in warning for warning in registry.warnings)
+    assert any("Bộ mặc định" in warning for warning in registry.warnings)

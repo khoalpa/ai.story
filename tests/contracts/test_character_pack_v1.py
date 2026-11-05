@@ -10,12 +10,14 @@ from PIL import Image
 from studio.character_pack import (
     build_character_pack,
     inspect_character_pack,
+    link_character_pack_to_stage1,
     link_character_pack_to_stage2,
     read_character_pack,
 )
 from studio.prompt_contract import prompt_contract_for_version
 from studio.workflow_builder import build_workflow_package
 from studio.workflow_package import read_archive
+from tests.contracts.test_story_package_v520 import _stage1_files
 
 
 def _png(color: str) -> bytes:
@@ -66,6 +68,16 @@ def test_partial_pack_does_not_create_placeholder() -> None:
     assert "characters/c001/expressions.png" not in read_character_pack(payload)
 
 
+def test_character_pack_metadata_accepts_v500_prompt() -> None:
+    pack, images, report = _documents()
+    pack["prompt_version"] = "5.0.0"
+    report["prompt_version"] = "5.0.0"
+    payload, result = build_character_pack(pack, "Phong cách nhất quán.", images, report)
+    assert result["status"] == "PASS"
+    assert result["manifest"]["prompt_version"] == "5.0.0"
+    assert read_character_pack(payload)["character_pack.json"]
+
+
 def test_complete_pack_rejects_missing_view() -> None:
     pack, images, report = _documents()
     images.pop("characters/c001/back.png")
@@ -100,3 +112,32 @@ def test_link_front_creates_partial_v420_stage2_repair(sample_archives_dir: Path
     assert repaired_report["status"] == "PARTIAL"
     assert linked["reference_status"] == "READY"
     assert repaired_members[f"characters/{character_id}.png"] == images["characters/c001/front.png"]
+
+
+def test_link_front_creates_partial_v520_stage1_repair() -> None:
+    contract = prompt_contract_for_version("5.2.0")
+    stage1_payload, _ = build_workflow_package(1, "CREATE", _stage1_files(), contract=contract)
+    pack, images, report = _documents()
+    pack["prompt_version"] = report["prompt_version"] = "5.2.0"
+    cip_payload, _ = build_character_pack(pack, "Phong cách nhất quán.", images, report)
+
+    repaired, result = link_character_pack_to_stage1(
+        stage1_payload, cip_payload, {"c001": "c001"}, contract=contract,
+    )
+
+    members = read_archive(repaired)
+    repaired_report = json.loads(members["validation_report.json"])
+    manifest = json.loads(members["manifest.json"])
+    reference_row = next(row for row in manifest["files"] if row["path"] == "characters/c001.png")
+    assert result["status"] == "PASS"
+    assert repaired_report["status"] == "PARTIAL"
+    assert reference_row["origin_stage"] == 1
+    assert members["characters/c001.png"] == images["characters/c001/front.png"]
+
+
+def test_v520_rejects_legacy_stage2_linker(sample_archives_dir: Path) -> None:
+    contract = prompt_contract_for_version("5.2.0")
+    with pytest.raises(ValueError, match="repair Stage 1"):
+        link_character_pack_to_stage2(
+            read_archive(sample_archives_dir / "story_stage2.zip"), {}, {}, contract=contract,
+        )

@@ -128,6 +128,37 @@ def test_broken_png_is_reported_without_crashing_and_temporary_png_is_ignored(tm
     assert not any(row["name"] == "characters/unfinished.tmp.png" for row in rows)
 
 
+def test_story_character_without_explicit_visual_reference_does_not_require_image(tmp_path: Path) -> None:
+    (tmp_path / "visual_plan.json").write_text(json.dumps({
+        "characters": [{
+            "character_id": "visible", "planned_reference_path": "characters/visible.png",
+            "reference_path": "characters/visible.png", "reference_status": "READY",
+        }],
+    }), encoding="utf-8")
+    reports = {"story": {"characters": [
+        {"character_id": "visible"},
+        {"character_id": "voice_only", "appearance": "Hình ảnh không cần xuất hiện"},
+    ]}}
+
+    rows = inspect_project_assets(tmp_path, reports)
+
+    names = {row["name"] for row in rows}
+    assert "characters/visible.png" in names
+    assert "characters/voice_only.png" not in names
+
+
+def test_explicit_story_reference_remains_an_expected_asset(tmp_path: Path) -> None:
+    reports = {"story": {"characters": [{
+        "character_id": "declared",
+        "reference_asset": {"reference_image": "characters/custom.png"},
+    }]}}
+
+    rows = inspect_project_assets(tmp_path, reports)
+
+    row = next(item for item in rows if item["name"] == "characters/custom.png")
+    assert row["issues"] == ["Thiếu ảnh"]
+
+
 @pytest.mark.parametrize("group", ["landscape", "portrait"])
 def test_user_replaced_cover_is_notice_not_asset_error(tmp_path: Path, group: str) -> None:
     directory = tmp_path / group

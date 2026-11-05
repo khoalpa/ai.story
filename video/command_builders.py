@@ -2,6 +2,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
+AAC_TRUE_PEAK_HEADROOM_DB = 0.5
+
+
+def _audio_encode_args(audio_codec: str, audio_bitrate: str) -> list[str]:
+    """Build audio output args with headroom for lossy AAC inter-sample peaks."""
+    headroom = (
+        ["-af", f"volume=-{AAC_TRUE_PEAK_HEADROOM_DB:g}dB"]
+        if audio_codec.casefold() == "aac"
+        else []
+    )
+    return [
+        *headroom,
+        "-c:a", audio_codec, "-b:a", audio_bitrate,
+        "-ar", "48000", "-ac", "2",
+    ]
+
 
 def build_clip_concat_cmd(
     *,
@@ -56,10 +72,7 @@ def build_clip_normalize_cmd(
     ])
     if audio_mode == "keep":
         command.extend(["-map", "1:a:0" if add_silence else "0:a:0"])
-        command.extend([
-            "-c:a", audio_codec, "-b:a", audio_bitrate,
-            "-ar", "48000", "-ac", "2",
-        ])
+        command.extend(_audio_encode_args(audio_codec, audio_bitrate))
     else:
         command.append("-an")
     command.extend([
@@ -138,14 +151,7 @@ def build_static_ffmpeg_cmd(
         color_space,
         "-color_range",
         color_range,
-        "-c:a",
-        audio_codec,
-        "-b:a",
-        audio_bitrate,
-        "-ar",
-        "48000",
-        "-ac",
-        "2",
+        *_audio_encode_args(audio_codec, audio_bitrate),
         "-avoid_negative_ts",
         "make_zero",
         "-max_muxing_queue_size",
@@ -230,14 +236,7 @@ def build_slideshow_ffmpeg_cmd(
         color_space,
         "-color_range",
         color_range,
-        "-c:a",
-        audio_codec,
-        "-b:a",
-        audio_bitrate,
-        "-ar",
-        "48000",
-        "-ac",
-        "2",
+        *_audio_encode_args(audio_codec, audio_bitrate),
         "-avoid_negative_ts",
         "make_zero",
         "-max_muxing_queue_size",

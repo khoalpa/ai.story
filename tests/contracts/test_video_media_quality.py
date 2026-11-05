@@ -82,7 +82,19 @@ def test_static_command_uses_cfr_color_gop_and_audio_delivery_settings(tmp_path:
     assert command[command.index("-color_trc") + 1] == "bt709"
     assert command[command.index("-ar") + 1] == "48000"
     assert command[command.index("-ac") + 1] == "2"
+    assert command[command.index("-af") + 1] == "volume=-0.5dB"
     assert command[command.index("-movflags") + 1] == "+faststart"
+
+
+def test_slideshow_command_reserves_true_peak_headroom_for_aac() -> None:
+    command = build_slideshow_ffmpeg_cmd(
+        ffmpeg_base=["ffmpeg"], concat_list=Path("slides.ffconcat"),
+        audio=Path("audio.wav"), output=Path("video.mp4"), vf_filter="scale=1920:1080",
+        video_codec="libx264", preset="medium", crf=19, tune="stillimage",
+        audio_codec="aac", audio_bitrate="192k", movflags="+faststart",
+    )
+
+    assert command[command.index("-af") + 1] == "volume=-0.5dB"
 
 
 def test_subtitle_preparation_wraps_long_lines_without_changing_timestamps(tmp_path: Path) -> None:

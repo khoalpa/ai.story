@@ -17,6 +17,7 @@ from studio.prompt_contract import (
     load_prompt_contract,
     prompt_contract_for_version,
 )
+from studio.story_schema import validate_story_document
 
 STORY_VALIDATION_FIELDS = (
     "schema_version", "prompt_version", "stage", "status", "input_sources",
@@ -122,13 +123,8 @@ def validate_story(path: Path, contract: PromptContract | None = None) -> Valida
     )
     if document is None:
         return result
-    meta = document.get("meta")
-    if not isinstance(meta, dict):
-        result.fail("meta phải là object")
-    elif set(meta) != {"title", "series", "episode", "author", "channel", "profile", "age_band", "language", "genre", "tone", "target_minutes", "estimated_minutes", "timing_method", "tags"}:
-        result.fail("meta không đúng closed schema 4.1.3")
-    if not isinstance(document.get("characters"), list) or not isinstance(document.get("script"), list):
-        result.fail("characters và script phải là array")
+    for error in validate_story_document(document):
+        result.fail(error)
     result.checks["story_contract"] = "PASS" if not result.errors else "FAIL"
     return result
 
@@ -140,13 +136,14 @@ def validate_story_validation(
     root = STORY_VALIDATION_FIELDS
     result, document = _validate_json_file(
         path, required=root, exact_order=root, contract=contract,
-        schema_version="4.1.3",
+        schema_version=contract.story_validation_schema_version,
     )
     if document is not None:
         if document.get("prompt_version") != contract.version_label:
             result.fail(f"prompt_version phải là {contract.version_label}")
-        if type(document.get("stage")) is not int or document["stage"] not in range(1, 5):
-            result.fail("stage phải là integer 1..4")
+        allowed_stages = {int(stage[-1]) for stage in contract.workflow_package_stages}
+        if type(document.get("stage")) is not int or document["stage"] not in allowed_stages:
+            result.fail("stage không được prompt contract hỗ trợ")
         if document.get("status") not in {"COMPLETE", "PARTIAL", "BLOCKED"}:
             result.fail("status không hợp lệ")
     return result
@@ -395,6 +392,16 @@ def _validate_series_state(result: ValidationResult, value: Any, last_episode: i
                                       {"episode", "premise", "required_thread_ids", "forbidden_resolutions"})
         if contract_row is not None and (contract_row.get("episode") != last_episode + 1 or not _non_empty_string(contract_row.get("premise"))):
             result.fail("next_episode_contract episode/premise không hợp lệ")
+        if contract_row is not None:
+            required_ids = contract_row.get("required_thread_ids")
+            open_ids = {row.get("thread_id") for row in open_rows}
+            if (not isinstance(required_ids, list) or not all(_non_empty_string(item) for item in required_ids)
+                    or len(required_ids) != len(set(required_ids)) or not set(required_ids) <= open_ids):
+                result.fail("next_episode_contract.required_thread_ids phải là ID thread đang mở, duy nhất")
+            forbidden = contract_row.get("forbidden_resolutions")
+            if (not isinstance(forbidden, list) or not all(_non_empty_string(item) for item in forbidden)
+                    or len(forbidden) != len(set(forbidden))):
+                result.fail("next_episode_contract.forbidden_resolutions phải là array string duy nhất")
     elif status == "COMPLETED" and contract_value is not None:
         result.fail("Series COMPLETED phải có next_episode_contract=null")
     character_ids = {row.get("character_id") for row in characters}
@@ -572,6 +579,20 @@ def validate_project(path: Path, contract: PromptContract | None = None) -> list
     if not path.is_dir():
         result = _result(str(path), contract)
         result.fail("Đường dẫn không phải thư mục hoặc ZIP")
+        return [result]
+    if (path / "manifest.json").is_file():
+        from studio.workflow_package import inspect_directory
+
+        inspection = inspect_directory(path, contract=contract)
+        result = _result(str(path), contract)
+        result.status = inspection["overall_status"]
+        result.compatibility_mode = inspection["compatibility"]
+        for item in inspection["checks"]:
+            result.checks[item["check"]] = item["status"]
+            if item["status"] == "FAIL":
+                result.errors.append(f'{item["check"]}: {item["detail"]}')
+            elif item["status"] != "PASS":
+                result.warnings.append(f'{item["check"]}: {item["detail"]}')
         return [result]
     results: list[ValidationResult] = []
     story = path / "story.json"

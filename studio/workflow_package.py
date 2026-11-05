@@ -18,13 +18,15 @@ from typing import Any, Mapping, Sequence
 from PIL import Image, UnidentifiedImageError
 
 from studio.artifact_validation import strict_json_bytes, validate_series_anchor_bytes
+from studio.image_prompt_validation import validate_image_prompt_bytes
 from studio.prompt_contract import (
     PromptContract,
     load_prompt_contract,
     prompt_contract_for_version,
 )
+from studio.story_schema import validate_story_document
 
-WORKFLOW_FILES = {"workflow": "manifest.json", "visual_bible": "visual_plan.json", "video_prompts": "video_prompts.json"}
+WORKFLOW_FILES = {"workflow": "manifest.json", "image_prompts": "image_prompts.json", "visual_bible": "visual_plan.json", "video_prompts": "video_prompts.json"}
 STAGES = ("STAGE1", "STAGE2", "STAGE3", "STAGE4")
 PURPOSES: tuple[str, ...] = ()
 MANIFEST_FIELDS = ("schema_version", "prompt_version", "stage", "status", "parent_package_sha256", "files")
@@ -34,6 +36,130 @@ MAX_MEMBER_BYTES = 128 * 1024 * 1024
 MAX_PACKAGE_BYTES = 512 * 1024 * 1024
 MAX_JSON_BYTES = 5 * 1024 * 1024
 ZONE_BASENAMES = ("cover.png", "greeting.png", "opening.png", "introduction.png", "development.png", "climax.png", "falling.png", "ending.png", "farewell.png", "outro.png")
+CHECK_FIELDS = {"id", "status", "method", "required", "target", "details"}
+CHECK_STATUSES = {"PASS", "FAIL", "NOT_CHECKED", "NOT_APPLICABLE"}
+CHECK_METHODS = {"CODE", "TOOL", "MODEL_REVIEW"}
+V520_COMMON_GATES = {"JSON_PARSE", "SCHEMA_LINKS", "FILE_SET", "MANIFEST_MATCH", "CONTENT_SAFETY"}
+V520_STAGE_GATES = {
+    1: {"STORY_NOVELTY", "STORY_ORDER", "STORY_TIMING", "STORY_COMPLETENESS", "STORY_CRAFT",
+        "SERIAL_CONTINUITY", "IMAGE_PROMPT_SCHEMA", "IMAGE_PROMPT_SOURCE_BINDING",
+        "IMAGE_PROMPT_CHARACTER_LINKS", "IMAGE_PROMPT_T5_TOKENS",
+        "IMAGE_REFERENCE_FILES", "IMAGE_REFERENCE_CONTENT",
+        "VIDEO_SPANS", "VIDEO_FEASIBILITY", "VIDEO_TIMING"},
+    2: {"INHERITED_BYTES", "VISUAL_PLAN", "IMAGE_FILES", "IMAGE_CONTENT"},
+    3: {"INHERITED_BYTES", "VISUAL_PLAN", "IMAGE_FILES", "IMAGE_CONTENT", "ORIENTATION_PARITY"},
+}
+V520_GATE_METHODS = {
+    "JSON_PARSE": {"CODE", "TOOL"}, "SCHEMA_LINKS": {"CODE", "TOOL"},
+    "FILE_SET": {"CODE", "TOOL"}, "MANIFEST_MATCH": {"CODE", "TOOL"},
+    "CONTENT_SAFETY": {"MODEL_REVIEW"}, "STORY_NOVELTY": {"MODEL_REVIEW"},
+    "STORY_ORDER": {"CODE", "TOOL"}, "STORY_TIMING": {"CODE", "TOOL"},
+    "STORY_COMPLETENESS": {"MODEL_REVIEW"}, "STORY_CRAFT": {"MODEL_REVIEW"},
+    "SERIAL_CONTINUITY": {"CODE", "TOOL", "MODEL_REVIEW"},
+    "IMAGE_PROMPT_SCHEMA": {"CODE", "TOOL"}, "IMAGE_PROMPT_SOURCE_BINDING": {"CODE", "TOOL"},
+    "IMAGE_PROMPT_CHARACTER_LINKS": {"CODE", "TOOL"},
+    "IMAGE_PROMPT_T5_TOKENS": {"TOOL"}, "IMAGE_REFERENCE_FILES": {"CODE", "TOOL"},
+    "IMAGE_REFERENCE_CONTENT": {"MODEL_REVIEW"}, "VIDEO_SPANS": {"CODE", "TOOL"},
+    "VIDEO_FEASIBILITY": {"MODEL_REVIEW"}, "VIDEO_TIMING": {"CODE", "TOOL"},
+    "INHERITED_BYTES": {"CODE", "TOOL"}, "VISUAL_PLAN": {"CODE", "TOOL"},
+    "IMAGE_FILES": {"CODE", "TOOL"}, "IMAGE_CONTENT": {"MODEL_REVIEW"},
+    "ORIENTATION_PARITY": {"MODEL_REVIEW"},
+}
+
+
+def _required_stage_gates(stage: Any, contract: PromptContract) -> set[str]:
+    """Return the gates required by the selected prompt revision.
+
+    Prompt v5.2.2 revision r3 retired the T5-512 token gate while retaining
+    the legacy check identifier for readers that still emit it.
+    """
+    required = V520_COMMON_GATES | V520_STAGE_GATES.get(stage, set())
+    if contract.version >= (5, 2, 2):
+        required = required - {"IMAGE_PROMPT_T5_TOKENS"}
+    return required
+
+
+def _v520_not_applicable(identifier: str, members: Mapping[str, bytes]) -> bool:
+    """Return whether payload facts make a required v5.2 gate inapplicable."""
+    if identifier == "SERIAL_CONTINUITY":
+        story = read_json(members.get("story.json", b"{}"))
+        return isinstance(story.get("meta"), Mapping) and story["meta"].get("profile") != "SERIAL_DETECTIVE"
+    if identifier == "STORY_TIMING":
+        story = read_json(members.get("story.json", b"{}"))
+        return isinstance(story.get("meta"), Mapping) and story["meta"].get("language") not in {"vi", "en"}
+    if identifier in {"IMAGE_REFERENCE_FILES", "IMAGE_REFERENCE_CONTENT"}:
+        prompts = read_json(members.get("image_prompts.json", b"{}"))
+        locks = prompts.get("character_locks")
+        return isinstance(locks, list) and bool(locks) and all(
+            isinstance(row, Mapping) and row.get("planned_reference_path") is None for row in locks
+        )
+    return False
+
+
+def validate_visual_plan(document: Mapping[str, Any]) -> list[str]:
+    """Validate the closed v5.2 visual-plan schema and reference state machine."""
+    errors: list[str] = []
+    if set(document) != {"schema_version", "image_mode", "reference_mode", "targets", "characters", "assets"}:
+        errors.append("visual_plan root không đúng closed schema")
+    if document.get("schema_version") != "4.1.3":
+        errors.append("visual_plan.schema_version phải là 4.1.3")
+    mode = document.get("reference_mode")
+    if mode not in {"IMAGE_REFERENCE", "DESCRIPTION_ONLY"}:
+        errors.append("visual_plan.reference_mode không hợp lệ")
+    targets = document.get("targets")
+    target_fields = {"size_policy", "preferred_aspect_ratio", "width", "height"}
+    if not isinstance(targets, Mapping) or set(targets) != {"landscape", "portrait"}:
+        errors.append("visual_plan.targets không đúng closed schema")
+    else:
+        for aspect, ratio in (("landscape", "16:9"), ("portrait", "9:16")):
+            target = targets.get(aspect)
+            if not isinstance(target, Mapping) or set(target) != target_fields:
+                errors.append(f"visual_plan.targets.{aspect} không đúng closed schema")
+                continue
+            policy, width, height = target.get("size_policy"), target.get("width"), target.get("height")
+            if target.get("preferred_aspect_ratio") != ratio or policy not in {"EXACT", "MODEL_DEFAULT"}:
+                errors.append(f"visual_plan.targets.{aspect} không hợp lệ")
+            if policy == "EXACT" and not (type(width) is int and width > 0 and type(height) is int and height > 0):
+                errors.append(f"visual_plan.targets.{aspect} EXACT thiếu kích thước")
+            if policy == "MODEL_DEFAULT" and (width is not None or height is not None):
+                errors.append(f"visual_plan.targets.{aspect} MODEL_DEFAULT phải có width/height null")
+    characters = document.get("characters")
+    character_fields = {"character_id", "planned_reference_path", "reference_path", "reference_status", "description_lock"}
+    if not isinstance(characters, list):
+        errors.append("visual_plan.characters phải là array")
+    else:
+        ids: list[str] = []
+        for row in characters:
+            if not isinstance(row, Mapping) or set(row) != character_fields:
+                errors.append("visual_plan.characters[] không đúng closed schema")
+                continue
+            identifier, planned, path = row.get("character_id"), row.get("planned_reference_path"), row.get("reference_path")
+            if not isinstance(identifier, str) or not identifier or not isinstance(row.get("description_lock"), str) or not row["description_lock"].strip():
+                errors.append("visual_plan.characters[] thiếu character_id/description_lock")
+                continue
+            ids.append(identifier)
+            status = row.get("reference_status")
+            if mode == "DESCRIPTION_ONLY" and (planned is not None or path is not None or status != "NOT_APPLICABLE"):
+                errors.append(f"{identifier}: trạng thái reference không khớp DESCRIPTION_ONLY")
+            if mode == "IMAGE_REFERENCE":
+                expected = f"characters/{identifier}.png"
+                if planned != expected or status not in {"PENDING", "READY", "FAILED"}:
+                    errors.append(f"{identifier}: trạng thái reference không khớp IMAGE_REFERENCE")
+                elif (status == "READY" and path != planned) or (status != "READY" and path is not None):
+                    errors.append(f"{identifier}: reference_path không khớp reference_status")
+        if len(ids) != len(set(ids)):
+            errors.append("visual_plan.characters có character_id trùng")
+    assets = document.get("assets")
+    asset_fields = {"basename", "role", "source_script_ids", "character_ids", "brief", "landscape_prompt", "portrait_prompt"}
+    if not isinstance(assets, list) or not assets:
+        errors.append("visual_plan.assets phải là array không rỗng")
+    elif any(not isinstance(row, Mapping) or set(row) != asset_fields for row in assets):
+        errors.append("visual_plan.assets[] không đúng closed schema")
+    try:
+        active_image_basenames(document)
+    except ValueError as exc:
+        errors.append(str(exc))
+    return errors
 
 
 def read_json(raw: bytes) -> dict[str, Any]:
@@ -101,17 +227,27 @@ def active_image_basenames(visual_plan: Mapping[str, Any], contract: PromptContr
     return tuple(names)
 
 
-def _stage_label(stage: Any) -> str | None:
-    return f"STAGE{stage}" if type(stage) is int and 1 <= stage <= 4 else None
+def _stage_label(stage: Any, contract: PromptContract) -> str | None:
+    label = f"STAGE{stage}" if type(stage) is int else None
+    return label if label in contract.workflow_package_stages else None
 
 
-def _expected_payload(members: Mapping[str, bytes], stage: int) -> set[str]:
+def _expected_payload(members: Mapping[str, bytes], stage: int, contract: PromptContract | None = None) -> set[str]:
+    contract = contract or load_prompt_contract()
     expected = {"story.json", "validation_report.json"}
     story = read_json(members.get("story.json", b"{}"))
     if isinstance(story.get("meta"), Mapping) and story["meta"].get("profile") == "SERIAL_DETECTIVE":
         expected.add("series_anchor.json")
+    is_v5 = contract.version >= (5, 0, 0)
+    if is_v5:
+        expected.update({"image_prompts.json", "video_prompts.json"})
+        if contract.version >= (5, 2, 0):
+            image_prompts = read_json(members.get("image_prompts.json", b"{}"))
+            for row in image_prompts.get("character_locks", []):
+                if isinstance(row, Mapping) and isinstance(row.get("planned_reference_path"), str):
+                    expected.add(row["planned_reference_path"])
     story_only = False
-    if stage == 4 and "video_prompts.json" in members:
+    if not is_v5 and stage == 4 and "video_prompts.json" in members:
         story_only = read_json(members["video_prompts.json"]).get("source_mode") == "STORY_ONLY"
     if stage >= 2 and not story_only:
         expected.update({"visual_plan.json", "visual_bible.txt"})
@@ -123,7 +259,7 @@ def _expected_payload(members: Mapping[str, bytes], stage: int) -> set[str]:
         for row in plan.get("characters", []):
             if isinstance(row, Mapping) and isinstance(row.get("reference_path"), str):
                 expected.add(row["reference_path"])
-    if stage == 4:
+    if not is_v5 and stage == 4:
         expected.add("video_prompts.json")
     return expected
 
@@ -144,6 +280,7 @@ def _stage_gate_assessment(members: Mapping[str, bytes], contract: PromptContrac
         return "FAIL", "validation_report.checks phải là array."
     unresolved: list[str] = []
     failed: list[str] = []
+    seen: set[str] = set()
     resolved_anchor = False
     if "series_anchor.json" in members:
         anchor_result = validate_series_anchor_bytes(members["series_anchor.json"], contract)
@@ -151,18 +288,49 @@ def _stage_gate_assessment(members: Mapping[str, bytes], contract: PromptContrac
         if not resolved_anchor:
             failed.extend(f"ANCHOR_NESTED_SCHEMA: {message}" for message in anchor_result.errors)
     for row in checks:
-        if not isinstance(row, Mapping) or row.get("required") is not True:
+        if not isinstance(row, Mapping):
+            failed.append("CHECK_SCHEMA: record không phải object")
             continue
         identifier = str(row.get("id") or "UNKNOWN_GATE")
+        if (set(row) != CHECK_FIELDS or identifier in seen
+                or row.get("status") not in CHECK_STATUSES or row.get("method") not in CHECK_METHODS
+                or type(row.get("required")) is not bool
+                or not isinstance(row.get("target"), str) or not row["target"].strip()
+                or not isinstance(row.get("details"), str) or not row["details"].strip()):
+            failed.append(f"CHECK_SCHEMA: {identifier}")
+            continue
+        if contract.version >= (5, 2, 0) and identifier in V520_GATE_METHODS:
+            optional_t5 = (
+                contract.version >= (5, 2, 2)
+                and identifier == "IMAGE_PROMPT_T5_TOKENS"
+            )
+            if ((row.get("required") is not True and not optional_t5)
+                    or row.get("method") not in V520_GATE_METHODS[identifier]):
+                failed.append(f"CHECK_POLICY: {identifier}")
+                continue
+        seen.add(identifier)
+        if row.get("required") is not True:
+            continue
         status = str(row.get("status") or "NOT_CHECKED")
         if identifier == "ANCHOR_EXTERNAL_NESTED_SCHEMA" and resolved_anchor:
             continue
         if status == "FAIL":
             failed.append(identifier)
+        elif status == "NOT_APPLICABLE" and contract.version >= (5, 2, 0) and not _v520_not_applicable(identifier, members):
+            failed.append(f"NOT_APPLICABLE: {identifier}")
         elif status not in {"PASS", "NOT_APPLICABLE"}:
             unresolved.append(identifier)
+    if contract.version >= (5, 2, 0):
+        manifest = read_json(members.get("manifest.json", b"{}"))
+        stage = manifest.get("stage")
+        required = _required_stage_gates(stage, contract)
+        missing = sorted(required - seen)
+        if missing:
+            unresolved.extend(f"MISSING:{identifier}" for identifier in missing)
     if failed:
-        return "FAIL", "Gate bắt buộc không đạt: " + "; ".join(failed[:4])
+        visible = failed[:8]
+        suffix = f"; và {len(failed) - len(visible)} lỗi khác" if len(failed) > len(visible) else ""
+        return "FAIL", "Gate bắt buộc không đạt: " + "; ".join(visible) + suffix
     if unresolved:
         return "NOT_VERIFIED", "Gate bắt buộc chưa có bằng chứng: " + ", ".join(unresolved)
     return "PASS", "Mọi gate bắt buộc đã đạt bằng chứng deterministic hoặc report hợp lệ."
@@ -208,14 +376,15 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
                     "publish_status": "FAIL", "compatibility": "UNSUPPORTED", "stage": None,
                     "checks": checks, "files": [], "manifest": manifest, "actual_package_digest_sha256": None}
     stage, rows = manifest.get("stage"), manifest.get("files")
-    stage_label = _stage_label(stage)
+    stage_label = _stage_label(stage, contract)
     digest_pattern = re.compile(r"[0-9a-f]{64}")
     parent_digest = manifest.get("parent_package_sha256")
-    schema_ok = (set(manifest) == set(MANIFEST_FIELDS) and manifest.get("schema_version") == "4.1.3"
+    manifest_schema = contract.workflow_manifest_schema_version or "4.1.3"
+    schema_ok = (set(manifest) == set(MANIFEST_FIELDS) and manifest.get("schema_version") == manifest_schema
                  and manifest.get("prompt_version") == contract.version_label and stage_label is not None
                  and manifest.get("status") in ("COMPLETE", "PARTIAL", "BLOCKED")
                  and (parent_digest is None or isinstance(parent_digest, str) and digest_pattern.fullmatch(parent_digest) is not None))
-    check("manifest_schema", schema_ok, f"Manifest v{contract.version_label} / schema 4.1.3 hợp lệ.",
+    check("manifest_schema", schema_ok, f"Manifest v{contract.version_label} / schema {manifest_schema} hợp lệ.",
           f"Manifest không đúng schema của prompt v{contract.version_label}.")
     row_ok, indexed = isinstance(rows, list), {}
     if isinstance(rows, list):
@@ -225,7 +394,7 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
                      and safe_name(row["path"]) and type(row.get("size_bytes")) is int and row["size_bytes"] >= 0
                      and (row.get("sha256") is None or (isinstance(row.get("sha256"), str)
                           and digest_pattern.fullmatch(row["sha256"])))
-                     and type(row.get("origin_stage")) is int and 1 <= row["origin_stage"] <= 4)
+                     and type(row.get("origin_stage")) is int and 1 <= row["origin_stage"] <= len(contract.workflow_package_stages))
             if not valid:
                 row_ok = False
                 break
@@ -238,9 +407,11 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
     file_set_error: str | None = None
     if type(stage) is int and stage_label:
         try:
-            expected_payload = _expected_payload(members, stage)
+            expected_payload = _expected_payload(members, stage, contract)
             required_payload = {"story.json", "validation_report.json"}
-            if stage == 4:
+            if contract.version >= (5, 0, 0):
+                required_payload.update({"image_prompts.json", "video_prompts.json"})
+            elif stage == 4:
                 required_payload.add("video_prompts.json")
             if manifest.get("status") == "COMPLETE":
                 file_set_ok = file_set_ok and actual_payload == expected_payload
@@ -255,50 +426,219 @@ def inspect_members(members: Mapping[str, bytes], *, archive: bool = False, pare
     )
     check("file_set", file_set_ok, f"Exact file set Stage {stage} hợp lệ.", file_set_bad)
     digest_ok = row_ok
+    digest_mismatches: list[str] = []
     for path, row in indexed.items():
         raw = members.get(path)
-        digest_ok = bool(digest_ok and raw is not None and len(raw) == row["size_bytes"])
-        if raw is not None and row.get("sha256") is not None:
-            digest_ok = digest_ok and hashlib.sha256(raw).hexdigest() == row["sha256"]
-    check("file_digest", digest_ok, "Size/hash mọi payload khớp manifest.", "Size/hash payload không khớp manifest.")
+        reasons = []
+        if raw is None:
+            reasons.append("thiếu file")
+        elif len(raw) != row["size_bytes"]:
+            reasons.append("sai kích thước")
+        if raw is not None and row.get("sha256") is not None and hashlib.sha256(raw).hexdigest() != row["sha256"]:
+            reasons.append("sai SHA-256")
+        if reasons:
+            digest_mismatches.append(f"{path} ({', '.join(reasons)})")
+            digest_ok = False
+    visible_mismatches = digest_mismatches[:5]
+    mismatch_suffix = (
+        f"; và {len(digest_mismatches) - len(visible_mismatches)} file khác"
+        if len(digest_mismatches) > len(visible_mismatches) else ""
+    )
+    digest_error = (
+        "Payload không khớp manifest: " + "; ".join(visible_mismatches) + mismatch_suffix + "."
+        if visible_mismatches else "Size/hash payload không khớp manifest."
+    )
+    check("file_digest", digest_ok, "Size/hash mọi payload khớp manifest.", digest_error)
+    inherited_ok = True
+    inherited_error = ""
+    if parent is not None:
+        try:
+            parent_manifest = read_json(parent["manifest.json"])
+            parent_stage = parent_manifest.get("stage")
+            inherited_names = {"story.json"}
+            if contract.version >= (5, 0, 0):
+                inherited_names.update({"image_prompts.json", "video_prompts.json"})
+            if contract.version >= (5, 2, 0) and "image_prompts.json" in parent:
+                image_prompts = read_json(parent["image_prompts.json"])
+                inherited_names.update(
+                    row["planned_reference_path"]
+                    for row in image_prompts.get("character_locks", [])
+                    if isinstance(row, Mapping) and isinstance(row.get("planned_reference_path"), str)
+                )
+            if "series_anchor.json" in parent:
+                inherited_names.add("series_anchor.json")
+            inherited_ok = bool(parent_manifest.get("prompt_version") == contract.version_label
+                                and type(parent_stage) is int and type(stage) is int
+                                and (stage == parent_stage or stage == parent_stage + 1)
+                                and all(name in members and members[name] == parent[name] for name in inherited_names))
+            if not inherited_ok:
+                inherited_error = "Parent stage/version hoặc exact bytes payload kế thừa không khớp."
+        except (KeyError, TypeError, ValueError) as exc:
+            inherited_ok = False
+            inherited_error = str(exc)
+    check("inherited_bytes", inherited_ok, "Payload canonical kế thừa giữ exact bytes.",
+          inherited_error or "Payload kế thừa không khớp parent.")
     json_ok = True
     for path, raw in members.items():
         if path.endswith(".json"):
             try:
-                json_ok = json_ok and read_json(raw).get("schema_version") == "4.1.3"
+                document = read_json(raw)
+                expected_schema = (
+                    manifest_schema if path in {"manifest.json", "validation_report.json"}
+                    else None if path == "image_prompts.json" else "4.1.3"
+                )
+                json_ok = json_ok and (expected_schema is None or document.get("schema_version") == expected_schema)
             except ValueError:
                 json_ok = False
-    check("strict_json", json_ok, "Mọi JSON parse strict và dùng schema 4.1.3.", "JSON lỗi hoặc schema_version không phải 4.1.3.")
+    check("strict_json", json_ok, "Mọi JSON parse strict và dùng schema artifact tương ứng.", "JSON lỗi hoặc schema_version không đúng artifact.")
+    try:
+        story_errors = (
+            validate_story_document(read_json(members["story.json"]))
+            if contract.version >= (5, 2, 0) else []
+        )
+    except (KeyError, ValueError) as exc:
+        story_errors = [str(exc)]
+    check("story_schema", not story_errors, "story.json đạt closed schema và liên kết nội bộ.",
+          "; ".join(story_errors[:5]) or "story.json không hợp lệ.")
     report_ok = False
     try:
         report = read_json(members["validation_report.json"])
         report_ok = (
             set(report) == {"schema_version", "prompt_version", "stage", "status", "input_sources",
                             "checks", "limitations", "remaining_work", "archive_validation"}
-            and report.get("schema_version") == "4.1.3"
+            and report.get("schema_version") == contract.story_validation_schema_version
             and report.get("prompt_version") == contract.version_label
             and report.get("stage") == stage
             and report.get("status") == manifest.get("status")
             and isinstance(report.get("checks"), list)
+            and (contract.version < (5, 2, 0) or (
+                isinstance(report.get("input_sources"), list)
+                and all(isinstance(item, str) and item.strip() for item in report.get("input_sources", []))
+                and isinstance(report.get("limitations"), list)
+                and all(isinstance(item, str) and item.strip() for item in report.get("limitations", []))
+                and isinstance(report.get("remaining_work"), list)
+                and all(isinstance(item, str) and item.strip() for item in report.get("remaining_work", []))
+                and isinstance(report.get("archive_validation"), Mapping)
+                and set(report.get("archive_validation", {})) == {"status", "details"}
+                and report["archive_validation"].get("status") in CHECK_STATUSES
+                and (not archive or report["archive_validation"].get("status") == "NOT_CHECKED")
+                and isinstance(report["archive_validation"].get("details"), str)
+                and bool(report["archive_validation"]["details"].strip())
+            ))
         )
     except (KeyError, ValueError):
         report_ok = False
     check("validation_report", report_ok, "Report khớp schema, prompt, stage và trạng thái manifest.",
           f"validation_report.json không khớp manifest hoặc closed schema v{contract.version_label}.")
 
+    if contract.image_prompt_version:
+        image_prompt_errors = validate_image_prompt_bytes(
+            members.get("image_prompts.json", b""), members.get("story.json", b""),
+            expected_prompt_version=contract.version_label,
+        )
+        check("image_prompts", not image_prompt_errors, "image_prompts.json khớp story và closed schema.",
+              "; ".join(image_prompt_errors[:4]) or "Thiếu image_prompts.json.")
+        try:
+            from studio.video_prompt_v4 import validate_v4_plan, validate_v5_plan
+
+            video_plan = read_json(members["video_prompts.json"])
+            video_result = (
+                validate_v5_plan(video_plan, members=members)
+                if contract.version >= (5, 2, 0)
+                else validate_v4_plan(video_plan, root=None, members=members)
+            )
+            video_errors = list(video_result.get("errors") or [])
+            if contract.version < (5, 2, 0):
+                if video_plan.get("source_mode") != "STORY_ONLY" or any(
+                    not isinstance(clip, Mapping) or clip.get("reference_paths") != []
+                    for clip in video_plan.get("clips", [])
+                ):
+                    video_errors.append("V5 yêu cầu STORY_ONLY và reference_paths rỗng")
+        except (KeyError, TypeError, ValueError) as exc:
+            video_errors = [str(exc)]
+        check("video_prompts", not video_errors, "video_prompts.json STORY_ONLY khớp story/spans.",
+              "; ".join(video_errors[:4]) or "Thiếu video_prompts.json.")
+        if type(stage) is int and stage >= 2 and "visual_plan.json" in members:
+            try:
+                image_plan = read_json(members["image_prompts.json"])
+                visual_plan = read_json(members["visual_plan.json"])
+                visual_errors = validate_visual_plan(visual_plan) if contract.version >= (5, 2, 0) else []
+                if visual_errors:
+                    raise ValueError("; ".join(visual_errors[:4]))
+                image_assets = image_plan.get("assets")
+                visual_assets = visual_plan.get("assets")
+                if not isinstance(image_assets, list) or not isinstance(visual_assets, list):
+                    raise ValueError("assets phải là array")
+                prompt_rows = [
+                    (row.get("basename"), row.get("role"), row.get("source_script_ids"),
+                     row.get("character_ids"), row.get("brief"), row.get("landscape_prompt"),
+                     row.get("portrait_prompt"))
+                    for row in image_assets if isinstance(row, Mapping)
+                ]
+                visual_rows = [
+                    (row.get("basename"), row.get("role"), row.get("source_script_ids"),
+                     row.get("character_ids"), row.get("brief"), row.get("landscape_prompt"),
+                     row.get("portrait_prompt"))
+                    for row in visual_assets if isinstance(row, Mapping)
+                ]
+                plan_binding_ok = len(prompt_rows) == len(image_assets) == len(visual_rows) and prompt_rows == visual_rows
+                if contract.version >= (5, 2, 0):
+                    prompt_locks = {
+                        row.get("character_id"): row.get("planned_reference_path")
+                        for row in image_plan.get("character_locks", []) if isinstance(row, Mapping)
+                    }
+                    visual_locks = {
+                        row.get("character_id"): row.get("reference_path")
+                        for row in visual_plan.get("characters", []) if isinstance(row, Mapping)
+                    }
+                    prompt_visible = {
+                        character_id for row in image_assets if isinstance(row, Mapping)
+                        for character_id in row.get("character_ids", []) if isinstance(character_id, str)
+                    }
+                    visual_visible = {
+                        character_id for row in visual_assets if isinstance(row, Mapping)
+                        for character_id in row.get("character_ids", []) if isinstance(character_id, str)
+                    }
+                    plan_binding_ok = (
+                        plan_binding_ok
+                        and prompt_visible == visual_visible == set(visual_locks)
+                        and prompt_visible <= set(prompt_locks)
+                        and all(visual_locks.get(character_id) == prompt_locks.get(character_id)
+                                for character_id in prompt_visible)
+                    )
+            except (KeyError, TypeError, ValueError) as exc:
+                plan_binding_ok = False
+                plan_binding_error = str(exc)
+            else:
+                plan_binding_error = ""
+            check("image_prompt_visual_binding", plan_binding_ok,
+                  "visual_plan ánh xạ một-một image_prompts assets.",
+                  plan_binding_error or "visual_plan không ánh xạ exact image_prompts assets.")
+
     image_ok = True
     image_error: str | None = None
-    if type(stage) is int and stage_label and stage >= 2 and "visual_plan.json" in members:
+    if type(stage) is int and stage_label and (
+        stage >= 2 and "visual_plan.json" in members
+        or stage == 1 and contract.version >= (5, 2, 0) and "image_prompts.json" in members
+    ):
         try:
-            plan = read_json(members["visual_plan.json"])
-            targets = plan["targets"]
-            aspects = ("landscape",) if stage == 2 else ("landscape", "portrait")
-            image_names = active_image_basenames(plan)
-            reference_names = [
-                row["reference_path"] for row in plan.get("characters", [])
-                if isinstance(row, Mapping) and isinstance(row.get("reference_path"), str)
-            ]
-            image_paths = [*(f"{aspect}/{name}" for aspect in aspects for name in image_names), *reference_names]
+            if stage == 1:
+                image_prompts = read_json(members["image_prompts.json"])
+                targets: Mapping[str, Any] = {}
+                image_paths = [
+                    row["planned_reference_path"] for row in image_prompts.get("character_locks", [])
+                    if isinstance(row, Mapping) and isinstance(row.get("planned_reference_path"), str)
+                ]
+            else:
+                plan = read_json(members["visual_plan.json"])
+                targets = plan["targets"]
+                aspects = ("landscape",) if stage == 2 else ("landscape", "portrait")
+                image_names = active_image_basenames(plan)
+                reference_names = [
+                    row["reference_path"] for row in plan.get("characters", [])
+                    if isinstance(row, Mapping) and isinstance(row.get("reference_path"), str)
+                ]
+                image_paths = [*(f"{aspect}/{name}" for aspect in aspects for name in image_names), *reference_names]
             for path in image_paths:
                 raw = members.get(path)
                 if raw is None:

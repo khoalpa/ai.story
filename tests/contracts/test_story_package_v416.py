@@ -13,12 +13,13 @@ from studio.workflow_package import inspect_directory, inspect_members, read_arc
 from studio.workflow_views import visual_bible_summary
 
 
-def test_current_contract_is_v420_with_independent_schema_version() -> None:
+def test_current_contract_is_v522_with_independent_story_schema_version() -> None:
     contract = load_prompt_contract()
-    assert contract.version_label == "4.2.0"
+    assert contract.version_label == "5.2.2"
     assert contract.story_schema_version == "4.1.3"
     assert contract.video_prompt_schema_version == "4.1.3"
     assert contract.character_pack_version == "1.0"
+    assert contract.story_validation_schema_version == "5.0.0"
 
 
 def test_v416_contract_remains_supported() -> None:

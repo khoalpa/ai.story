@@ -7,6 +7,7 @@ import pytest
 from PIL import Image
 
 from studio.overview import build_overview_model, workflow_verdict
+from studio.project_context import project_directory_has_files
 from studio.story_images import EXPECTED_IMAGE_STEMS
 from studio.workflow_views import workflow_stage_caption
 
@@ -80,6 +81,54 @@ def test_overview_model_uses_dashes_when_project_has_no_data(tmp_path: Path) -> 
     assert model["pipeline"][0] == ("Story", "Chưa có")
     assert model["pipeline"][1] == ("Audio", "Chưa render")
     assert model["pipeline"][2] == ("Handoff", "Chưa có")
+    assert model["package_versions"] == [
+        ("prompt_version", "—"),
+        ("schema_version", "—"),
+        ("image_prompt_version", "—"),
+    ]
+
+
+def test_overview_exposes_selected_package_versions(tmp_path: Path) -> None:
+    reports = {
+        "workflow": {"prompt_version": "5.2.0", "schema_version": "5.0.0"},
+        "story": {"schema_version": "4.1.3"},
+        "validation": {"prompt_version": "4.2.0"},
+        "image_prompts": {"image_prompt_version": "1.1"},
+    }
+
+    model = build_overview_model(reports, {}, {}, output_dir=tmp_path)
+
+    assert model["package_versions"] == [
+        ("prompt_version", "5.2.0"),
+        ("schema_version", "5.0.0"),
+        ("image_prompt_version", "1.1"),
+    ]
+
+
+def test_overview_treats_directory_without_files_as_empty(tmp_path: Path) -> None:
+    (tmp_path / "landscape").mkdir()
+
+    assert not project_directory_has_files(tmp_path)
+
+    (tmp_path / "landscape" / "cover.png").write_bytes(b"image")
+
+    assert project_directory_has_files(tmp_path)
+
+
+def test_overview_renders_empty_directory_message_before_package_loading() -> None:
+    source = Path("studio/overview.py").read_text(encoding="utf-8")
+    empty_state = source.index('"Thư mục dự án đang trống"')
+    package_loading = source.index("load_effective_package(output_dir", empty_state)
+    assert empty_state < package_loading
+
+
+def test_overview_exposes_atomic_stage_completion_action() -> None:
+    source = Path("studio/overview.py").read_text(encoding="utf-8")
+
+    assert "plan_stage_completion(output_dir)" in source
+    assert "complete_stage_atomic(output_dir)" in source
+    assert "Xác minh và hoàn tất" in source
+    assert "restore_integrity_backup(output_dir" in source
 
 
 def test_overview_uses_current_production_settings_before_first_render(tmp_path: Path) -> None:
@@ -253,3 +302,70 @@ def test_overview_navigation_uses_button_callback_instead_of_late_widget_mutatio
     source = Path("studio/overview.py").read_text(encoding="utf-8")
     assert "on_click=open_workspace" in source
     assert 'if button_col.button(f"Mở {action[\'workspace\']}"' not in source
+
+
+def test_overview_consolidates_integrity_failures_into_one_action(tmp_path: Path, monkeypatch) -> None:
+    workflow = {
+        "stage": "STAGE3",
+        "status": "FAIL",
+        "overall_status": "FAIL",
+        "integrity_status": "FAIL",
+        "stage_gate_status": "FAIL",
+        "publish_status": "FAIL",
+        "checks": [{
+            "check": "file_digest",
+            "status": "FAIL",
+            "detail": "Payload không khớp manifest: story.json (sai SHA-256).",
+        }],
+        "manifest": {"status": "COMPLETE"},
+    }
+    review = {
+        "workflow": workflow,
+        "issues": [{
+            "section": "Gói & quy trình",
+            "text": "file_digest: Payload không khớp manifest: story.json (sai SHA-256).",
+        }],
+        "assets": [],
+        "asset_issues": [],
+        "story_ready": False,
+        "package_ready": False,
+    }
+    monkeypatch.setattr("studio.overview.review_package", lambda *_args, **_kwargs: review)
+
+    model = build_overview_model({}, {}, {}, output_dir=tmp_path)
+
+    assert len(model["actions"]) == 1
+    action = model["actions"][0]
+    assert action["section"] == "Gói & quy trình"
+    assert "xem trước thay đổi" in action["text"]
+    assert "tạo bản sao lưu" in action["text"]
+    assert "story.json (sai SHA-256)" in action["text"]
+    assert "Hoàn tất kiểm định STAGE3" not in action["text"]
+
+
+def test_overview_explains_video_variants_that_are_not_ready(tmp_path: Path) -> None:
+    reports = {
+        "video_deliveries": {
+            "video_landscape": {},
+            "video_portrait": {},
+        }
+    }
+
+    model = build_overview_model(reports, {}, {}, output_dir=tmp_path)
+
+    video_state = next(row for row in model["progress_states"] if row["label"] == "Video")
+    assert video_state == {
+        "label": "Video",
+        "status": "0/2 đạt",
+        "tone": "warning",
+        "reason": "Chưa đạt: Landscape, Portrait.",
+    }
+    assert [row["label"] for row in model["video_failure_details"]] == ["Landscape", "Portrait"]
+    assert "Thiếu `video_landscape.result.json`." in model["video_failure_details"][0]["reasons"]
+
+
+def test_overview_does_not_infer_success_from_status_text_suffix() -> None:
+    source = Path("studio/overview.py").read_text(encoding="utf-8")
+
+    assert 'status.endswith(" đạt")' not in source
+    assert 'progress_icons = {"success": "✓", "warning": "!", "error": "✕", "neutral": "○"}' in source

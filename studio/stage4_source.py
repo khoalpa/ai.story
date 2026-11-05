@@ -20,6 +20,9 @@ def validate_stage4_source(source: Path | bytes, operation: str, *,
     except (OSError, ValueError) as exc:
         return {"status": "FAIL", "errors": [str(exc)], "members": {}, "inspection": {}}
     stages = contract.workflow_package_stages
+    if "STAGE4" not in stages:
+        return {"status": "FAIL", "errors": [f"Prompt v{contract.version_label} không có Stage 4."],
+                "members": members, "inspection": inspection}
     expected_stage = stages[2] if operation == "CREATE" else stages[3] if operation == "REPAIR" else None
     if expected_stage is None:
         errors.append("Stage 4 chỉ hỗ trợ operation CREATE hoặc REPAIR.")

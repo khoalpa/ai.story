@@ -71,10 +71,22 @@ def inspect_project_assets(root: Path, reports: Mapping[str, Any]) -> list[dict[
                        if target.get("size_policy") == "EXACT" else {})
         for stem in visual_plan_image_stems(root):
             expected[f"{group}/{stem}.png"] = declaration
+    # visual_plan is authoritative for character images.  A speaking or named
+    # story character does not necessarily appear on screen and must not imply
+    # a synthetic characters/<id>.png requirement.
+    for character in _items(visual_plan.get("characters")):
+        reference = character.get("reference_path")
+        planned = character.get("planned_reference_path")
+        name = reference if isinstance(reference, str) and reference else planned
+        if isinstance(name, str) and name:
+            expected[name] = {}
+    # Preserve explicit story-level evidence declarations (including hashes
+    # and dimensions), but never invent a default path for undeclared assets.
     for character in _items(_object(reports.get("story")).get("characters")):
         asset = _object(character.get("reference_asset"))
-        name = str(asset.get("reference_image") or f"characters/{character.get('character_id', 'unknown')}.png")
-        expected[name] = dict(asset)
+        name = asset.get("reference_image")
+        if isinstance(name, str) and name:
+            expected[name] = {**expected.get(name, {}), **asset}
     evidence = {
         str(row.get("path")): row
         for row in _items(_object(_object(reports.get("quality")).get("image_evidence")).get("asset_results"))

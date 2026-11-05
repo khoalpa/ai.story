@@ -12,6 +12,7 @@ from studio.audio_delivery_report import (
     render_audio_delivery,
 )
 from studio.character_pack import render_character_pack_workspace
+from studio.image_prompt_validation import render_image_prompt_plan
 from studio.package_quality_report import (
     _items,
     _object,
@@ -23,8 +24,10 @@ from studio.project_context import (
     STORY_DIRECTORY_WIDGET_KEY,
     choose_story_directory,
     prepare_story_directory_widget,
+    project_directory_has_files,
 )
 from studio.project_review import (
+    inspect_selected_workflow,
     required_report_keys,
     review_package,
     verification_source_label,
@@ -34,6 +37,7 @@ from studio.series_anchor_report import (
     _validate_series_anchor,
     render_series_anchor_report,
 )
+from studio.story_catalog_views import render_story_catalog_workspace
 from studio.story_images import render_aspect_cover_gallery
 from studio.story_repetition import analyze_story_repetition
 from studio.story_report import _validate_story, render_story_report
@@ -70,11 +74,13 @@ STORY_STUDIO_SECTIONS = (
     "Chất lượng",
     "Visual Bible",
     "Bộ ảnh nhân vật",
+    "Kế hoạch ảnh",
     "Tài nguyên",
     "Kế hoạch video",
     "Âm thanh & phụ đề",
     "Video đầu ra",
     "Series",
+    "Danh mục truyện",
     "Công cụ",
 )
 
@@ -82,15 +88,16 @@ STORY_STUDIO_GROUPS = {
     "Tổng quan": ("Tổng quan", "Gói & quy trình"),
     "Nội dung": ("Nội dung", "Series", "Visual Bible", "Bộ ảnh nhân vật"),
     "Kiểm định": ("Kiểm định", "Chất lượng"),
-    "Sản xuất": ("Tài nguyên", "Kế hoạch video", "Âm thanh & phụ đề", "Video đầu ra"),
-    "Dữ liệu kỹ thuật": ("Công cụ",),
+    "Sản xuất": ("Kế hoạch ảnh", "Tài nguyên", "Kế hoạch video", "Âm thanh & phụ đề", "Video đầu ra"),
+    "Dữ liệu kỹ thuật": ("Danh mục truyện", "Công cụ"),
 }
 
 STORY_STUDIO_SECTION_INTROS = {
     "Gói & quy trình": ("Gói truyện & quy trình", "Kiểm tra manifest, ZIP, bytes kế thừa và bằng chứng theo từng stage; không sửa gói nguồn."),
     "Visual Bible": ("Visual Bible · lineage Stage 2", "Tra cứu kế hoạch hình ảnh và khóa continuity; được giữ read-only trong gói Stage 2–4."),
     "Bộ ảnh nhân vật": ("Character Image Pack", "Kiểm bộ bốn ảnh mỗi nhân vật và tạo repair snapshot Stage 2 khi liên kết FRONT có chủ đích."),
-    "Kế hoạch video": ("Kế hoạch video Stage 4", "Xem timeline, script span, tham chiếu và prompt; không phải video đã render."),
+    "Kế hoạch ảnh": ("Kế hoạch prompt ảnh Stage 1", "Kiểm source hash, asset links và prompt ngang/dọc trước khi tạo ảnh."),
+    "Kế hoạch video": ("Kế hoạch video", "Trong v5 đây là artifact Stage 1; gói v4 legacy có thể đặt ở Stage 4."),
     "Tài nguyên": ("Tài nguyên dự án", "Duyệt ảnh nhân vật, so sánh ngang/dọc và đối chiếu kích thước, SHA-256."),
     "Tổng quan": (
         "Tổng quan Story Studio",
@@ -124,12 +131,17 @@ STORY_STUDIO_SECTION_INTROS = {
         "Công cụ dự án",
         "Kiểm tra dữ liệu kỹ thuật, JSON nguồn và các lệnh QA cấp repository.",
     ),
+    "Danh mục truyện": (
+        "Danh mục các gói truyện",
+        "Quét thư mục, gom các stage của cùng một truyện và xuất story_catalog.json để kiểm tra trùng lặp trước khi sáng tác.",
+    ),
 }
 
 STORY_STUDIO_SECTION_ANCHORS = {
     "Tổng quan": "story-studio-overview",
     "Gói & quy trình": "story-studio-package-workflow",
     "Bộ ảnh nhân vật": "story-studio-character-image-pack",
+    "Kế hoạch ảnh": "story-studio-image-prompts",
     "Nội dung": "story-studio-content",
     "Kiểm định": "story-studio-validation",
     "Chất lượng": "story-studio-quality",
@@ -140,6 +152,7 @@ STORY_STUDIO_SECTION_ANCHORS = {
     "Video đầu ra": "story-studio-video-output",
     "Series": "story-studio-series",
     "Công cụ": "story-studio-tools",
+    "Danh mục truyện": "story-studio-catalog",
 }
 
 
@@ -176,16 +189,27 @@ def load_story_package(directory: Path) -> tuple[dict[str, Any], dict[str, str]]
             statuses[key] = "Có dữ liệu"
         except (OSError, ValueError, RecursionError) as exc:
             statuses[key] = f"Không hợp lệ: {exc}"
-    manifest_stage = _object(reports.get("workflow")).get("stage")
+    manifest = _object(reports.get("workflow"))
+    manifest_stage = manifest.get("stage")
     stage = f"STAGE{manifest_stage}" if type(manifest_stage) is int and manifest_stage in range(1, 5) else None
+    is_v5 = manifest.get("prompt_version") in {"5.0.0", "5.1.0", "5.2.0", "5.2.2"}
     for key, applicable in (("quality", stage in {"STAGE3", "STAGE4"}),
-                            ("visual_bible", stage in {"STAGE2", "STAGE3", "STAGE4"}), ("video_prompts", stage == "STAGE4")):
+                            ("image_prompts", is_v5),
+                            ("visual_bible", stage in {"STAGE2", "STAGE3", "STAGE4"}),
+                            ("video_prompts", is_v5 or stage == "STAGE4")):
         if stage in {"STAGE1", "STAGE2", "STAGE3", "STAGE4"} and not applicable and statuses.get(key) == "Thiếu":
             statuses[key] = (
                 f"Không thuộc gói {stage.replace('STAGE', 'Stage ')} · lineage Visual Bible bắt buộc từ Stage 2"
                 if key == "visual_bible"
                 else "Chưa áp dụng ở stage này"
             )
+    story_profile = _object(_object(reports.get("story")).get("meta")).get("profile")
+    manifest_has_anchor = any(
+        row.get("path") == "series_anchor.json"
+        for row in _items(_object(reports.get("workflow")).get("files"))
+    )
+    if statuses.get("anchor") == "Thiếu" and story_profile != "SERIAL_DETECTIVE" and not manifest_has_anchor:
+        statuses["anchor"] = "Không áp dụng"
     production, production_statuses = load_audio_delivery(directory)
     reports.update(production)
     statuses.update(production_statuses)
@@ -205,6 +229,14 @@ def _prepare_overrides(state: Any, directory: Path) -> dict[str, bytes]:
         state["story_overrides"] = {}
         state["story_override_root"] = root
     return state.setdefault("story_overrides", {})
+
+
+def _has_active_overrides(state: Any, directory: Path) -> bool:
+    """Return whether uploaded project data is active for this directory."""
+    return (
+        state.get("story_override_root") == str(directory.resolve())
+        and bool(state.get("story_overrides"))
+    )
 
 
 def load_effective_package(directory: Path, state: Any) -> tuple[dict[str, Any], dict[str, str]]:
@@ -235,14 +267,21 @@ def load_effective_package(directory: Path, state: Any) -> tuple[dict[str, Any],
     return reports, statuses
 
 
-def render_source_provenance(directory: Path, reports: Mapping[str, Any], statuses: Mapping[str, str]) -> None:
+def render_source_provenance(
+    directory: Path, reports: Mapping[str, Any], statuses: Mapping[str, str], *, compact: bool = False,
+) -> None:
     import streamlit as st
 
     overrides = st.session_state.get("story_overrides", {}) if st.session_state.get("story_override_root") == str(directory.resolve()) else {}
     content_detail = f"{len(overrides)} tệp thay thế đang dùng" if overrides else "Từ thư mục"
-    st.caption(f"Nguồn nội dung: {directory.resolve()} · {content_detail}")
-    st.caption(f"Nguồn kiểm định: {verification_source_label(directory, st.session_state)}")
-    with st.expander("Nguồn dữ liệu và độ mới báo cáo"):
+    if not compact:
+        st.caption(f"Nguồn nội dung: {directory.resolve()} · {content_detail}")
+        st.caption(f"Nguồn kiểm định: {verification_source_label(directory, st.session_state)}")
+    source_label = "Thông tin nguồn" if compact else "Nguồn dữ liệu và độ mới báo cáo"
+    with st.expander(source_label):
+        if compact:
+            st.caption(f"Nguồn nội dung: {directory.resolve()} · {content_detail}")
+            st.caption(f"Nguồn kiểm định: {verification_source_label(directory, st.session_state)}")
         st.caption("Điểm là khai báo của báo cáo; kiểm tra tại máy chỉ đối chiếu bytes và tài nguyên, không chấm lại truyện.")
         st.dataframe([{"Thành phần": key, "Nguồn / trạng thái": value} for key, value in statuses.items()], hide_index=True, width="stretch")
         for row in inspect_report_bindings(directory, reports, story_bytes=overrides.get("story")):
@@ -607,21 +646,52 @@ def _render_story_studio_section(section: str) -> None:
     import streamlit as st
 
     heading, caption = STORY_STUDIO_SECTION_INTROS[section]
-    st.header(heading, anchor=STORY_STUDIO_SECTION_ANCHORS[section])
-    st.caption(caption)
+    if section != "Nội dung":
+        st.header(heading, anchor=STORY_STUDIO_SECTION_ANCHORS[section])
+        st.caption(caption)
+    else:
+        st.markdown(f'<span id="{STORY_STUDIO_SECTION_ANCHORS[section]}"></span>', unsafe_allow_html=True)
     if section == "Tổng quan":
         reports, statuses = _render_source_selector()
+        directory = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
+        if (
+            directory.is_dir()
+            and not project_directory_has_files(directory)
+            and not _has_active_overrides(st.session_state, directory)
+        ):
+            render_empty_state(
+                "Thư mục dữ liệu dự án đang trống",
+                "Chưa có dữ liệu để hiển thị hoặc kiểm định. Hãy chọn thư mục đã chứa gói nội dung hoặc thêm dữ liệu dự án để bắt đầu.",
+                icon="○",
+            )
+            return
         _render_overview(reports, statuses)
         return
     if section == "Bộ ảnh nhân vật":
         render_character_pack_workspace()
         return
+    if section == "Danh mục truyện":
+        render_story_catalog_workspace()
+        return
 
     reports, statuses = _load_source_from_session()
     directory = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
-    render_source_provenance(directory, reports, statuses)
+    if (
+        directory.is_dir()
+        and not project_directory_has_files(directory)
+        and not _has_active_overrides(st.session_state, directory)
+    ):
+        render_empty_state(
+            "Thư mục dữ liệu dự án đang trống",
+            "Chưa có dữ liệu để hiển thị hoặc kiểm định. Hãy mở Tổng quan để chọn thư mục đã chứa gói nội dung hoặc thêm dữ liệu dự án để bắt đầu.",
+            icon="○",
+        )
+        return
+    render_source_provenance(directory, reports, statuses, compact=section == "Nội dung")
     if section == "Gói & quy trình":
         render_workflow_workspace(directory, reports, st.session_state)
+    elif section == "Kế hoạch ảnh":
+        render_image_prompt_plan(_object(reports.get("image_prompts")), root=directory)
     elif section == "Visual Bible":
         stage_number = _object(reports.get("workflow")).get("stage")
         stage = f"STAGE{stage_number}" if type(stage_number) is int and stage_number in range(1, 5) else None
@@ -637,11 +707,19 @@ def _render_story_studio_section(section: str) -> None:
         directory = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
         render_story_report(reports["story"], include_technical=False, images_root=directory)
     elif section == "Kiểm định" and "validation" in reports:
-        render_story_validation_report(reports["validation"], include_technical=False)
+        package_inspection = inspect_selected_workflow(directory, st.session_state) if (directory / "manifest.json").is_file() else None
+        render_story_validation_report(
+            reports["validation"], include_technical=False, root=directory,
+            package_inspection=package_inspection,
+        )
     elif section == "Chất lượng":
-        st.info("Prompt v4.1.6/v4.2.0 không có package_quality_report.json riêng. Kết quả chất lượng và giới hạn nằm trong validation_report.json.")
+        st.info("Prompt v5 và v4 legacy không có package_quality_report.json riêng. Kết quả chất lượng và giới hạn nằm trong validation_report.json.")
         if "validation" in reports:
-            render_story_validation_report(reports["validation"], include_technical=False)
+            package_inspection = inspect_selected_workflow(directory, st.session_state) if (directory / "manifest.json").is_file() else None
+            render_story_validation_report(
+                reports["validation"], include_technical=False, root=directory,
+                package_inspection=package_inspection,
+            )
     elif section == "Tài nguyên":
         render_project_assets(directory, reports)
     elif section == "Âm thanh & phụ đề":

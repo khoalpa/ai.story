@@ -17,7 +17,7 @@ Bản prompt này không kèm chứng nhận kiểm thử đầu cuối với m�
 
 0.1. KHỞI CHẠY NHANH
 
-Bản dùng chính: v4.2.0; revision tài liệu: r0; schema dữ liệu: 4.1.3. Bản này bổ sung workflow Character Image Pack tách biệt, vì vậy tăng phiên bản prompt. Không tăng phiên bản chỉ để đánh dấu một lượt chạy. Khởi chạy nhanh chỉ hướng dẫn sử dụng; các quy tắc bắt buộc được định nghĩa tại mục chính.
+Bản dùng chính: v4.2.0; revision tài liệu: r1; schema dữ liệu: 4.1.3. Bản này bổ sung workflow Character Image Pack tách biệt, vì vậy tăng phiên bản prompt. Revision r1 làm rõ việc consumer phải nhận đúng root series_anchor hiện hành, không thay field/type/enum. Không tăng phiên bản chỉ để đánh dấu một lượt chạy. Khởi chạy nhanh chỉ hướng dẫn sử dụng; các quy tắc bắt buộc được định nghĩa tại mục chính.
 
 Đính kèm prompt và ZIP nguồn của đúng truyện khi tiếp tục từ cuộc trò chuyện khác. Tên tệp không thay việc đọc và kiểm nội dung.
 - Giai đoạn 1: “Viết truyện YOUTH_SAFE, tuổi 7–10, tiếng Việt, 5 phút, chủ đề trung thực. Tự chọn ý tưởng. Giao ZIP và dừng sau Giai đoạn 1.” Chi tiết: mục 3–7, 21–22.
@@ -160,7 +160,7 @@ Hash SHA-256 nên tính khi có code để nhận diện đúng tệp và phát 
 
 5.1. NHẬN DIỆN BẢN PROMPT ĐÃ DÙNG
 
-Khi xuất report mới, ghi một entry trong input_sources theo dạng string: “Prompt source | prompt_version=4.2.0 | document_revision=r0 | filename=<tên thực hoặc unavailable> | sha256=<SHA-256 bytes thực hoặc unavailable>”. Không thêm key vào schema công khai. Nếu prompt được dán trong chat, ghi nguồn chat và chỉ hash bản văn bản đã lưu thực sự, không gọi đó là hash tệp đính kèm chưa đọc.
+Khi xuất report mới, ghi một entry trong input_sources theo dạng string: “Prompt source | prompt_version=4.2.0 | document_revision=r1 | filename=<tên thực hoặc unavailable> | sha256=<SHA-256 bytes thực hoặc unavailable>”. Không thêm key vào schema công khai. Nếu prompt được dán trong chat, ghi nguồn chat và chỉ hash bản văn bản đã lưu thực sự, không gọi đó là hash tệp đính kèm chưa đọc.
 
 Nếu có code và truy cập được tệp prompt, tính SHA-256 của exact bytes đầu vào sau khi chốt prompt; không tự nhúng hash vào chính tệp rồi tạo vòng tự tham chiếu. Nếu thiếu bytes hoặc công cụ, ghi unavailable và lý do trong limitations; riêng thiếu hash prompt không chặn đầu ra đã đủ kiểm bắt buộc. Không bịa hash, revision hoặc tên tệp.
 
@@ -217,6 +217,7 @@ script: array không rỗng; mỗi item:
 
 series_anchor.json chỉ dùng serial, root:
 {schema_version, series_title, last_completed_episode, characters, canon_facts, open_threads, resolved_threads, episode_summaries, series_state}
+- Consumer/validator của prompt v4.2.0 PHẢI kiểm đúng root hiện hành có `series_state`; không được yêu cầu các container legacy `series`, `canon`, `continuity`, `episode_ledger`, `canon_change_log` đối với anchor chuẩn v4.2.0. Khi nhập anchor legacy, đọc dưới chế độ tương thích và mapping rõ ràng sang schema hiện hành hoặc giữ nguyên snapshot nguồn; không báo thiếu field legacy cho root hiện hành, không trộn hai root trong cùng một anchor.
 - series_title: string; last_completed_episode: integer >=0.
 - characters: array {character_id, name, established_facts, known_facts}; hai fact field là array string.
 - canon_facts: array {fact_id, text, established_episode}; ID duy nhất, established_episode integer >=1.

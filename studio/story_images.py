@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 from functools import lru_cache
+from hashlib import sha256
+from html import escape
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Mapping
@@ -314,38 +317,90 @@ def render_image_thumbnail(
         st.info(f"Thiếu ảnh · {caption}")
         return
     try:
-        preview = thumbnail_bytes(path, frame_ratio=frame_ratio)
         metadata = image_metadata(path)
+        source_url = _original_image_url(path, key=key, image_format=str(metadata["format"]))
     except (OSError, SyntaxError, UnidentifiedImageError) as exc:
         st.error(f"Không thể đọc `{path.name}`: {exc}")
         return
-    st.image(preview, caption=caption, width="stretch")
+    with st.container(key=f"zoomable_image_{key}"):
+        # Keep the original media URL for both the inline image and the browser
+        # viewer. CSS scales it visually without creating a lossy thumbnail.
+        aspect_style = (
+            f"aspect-ratio:{frame_ratio[0]}/{frame_ratio[1]};object-fit:contain;"
+            "background:rgb(17,24,39);"
+            if frame_ratio else ""
+        )
+        st.html(
+            '<figure style="margin:0">'
+            f'<img data-story-image src="{escape(source_url, quote=True)}" '
+            f'alt="{escape(caption, quote=True)}" '
+            f'style="display:block;width:100%;height:auto;{aspect_style}cursor:zoom-in;image-rendering:auto">'
+            f'<figcaption style="text-align:center;margin-top:.5rem">{escape(caption)}</figcaption>'
+            '</figure>'
+        )
+        _enable_double_click_zoom(key, frame_ratio=frame_ratio)
     if detail:
         st.caption(detail)
-    if st.button("Phóng to", key=f"image_zoom_{key}", width="stretch"):
-        _show_image_dialog(path, caption, metadata, show_download=show_download)
+    del show_download
 
 
-def _show_image_dialog(
-    path: Path, caption: str, metadata: Mapping[str, Any], *, show_download: bool
+def _original_image_url(path: Path, *, key: str, image_format: str) -> str:
+    """Register original bytes without Streamlit's automatic 1460 px resize."""
+    from streamlit import runtime
+
+    resolved = path.resolve()
+    mimetype = Image.MIME.get(image_format.upper()) or mimetypes.guess_type(resolved.name)[0]
+    coordinate = "story-image-" + sha256(f"{resolved}:{key}".encode()).hexdigest()[:24]
+    return runtime.get_instance().media_file_mgr.add(
+        str(resolved), mimetype or "application/octet-stream", coordinate,
+    )
+
+
+def _enable_double_click_zoom(
+    key: str, *, frame_ratio: tuple[int, int] | None = None,
 ) -> None:
-    import streamlit as st
+    """Open the original image in a client-only modal on double-click."""
+    import streamlit.components.v1 as components
 
-    @st.dialog(caption, width="large")
-    def dialog() -> None:
-        st.image(str(path), width="stretch")
-        st.caption(
-            f"{metadata['width']}×{metadata['height']} · {metadata['format']} · "
-            f"{_format_size(int(metadata['size_bytes']))} · `{path.name}`"
-        )
-        if show_download:
-            st.download_button(
-                "Tải ảnh gốc", data=path.read_bytes(), file_name=path.name,
-                mime=Image.MIME.get(str(metadata["format"]).upper(), "application/octet-stream"),
-                key=f"download_image_{path.parent.name}_{path.name}",
-            )
-
-    dialog()
+    del key, frame_ratio
+    components.html(
+        """
+        <script>
+        (() => {
+          const frame = Array.from(window.parent.document.querySelectorAll('iframe'))
+            .find(candidate => candidate.contentWindow === window);
+          const root = frame?.closest('[class*="st-key-zoomable_image_"]');
+          const image = root?.querySelector('img[data-story-image]');
+          if (!image || image.dataset.doubleClickZoom === 'true') return;
+          image.dataset.doubleClickZoom = 'true';
+          image.title = 'Nhấp đúp để phóng to';
+          image.addEventListener('dblclick', () => {
+            const doc = window.parent.document;
+            const overlay = doc.createElement('div');
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-label', image.alt || 'Ảnh phóng to');
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;padding:2rem;cursor:zoom-out';
+            const fullImage = doc.createElement('img');
+            fullImage.src = image.src;
+            fullImage.alt = image.alt;
+            fullImage.style.cssText = 'display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto';
+            overlay.appendChild(fullImage);
+            const close = () => {
+              doc.removeEventListener('keydown', onKeyDown);
+              overlay.remove();
+            };
+            const onKeyDown = event => { if (event.key === 'Escape') close(); };
+            overlay.addEventListener('click', close);
+            doc.addEventListener('keydown', onKeyDown);
+            doc.body.appendChild(overlay);
+          });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 def stage_applicable_aspects(stage: str | None) -> tuple[str, ...]:

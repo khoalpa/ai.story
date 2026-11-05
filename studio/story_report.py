@@ -120,13 +120,15 @@ def _render_header(report: Mapping[str, Any]) -> None:
     series = escape(str(meta.get("series") or "—"))
     episode = escape(str(meta.get("episode") or "—"))
     author = escape(str(meta.get("author") or "—"))
+    genre = escape(str(meta.get("genre") or "Chưa phân loại").replace("_", " ").title())
+    channel = escape(str(meta.get("channel") or "—"))
     duration = meta.get("estimated_minutes")
     duration_text = f"{float(duration):.1f} phút" if isinstance(duration, (int, float)) else "Chưa ước tính"
     st.markdown(
         f"""
         <div class="story-heading">
-          <div><div class="story-eyebrow">{series} · Tập {episode}</div><h2>{title}</h2>
-          <div class="story-muted">{author} · {escape(str(meta.get('channel') or '—'))}</div></div>
+          <div><div class="story-eyebrow">Nội dung / {series} / Tập {episode}</div><h2>{title}</h2>
+          <div class="story-muted">{genre} · {author} · {channel}</div></div>
           <div class="story-duration">{duration_text}</div>
         </div>
         """,
@@ -159,6 +161,7 @@ def _render_context_gallery(
 def _render_reader(
     report: Mapping[str, Any], *, image_catalog: Mapping[str, Mapping[str, Path]] | None = None,
     image_aspect: str = "landscape", images_root: Path | None = None,
+    reading_mode: str = "Đọc",
 ) -> None:
     import streamlit as st
 
@@ -167,45 +170,78 @@ def _render_reader(
         st.info("Truyện chưa có nội dung kịch bản.")
         return
     zones = _zones_in_story(script)
-    zone = st.segmented_control(
-        "Vùng truyện",
-        zones,
-        default=zones[0],
-        format_func=lambda value: ZONE_LABELS.get(value, value.replace("_", " ").title()),
-        key="story_reader_zone",
-    ) or zones[0]
+    zone_counts = Counter(str(item.get("zone") or "UNKNOWN") for item in script)
+    focus_mode = reading_mode == "Tập trung"
+    mode_class = {"Đọc": "read", "Kiểm tra": "inspect", "Tập trung": "focus"}.get(reading_mode, "read")
+    navigation, content = (None, st.container()) if focus_mode else st.columns([1, 3], gap="large")
+    if navigation is not None:
+        with navigation:
+            st.markdown('<div class="story-toc-title">Mục lục</div>', unsafe_allow_html=True)
+            zone = st.radio(
+                "Vùng truyện",
+                zones,
+                index=0,
+                format_func=lambda value: (
+                    f"{ZONE_LABELS.get(value, value.replace('_', ' ').title())} · {zone_counts[value]}"
+                ),
+                key="story_reader_zone",
+                label_visibility="collapsed",
+            )
+            st.caption(f"{len(script):,} mục kịch bản · {len(zones)} vùng truyện")
+    else:
+        zone = st.selectbox(
+            "Vùng truyện",
+            zones,
+            format_func=lambda value: ZONE_LABELS.get(value, value.replace("_", " ").title()),
+            key="story_reader_zone_focus",
+        )
     indexed = [(index, item) for index, item in enumerate(script) if item.get("zone") == zone]
     page_size = 25
     page_count = max(1, (len(indexed) + page_size - 1) // page_size)
     page = _select_reader_page(st, page_count=page_count, zone=zone)
     start = (page - 1) * page_size
     visible = indexed[start:start + page_size]
-    st.caption(
-        f"{ZONE_LABELS.get(zone, zone)} · {len(indexed)} mục · "
-        f"đang hiển thị {start + 1}–{min(start + page_size, len(indexed))}"
-    )
-    if image_catalog is not None:
-        assets = image_assets_for_context(image_catalog, images_root, aspect=image_aspect, zone=zone, item_indexes=[index for index, _item in visible])
-        _left_space, image_column, _right_space = st.columns([1, 2, 1])
-        with image_column:
-            _render_context_gallery(assets, caption=f"{ZONE_LABELS.get(zone, zone)} · {image_aspect.title()}", key_prefix=f"story_reader_{image_aspect}_{zone}")
-
-    for index, item in visible:
-        speaker = str(item.get("speaker") or "narrator")
-        text = escape(str(item.get("text") or ""))
-        ambience = escape(str(item.get("ambience") or "không ambience").replace("_", " "))
-        voice_label = "Người kể" if speaker == "narrator" else speaker
-        line_class = "story-dialogue" if speaker != "narrator" else "story-narration"
-        st.markdown(
-            f"""
-            <div class="story-line {line_class}">
-              <div class="story-line-meta"><span>{index + 1}</span><strong>{voice_label}</strong></div>
-              <div><div class="story-text">{text}</div>
-              <div class="story-cue">{ambience} · {escape(str(item.get('emotion') or '—'))} · tốc độ {escape(str(item.get('speed') or '—'))}</div></div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+    with content:
+        st.caption(
+            f"{ZONE_LABELS.get(zone, zone)} · {len(indexed)} mục · "
+            f"đang hiển thị {start + 1}–{min(start + page_size, len(indexed))}"
         )
+        if image_catalog is not None and not focus_mode:
+            assets = image_assets_for_context(image_catalog, images_root, aspect=image_aspect, zone=zone, item_indexes=[index for index, _item in visible])
+            _left_space, image_column, _right_space = st.columns([1, 2, 1])
+            with image_column:
+                _render_context_gallery(assets, caption=f"{ZONE_LABELS.get(zone, zone)} · {image_aspect.title()}", key_prefix=f"story_reader_{image_aspect}_{zone}")
+
+        previous_scene = object()
+        for index, item in visible:
+            scene_id = item.get("scene_id") or "Không xác định"
+            if scene_id != previous_scene:
+                st.markdown(
+                    f'<div class="story-scene-heading"><span>Cảnh · {escape(str(scene_id))}</span>'
+                    f'<span>{escape(ZONE_LABELS.get(zone, zone))}</span></div>',
+                    unsafe_allow_html=True,
+                )
+                previous_scene = scene_id
+            speaker = str(item.get("speaker") or "narrator")
+            text = escape(str(item.get("text") or ""))
+            ambience = escape(str(item.get("ambience") or "không ambience").replace("_", " "))
+            voice_label = "Người kể" if speaker == "narrator" else speaker
+            line_class = "story-dialogue" if speaker != "narrator" else "story-narration"
+            cue = ""
+            if reading_mode == "Kiểm tra":
+                cue = (
+                    f'<div class="story-cue">{ambience} · {escape(str(item.get("emotion") or "—"))}'
+                    f' · tốc độ {escape(str(item.get("speed") or "—"))} · {escape(str(scene_id))}</div>'
+                )
+            st.markdown(
+                f"""
+                <div class="story-line {line_class} story-line--{mode_class}">
+                  <div class="story-line-meta"><span>{index + 1}</span><strong>{escape(voice_label)}</strong></div>
+                  <div><div class="story-text">{text}</div>{cue}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def _render_outline(
@@ -225,26 +261,26 @@ def _render_outline(
         zones = [str(script[index].get("zone")) for index in indexes]
         zone = next((value for value in zones if value in ZONE_ORDER), "UNKNOWN")
         label = f"Cảnh {position} · {scene_id}"
-        text_col, image_col = st.columns([2, 1]) if image_catalog is not None else (st.container(), st.container())
-        with text_col:
-            st.markdown(f"**{label}**")
-            st.write(str(scene.get("summary") or "—"))
-            st.caption(f"Thay đổi: {scene.get('change') or '—'}")
-            if scene.get("setup_or_payoff") is not None:
-                st.caption(f"Thiết lập / hồi đáp: {scene['setup_or_payoff']}")
-            if zones:
-                st.caption("Vùng truyện: " + ", ".join(dict.fromkeys(ZONE_LABELS.get(value, value) for value in zones)))
-        if image_catalog is not None:
-            with image_col:
-                assets = image_assets_for_context(
-                    image_catalog, images_root, aspect=image_aspect, zone=zone,
-                    item_indexes=indexes,
-                )
-                _render_context_gallery(
-                    assets, caption=f"{label} · {image_aspect.title()}",
-                    key_prefix=f"story_outline_{image_aspect}_{scene_id}",
-                )
-        st.divider()
+        with st.expander(f"{label} · {str(scene.get('summary') or '—')}", expanded=position == 1):
+            text_col, image_col = st.columns([2, 1]) if image_catalog is not None else (st.container(), st.container())
+            with text_col:
+                st.markdown("**Tóm tắt**")
+                st.write(str(scene.get("summary") or "—"))
+                st.caption(f"Thay đổi: {scene.get('change') or '—'}")
+                if scene.get("setup_or_payoff") is not None:
+                    st.caption(f"Thiết lập / hồi đáp: {scene['setup_or_payoff']}")
+                if zones:
+                    st.caption("Vùng truyện: " + ", ".join(dict.fromkeys(ZONE_LABELS.get(value, value) for value in zones)))
+            if image_catalog is not None:
+                with image_col:
+                    assets = image_assets_for_context(
+                        image_catalog, images_root, aspect=image_aspect, zone=zone,
+                        item_indexes=indexes,
+                    )
+                    _render_context_gallery(
+                        assets, caption=f"{label} · {image_aspect.title()}",
+                        key_prefix=f"story_outline_{image_aspect}_{scene_id}",
+                    )
 
 
 def _render_characters(report: Mapping[str, Any], *, images_root: Path | None = None) -> None:
@@ -418,23 +454,35 @@ def render_story_report(
             "Tỷ lệ hình ảnh", available, default=available[0],
             format_func=str.title, key="story_content_image_aspect",
         ) or available[0]
-    labels = ["Đọc truyện", "Dàn ý", "Nhân vật", "Lặp câu", "Thống kê"]
+    labels = ["Đọc truyện", "Dàn ý", "Nhân vật", "Phân tích"]
     if include_technical:
         labels.append("Kỹ thuật")
     tabs = st.tabs(labels)
-    reader, outline, characters, repetition, statistics = tabs[:5]
+    reader, outline, characters, analysis = tabs[:4]
     with reader:
-        _render_reader(report, image_catalog=image_catalog, image_aspect=image_aspect, images_root=images_root)
+        reading_mode = st.segmented_control(
+            "Chế độ hiển thị", ("Đọc", "Kiểm tra", "Tập trung"), default="Đọc",
+            key="story_reading_mode",
+        ) or "Đọc"
+        _render_reader(
+            report, image_catalog=image_catalog, image_aspect=image_aspect,
+            images_root=images_root, reading_mode=reading_mode,
+        )
     with outline:
         _render_outline(report, image_catalog=image_catalog, image_aspect=image_aspect, images_root=images_root)
     with characters:
         _render_characters(report, images_root=images_root)
-    with repetition:
-        render_repetition_report(report, image_catalog=image_catalog, image_aspect=image_aspect, images_root=images_root)
-    with statistics:
-        _render_statistics(report)
+    with analysis:
+        analysis_view = st.segmented_control(
+            "Phân tích", ("Lặp câu", "Thống kê"), default="Lặp câu",
+            key="story_analysis_view",
+        ) or "Lặp câu"
+        if analysis_view == "Lặp câu":
+            render_repetition_report(report, image_catalog=image_catalog, image_aspect=image_aspect, images_root=images_root)
+        else:
+            _render_statistics(report)
     if include_technical:
-        with tabs[5]:
+        with tabs[4]:
             _render_technical(report)
 
 

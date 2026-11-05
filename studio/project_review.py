@@ -123,7 +123,8 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
     )
     video_plan_result: dict[str, Any] | None = None
     video_plan_issue: str | None = None
-    if workflow.get("stage") == "STAGE4":
+    workflow_prompt = _object(workflow.get("manifest")).get("prompt_version")
+    if workflow.get("stage") == "STAGE4" or workflow_prompt in {"5.0.0", "5.1.0", "5.2.0", "5.2.2"}:
         video_plan_result = validate_video_prompt_plan(_object(reports.get("video_prompts")), root=root)
         errors = list(video_plan_result.get("errors") or [])
         clips = _items(_object(reports.get("video_prompts")).get("clips"))
@@ -144,7 +145,7 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
     workflow["video_prompt_validation"] = video_plan_result
     bindings = inspect_report_bindings(root, reports, story_bytes=overrides.get("story"))
     assets = inspect_project_assets(root, reports)
-    issues = ([] if validation.get("prompt_version") in {"4.1.6", "4.2.0"} else
+    issues = ([] if validation.get("prompt_version") in {"4.1.6", "4.2.0", "5.0.0", "5.1.0", "5.2.0", "5.2.2"} else
               [{"section": "Kiểm định", "text": text} for text in gate_issues(validation)])
     if video_plan_issue:
         issues.append({"section": "Kế hoạch video", "text": video_plan_issue})
@@ -161,7 +162,7 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
     if validation.get("active_profile") == "SERIAL_DETECTIVE" and not reports.get("anchor"):
         issues.append({"section": "Series", "text": "Hồ sơ SERIAL_DETECTIVE cần series_anchor.json."})
     defects = int(_object(validation.get("summary")).get("material_defect_remaining_count") or 0)
-    validation_ready = (validation.get("status") == "COMPLETE" if validation.get("prompt_version") in {"4.1.6", "4.2.0"}
+    validation_ready = (validation.get("status") == "COMPLETE" if validation.get("prompt_version") in {"4.1.6", "4.2.0", "5.0.0", "5.1.0", "5.2.0", "5.2.2"}
                         else gate_summary(validation)["ready"] and defects == 0)
     story_ready = bool(reports.get("story")) and validation_ready and not any(i["section"] in {"Kiểm định", "Nội dung"} for i in issues)
     asset_issues = [row for row in assets if row["issues"]]

@@ -59,7 +59,12 @@ def test_missing_tampered_and_unlisted_payloads_fail(sample_package_members):
     failed(packages.inspect_members(missing), "file_set")
     changed = dict(source)
     changed["story.json"] += b" "
-    failed(packages.inspect_members(changed), "file_digest")
+    changed_result = packages.inspect_members(changed)
+    failed(changed_result, "file_digest")
+    digest_check = next(row for row in changed_result["checks"] if row["check"] == "file_digest")
+    assert "story.json" in digest_check["detail"]
+    assert "sai kích thước" in digest_check["detail"]
+    assert "sai SHA-256" in digest_check["detail"]
     extra = dict(source, unexpected=b"not declared")
     failed(packages.inspect_members(extra), "file_set")
     invalid = dict(source)

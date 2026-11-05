@@ -1,0 +1,932 @@
+{
+  "story_catalog_version": "1.0",
+  "generated_at": "2026-11-05T04:33:48.351738Z",
+  "generator": {
+    "name": "ai.story",
+    "artifact": "story_catalog.json"
+  },
+  "source": {
+    "root_label": "samples",
+    "recursive": false,
+    "absolute_paths_included": false
+  },
+  "summary": {
+    "story_count": 12,
+    "package_variant_count": 16,
+    "invalid_source_count": 0,
+    "duplicate_group_count": 0
+  },
+  "stories": [
+    {
+      "catalog_id": "story-909a5a53fba02ddc",
+      "story_sha256": "909a5a53fba02ddcaf8362007dd49ba33d4791a0dca0f18831b3ec49dc660962",
+      "title": "Bí Mật Ba Tiếng Chuông Xanh",
+      "normalized_title": "bi mat ba tieng chuong xanh",
+      "series": null,
+      "episode": 1,
+      "profile": "YOUTH_SAFE",
+      "age_band": "7-10",
+      "language": "vi",
+      "genre": "Bí ẩn kỳ ảo, phiêu lưu, tình bạn",
+      "tone": "Hồi hộp nhẹ nhàng, ấm áp, giàu tò mò",
+      "tags": [
+        "bí ẩn",
+        "phiêu lưu",
+        "tình bạn",
+        "khám phá",
+        "hợp tác"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "An",
+          "role": "Nhân vật chính, vẽ bản đồ"
+        },
+        {
+          "character_id": "c002",
+          "name": "Bình",
+          "role": "Bạn đồng hành, thính giác tốt"
+        },
+        {
+          "character_id": "c003",
+          "name": "Mây",
+          "role": "Cháu thợ đồng hồ, giữ hộp ba ngăn"
+        }
+      ],
+      "outline_summaries": [
+        "Đồng hồ chạy ngược và vật xanh biến mất",
+        "Mây giới thiệu hộp ba ngăn và tuyến đường",
+        "Tìm chiếc lá, giọt thủy tinh, dấu ngôi sao",
+        "Ba bạn giải nguyên lý ánh sáng và nhờ bảo trì",
+        "Thị trấn chuẩn bị lễ hội trở lại",
+        "Bác thợ đồng hồ giải thích chiếc hộp"
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "4031662f5065157302e1ecd1e5f5eea3d15502dbee6cdb6bd3f0f17848a1721c",
+        "script_character_count": 8469
+      },
+      "package_variants": [
+        {
+          "path": "[HTKD-0002] Bí mật ba tiếng chuông xanh",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-25fb12a6fb2b89aa",
+      "story_sha256": "25fb12a6fb2b89aaed325581c2ae13255dd12efbc578a569efc396cf1e747916",
+      "title": "Chiếc Bàn Còn Một Ngăn Kéo Kẹt",
+      "normalized_title": "chiec ban con mot ngan keo ket",
+      "series": null,
+      "episode": 1,
+      "profile": "ADULT_STANDARD",
+      "age_band": "18+",
+      "language": "vi",
+      "genre": "Tâm lý đời sống, gia đình",
+      "tone": "Trầm ấm, chân thực, giàu đối thoại",
+      "tags": [
+        "gia đình",
+        "ký ức",
+        "mẹ và con gái",
+        "lựa chọn",
+        "chữa lành"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "Mai",
+          "role": "Nhân vật chính, con gái bà Lan"
+        },
+        {
+          "character_id": "c002",
+          "name": "Bà Lan",
+          "role": "Mẹ của Mai, chủ nhà"
+        },
+        {
+          "character_id": "c003",
+          "name": "Ông Hòa",
+          "role": "Hàng xóm cũ, người giữ chứng từ"
+        },
+        {
+          "character_id": "c004",
+          "name": "Quỳnh",
+          "role": "Người dự định mua nhà"
+        }
+      ],
+      "outline_summaries": [
+        "Một cuộc gọi khiến Mai phải trở về căn nhà sắp bán",
+        "Mai và mẹ tranh luận về giá trị của căn nhà",
+        "Mai phát hiện một bản cam kết và hiểu sai về người cha",
+        "Mai gặp người hàng xóm cũ và lần theo sự thật",
+        "Cuộc họp ký giấy bán nhà bắt đầu",
+        "Mai và mẹ đưa ra quyết định có chi phí thật",
+        "Hai mẹ con cùng kiểm kê và chuyển một phần đồ",
+        "Mai trở lại thành phố với một phương án mới"
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "67b89a4a800993462ba1343a8c8a6b06bbc2b3220326cab72e3c31001fc0ace5",
+        "script_character_count": 22588
+      },
+      "package_variants": [
+        {
+          "path": "[DKTT-0004] Chiếc bàn còn một ngăn kéo kẹt",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-9b00634248ae27c4",
+      "story_sha256": "9b00634248ae27c48351fca649065b5391baa3c4d99d5d479a1915eaed002da9",
+      "title": "Chiếc chìa khóa và khu vườn sau mưa",
+      "normalized_title": "chiec chia khoa va khu vuon sau mua",
+      "series": null,
+      "episode": 1,
+      "profile": "YOUTH_SAFE",
+      "age_band": "7-10",
+      "language": "vi",
+      "genre": "Phiêu lưu đời thường",
+      "tone": "Ấm áp, hồi hộp nhẹ, dí dỏm",
+      "tags": [
+        "tình bạn",
+        "trách nhiệm",
+        "trung thực",
+        "thư viện",
+        "thiên nhiên"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "Mai",
+          "role": "Nhân vật chính"
+        },
+        {
+          "character_id": "c002",
+          "name": "Nam",
+          "role": "Bạn đồng hành"
+        },
+        {
+          "character_id": "c003",
+          "name": "Linh",
+          "role": "Bạn đồng hành"
+        },
+        {
+          "character_id": "c004",
+          "name": "Bác Hòa",
+          "role": "Bảo vệ kiêm phụ trách cơ sở vật chất thư viện"
+        },
+        {
+          "character_id": "c005",
+          "name": "Cô An",
+          "role": "Thủ thư và người trông vườn"
+        }
+      ],
+      "outline_summaries": [
+        "Lời chào mở đầu và lời mời lắng nghe",
+        "Một chiếc hộp trả đồ thất lạc xuất hiện ở thư viện",
+        "Ba bạn tìm dấu hiệu giữa những cuốn sách",
+        "Sự hiểu nhầm với bác bảo vệ",
+        "Cơn mưa đe dọa cây non ở sân sau",
+        "Mai phải chọn giữa phá quy tắc và tìm người có trách nhiệm",
+        "Tìm được chủ nhân và nguồn gốc chiếc hộp",
+        "Lời chào kết"
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "4a3f2fa414c29d18664b1a60b6727047ca069019657551f11452c07102a9abbb",
+        "script_character_count": 9303
+      },
+      "package_variants": [
+        {
+          "path": "[HTKD-0003] Chiếc chìa khóa và khu vườn sau mưa",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-f9f076142df58944",
+      "story_sha256": "f9f076142df58944a343491b07645d187c6bcf416f1cebad5e9ceec37b08cf6d",
+      "title": "Ngày tôi trả lại chìa khóa",
+      "normalized_title": "ngay toi tra lai chia khoa",
+      "series": null,
+      "episode": 1,
+      "profile": "ADULT_STANDARD",
+      "age_band": "18+",
+      "language": "vi",
+      "genre": "Tâm lý đời sống, nữ chính tự chủ, gia đình, chữa lành",
+      "tone": "Kịch tính vừa phải, thực tế, ấm áp",
+      "tags": [
+        "tự chủ",
+        "ly hôn",
+        "bí mật gia đình",
+        "chữa lành",
+        "nữ chính mạnh mẽ"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "An Linh",
+          "role": "Nhân vật chính, nhà thiết kế"
+        },
+        {
+          "character_id": "c002",
+          "name": "Khải",
+          "role": "Chồng cũ và đối trọng"
+        },
+        {
+          "character_id": "c003",
+          "name": "Bác Vân",
+          "role": "Hàng xóm, người giữ lời hứa với mẹ Linh"
+        },
+        {
+          "character_id": "c004",
+          "name": "Thu",
+          "role": "Bạn thân và luật sư"
+        },
+        {
+          "character_id": "c005",
+          "name": "Minh",
+          "role": "Kỹ sư hỗ trợ cải tạo"
+        },
+        {
+          "character_id": "c006",
+          "name": "Chị Oanh",
+          "role": "Học viên cũ của mẹ Linh"
+        }
+      ],
+      "outline_summaries": [
+        "Lời chào và quyết định giữ chìa khóa — Ly hôn và một tin nhắn làm thay đổi kế hoạch",
+        "Người mẹ và căn nhà cũ — Linh trở lại ngõ Cẩm và gặp bác Vân",
+        "Sổ tay trong bếp — Tìm tài liệu về lớp dạy nghề, nhận tư vấn pháp lý",
+        "Thử nghiệm Nhà Mở — Khảo sát nhà, lập ngân sách, kết nối người từng học",
+        "Áp lực và tin đồn — Khải gây sức ép, tin đồn khiến lớp có nguy cơ đổ vỡ",
+        "Buổi đối chất — Linh đối mặt Khải bằng hồ sơ và ranh giới rõ ràng",
+        "Ngày mở cửa — Lớp đầu tiên diễn ra dù chưa hoàn hảo",
+        "Trả lại chìa khóa — Linh bàn giao căn hộ và trở về Nhà Mở"
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "2e0e4a4b0357c176924ac50c0ee9c6046699ee09e1b7de8a9a8bc8091b72b294",
+        "script_character_count": 21369
+      },
+      "package_variants": [
+        {
+          "path": "[DKTT-0003] Ngày tôi trả lại chìa khóa",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-cc9f2fe76a73c30f",
+      "story_sha256": "cc9f2fe76a73c30f6f203ae214257b4ea2aa9205b5bee2393969d9a31c65b30a",
+      "title": "Những Người Đi Chuyến Cuối",
+      "normalized_title": "nhung nguoi đi chuyen cuoi",
+      "series": null,
+      "episode": 1,
+      "profile": "ADULT_STANDARD",
+      "age_band": "18+",
+      "language": "vi",
+      "genre": "Tâm lý đời sống, chính kịch công sở và đô thị",
+      "tone": "Thực tế, trầm ấm, căng thẳng vừa phải, có hậu quả rõ",
+      "tags": [
+        "đạo đức dữ liệu",
+        "giao thông công cộng",
+        "trách nhiệm nghề nghiệp",
+        "lao động ca đêm",
+        "lựa chọn",
+        "thành phố"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "Hạ",
+          "role": "Chuyên gia mô hình hóa vận tải, nhân vật chính"
+        },
+        {
+          "character_id": "c002",
+          "name": "Sơn",
+          "role": "Tài xế tuyến xe buýt đêm số Chín"
+        },
+        {
+          "character_id": "c003",
+          "name": "Diễm",
+          "role": "Nhân viên vệ sinh ca đêm tại bệnh viện, hành khách"
+        },
+        {
+          "character_id": "c004",
+          "name": "Phúc",
+          "role": "Chuyên viên dữ liệu thiết bị, đồng nghiệp của Hạ"
+        }
+      ],
+      "outline_summaries": [
+        "Lời chào và mời người nghe bước vào câu chuyện.",
+        "Một video lúc hai giờ mười bảy cho thấy hành khách trên tuyến được ghi nhận bằng không.",
+        "Hạ lần lại dự thảo, gọi tài xế và đồng nghiệp; nguyên nhân có thể nằm ở thiết bị quẹt thẻ.",
+        "Khảo sát bến và chuyến xe đêm; Hạ gặp người lao động trực tiếp dùng tuyến.",
+        "Phúc khôi phục dữ liệu giới hạn; lãnh đạo nêu chi phí và hậu quả nghề nghiệp.",
+        "Phiên giải trình xét dữ liệu, chứng từ, phương án thay thế.",
+        "Hội đồng muốn dùng dữ liệu cũ để nhanh duyệt khảo sát; Hạ từ chối bảo chứng sai.",
+        "Khảo sát mới cho thấy nhu cầu theo ca; tuyến được thiết kế lại, Hạ mất cơ hội thăng chức.",
+        "Hạ đi chuyến xe với tư cách hành khách và thấy tác động thực của cải tiến.",
+        "Lời cảm ơn và kết thúc."
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "ecbf8488dd74469b2e7b9d3b8e513d2637a3f34ca422af1c7d9053721e6c18cd",
+        "script_character_count": 20779
+      },
+      "package_variants": [
+        {
+          "path": "[DKTT-0005] Những Người Đi Chuyến Cuối",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-270d4809fb84c93f",
+      "story_sha256": "270d4809fb84c93f2a6369487e42ef58d5787902b9765fa82d4ec9dffd1c1d6d",
+      "title": "Tiệm Sửa Những Lời Hứa",
+      "normalized_title": "tiem sua nhung loi hua",
+      "series": null,
+      "episode": 1,
+      "profile": "YOUTH_SAFE",
+      "age_band": "7-10",
+      "language": "vi",
+      "genre": "Kỳ ảo đời thường",
+      "tone": "Ấm áp, tò mò, hài hước nhẹ",
+      "tags": [
+        "trung thực",
+        "trách nhiệm",
+        "chị em",
+        "lời hứa"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "Mai",
+          "role": "Nhân vật chính, chị của Tí"
+        },
+        {
+          "character_id": "c002",
+          "name": "Tí",
+          "role": "Em trai Mai, người làm và sở hữu diều"
+        },
+        {
+          "character_id": "c003",
+          "name": "Bác Nhẫn",
+          "role": "Người sửa đồ, hỗ trợ kỹ thuật nhưng không sửa lời hứa thay Mai"
+        }
+      ],
+      "outline_summaries": [
+        "Chào người nghe và giới thiệu truyện.",
+        "Mai mượn diều trái lời hứa, làm gãy nan và nói gió gây ra.",
+        "Mai tới tiệm bác Nhẫn và muốn sửa không để em biết.",
+        "Mai thừa nhận với bác, học vá và định che ngôi sao; Tí tìm đến bằng dải đuôi.",
+        "Mai nói thật, nhận giới hạn của em; Tí chọn bụng trắng và cùng sửa.",
+        "Chờ hồ khô và chấp nhận lỡ lượt đầu.",
+        "Diều bay ở lượt sau; em giao một việc nhỏ; hôm sau Mai tới đúng hẹn.",
+        "Khép truyện và chào người nghe."
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "c94d67b878c90035f302a81e354ca7109ebc13ea712b8bd867f9af2331a6fff0",
+        "script_character_count": 7454
+      },
+      "package_variants": [
+        {
+          "path": "[HTKD-0001] Tiệm sửa những lời hứa",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        },
+        {
+          "path": "Tiem_Sua_Nhung_Loi_Hua/story.zip",
+          "kind": "zip",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        },
+        {
+          "path": "Tiem_Sua_Nhung_Loi_Hua/story_stage1.zip",
+          "kind": "zip",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        },
+        {
+          "path": "Tiem_Sua_Nhung_Loi_Hua/story_stage2.zip",
+          "kind": "zip",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        },
+        {
+          "path": "Tiem_Sua_Nhung_Loi_Hua/story_video_prompts.zip",
+          "kind": "zip",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-0fac5fa6bec10133",
+      "story_sha256": "0fac5fa6bec10133a654e4f23fd56f9be75f34a1f35dbf65dc5fb2c14ced4e82",
+      "title": "Tiệm Sửa Những Ngày Mưa",
+      "normalized_title": "tiem sua nhung ngay mua",
+      "series": null,
+      "episode": 1,
+      "profile": "ADULT_STANDARD",
+      "age_band": "18+",
+      "language": "vi",
+      "genre": "Tâm lý đời sống, gia đình",
+      "tone": "Ấm áp, tiết chế, chữa lành có hệ quả",
+      "tags": [
+        "gia đình",
+        "mất việc",
+        "lựa chọn",
+        "đối thoại",
+        "chữa lành"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "An",
+          "role": "Nhân vật chính; con gái ông Phúc, nhân viên văn phòng mất việc."
+        },
+        {
+          "character_id": "c002",
+          "name": "Phúc",
+          "role": "Cha An; chủ Tiệm Sửa Phúc, góa vợ bốn năm."
+        },
+        {
+          "character_id": "c003",
+          "name": "Mai",
+          "role": "Khách sửa cassette; người dạy làm bánh, chăm mẹ."
+        }
+      ],
+      "outline_summaries": [
+        "Lời chào: Giới thiệu truyện.",
+        "Tấm biển cần bán: An trở về khi mất việc, muốn bán căn nhà có tiệm sửa đồ.",
+        "Chiếc máy có quai đỏ: Mai mang cassette và xin giữ một đoạn ghi âm riêng tư.",
+        "Những khoản chưa ghi: An rà sổ, phát hiện tiền công và khoản lỗ thật.",
+        "Ngăn kéo không mở: An dọn nhanh và làm thất lạc cơ hội tìm chiếc lẫy.",
+        "Lời được phép nghe: Mai cho nghe đoạn thử và tiết lộ lựa chọn của mình.",
+        "Cuộc hẹn chiều thứ sáu: An phải quyết định có đề nghị giữ nhà khi chưa có đường trả nợ chắc chắn.",
+        "Trả chiếc cassette: Máy được sửa, Mai tự quyết định cách trao lời.",
+        "Khách không đồng ý: Một khách quen từ chối mức giá mới và cha muốn quay lại cách cũ.",
+        "Một chỗ ngồi bên bàn sửa: Sau tám tuần, tiệm tiến triển vừa phải và An có việc tạm.",
+        "Lời kết: Khép lại buổi nghe."
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "77a5fca6d0e0aaee5936387ab958ab346069de567652a79236962709ede541b3",
+        "script_character_count": 15233
+      },
+      "package_variants": [
+        {
+          "path": "[DKTT-0002] Tiệm sửa những ngày mưa",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-9e1465fd946e5e83",
+      "story_sha256": "9e1465fd946e5e83be08f8ba151ba3fc5083fe22e045d84c1e690a248bc00b48",
+      "title": "Đừng Tin Giọng Nói Của Tôi",
+      "normalized_title": "đung tin giong noi cua toi",
+      "series": null,
+      "episode": 1,
+      "profile": "ADULT_STANDARD",
+      "age_band": "18+",
+      "language": "vi",
+      "genre": "Tâm lý công sở, bí ẩn xã hội",
+      "tone": "Hồi hộp, hiện thực, tiết chế, có hy vọng",
+      "tags": [
+        "công sở",
+        "AI",
+        "giọng nói giả",
+        "trách nhiệm",
+        "niềm tin"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "Mai",
+          "role": "Nhân vật chính; trưởng nhóm chăm sóc khách hàng"
+        },
+        {
+          "character_id": "c002",
+          "name": "Quân",
+          "role": "Nhân viên kỹ thuật từng cảnh báo chênh lệch dữ liệu"
+        },
+        {
+          "character_id": "c003",
+          "name": "Khải",
+          "role": "Giám đốc vận hành; người bảo vệ thành tích và cách xử lý ngoại lệ"
+        },
+        {
+          "character_id": "c004",
+          "name": "Linh",
+          "role": "Nhân viên xử lý hồ sơ; người cung cấp bảng cần gọi lại"
+        },
+        {
+          "character_id": "c005",
+          "name": "Vân",
+          "role": "Phụ trách kiểm soát nội bộ; điều phối xác minh"
+        }
+      ],
+      "outline_summaries": [
+        "Lời chào",
+        "Giọng nói sau vách kính",
+        "Những chiếc ghế trống",
+        "Thư chưa được trả lời",
+        "Bản thu nguyên vẹn",
+        "Một lời khai có giá",
+        "Cuộc gọi không nằm trong chỉ tiêu",
+        "Lời đề nghị lúc chạng vạng",
+        "Khoảng trống giữa hai người",
+        "Bản giải trình không có chỗ trống",
+        "Những việc không thể sửa trong một ngày",
+        "Giọng nói của ngày hôm nay",
+        "Lời kết"
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "b90f6dbeb372447a274e6434242a3bb3918500017ba283d6cc694de60d0e86e9",
+        "script_character_count": 24119
+      },
+      "package_variants": [
+        {
+          "path": "[DKTT-0001] Đừng tin giọng nói của tôi",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-35bb350670ab6d6a",
+      "story_sha256": "35bb350670ab6d6ab6a31121a1728ee2b8136de1e5cc078297e7e42998ed9cd4",
+      "title": "Người chưa từng tồn tại",
+      "normalized_title": "nguoi chua tung ton tai",
+      "series": "Hồ sơ số không",
+      "episode": 1,
+      "profile": "SERIAL_DETECTIVE",
+      "age_band": "18+",
+      "language": "vi",
+      "genre": "Trinh thám điều tra, bí ẩn hồ sơ",
+      "tone": "Căng thẳng tiết chế, giàu tính nhân văn",
+      "tags": [
+        "trinh thám",
+        "hồ sơ",
+        "nhân chứng",
+        "thân phận",
+        "bến sông",
+        "series"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "Linh",
+          "role": "Chuyên viên lưu trữ, nhân vật điều tra chính"
+        },
+        {
+          "character_id": "c002",
+          "name": "Quân",
+          "role": "Phóng viên điều tra và cộng sự"
+        },
+        {
+          "character_id": "c003",
+          "name": "Hạnh",
+          "role": "Cán bộ đối chiếu cư trú, người bị xóa trạng thái"
+        },
+        {
+          "character_id": "c004",
+          "name": "Bảo",
+          "role": "Cựu nhân viên bảo dưỡng trạm phà"
+        },
+        {
+          "character_id": "c005",
+          "name": "Thu",
+          "role": "Người bán vé cũ"
+        }
+      ],
+      "outline_summaries": [
+        "Lời chào từ phòng lưu trữ",
+        "Bưu kiện vào đêm mưa",
+        "Người giữ tên",
+        "Mảnh bản đồ sai hướng",
+        "Người bán vé cuối cùng",
+        "Dưới mái nhà máy in",
+        "Buổi đối chất ở trạm sông",
+        "Chiếc hộp của mẹ",
+        "Hai bản ghi cùng một giờ",
+        "Đêm mở cửa kho số ba",
+        "Người chưa từng mất tích",
+        "Cái giá của một cái tên",
+        "Đường chỉ tím",
+        "Lời tạm biệt bên bến sông"
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "0c78600a5db44ce65217e043fba4cf28cf40593380bb314e34dad513c7a503e6",
+        "script_character_count": 26193
+      },
+      "package_variants": [
+        {
+          "path": "[DDKA-0001] Hồ sơ số không - Tập 1 - Người chưa từng tồn tại",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-5b67ee5af497336c",
+      "story_sha256": "5b67ee5af497336c5de4a5d8d4c34bc581b7a821463793b42c4e17ada490a2ef",
+      "title": "Người nằm trong cột xác minh",
+      "normalized_title": "nguoi nam trong cot xac minh",
+      "series": "Hồ sơ số không",
+      "episode": 2,
+      "profile": "SERIAL_DETECTIVE",
+      "age_band": "18+",
+      "language": "vi",
+      "genre": "Trinh thám hồ sơ, bí ẩn xã hội",
+      "tone": "Hồi hộp, tỉnh táo, giàu cảm xúc",
+      "tags": [
+        "trinh thám",
+        "hồ sơ số không",
+        "điều tra",
+        "chứng cứ",
+        "gia đình"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "Linh",
+          "role": "Chuyên viên lưu trữ, nhân vật điều tra chính"
+        },
+        {
+          "character_id": "c002",
+          "name": "Quân",
+          "role": "Phóng viên điều tra và cộng sự"
+        },
+        {
+          "character_id": "c006",
+          "name": "Tâm",
+          "role": "Cán bộ phòng đọc"
+        },
+        {
+          "character_id": "c007",
+          "name": "Vy",
+          "role": "Cán bộ đối chiếu nguồn"
+        },
+        {
+          "character_id": "c008",
+          "name": "Nhu",
+          "role": "Cựu nhân viên sổ bến"
+        },
+        {
+          "character_id": "c009",
+          "name": "Phúc",
+          "role": "Cán bộ giám sát"
+        },
+        {
+          "character_id": "c010",
+          "name": "Hà",
+          "role": "Cán bộ kiểm toán hồ sơ"
+        }
+      ],
+      "outline_summaries": [
+        "Lời chào dẫn vào tập",
+        "Đến kho thượng nguồn",
+        "Đăng ký đối chiếu",
+        "Bộ sao thiếu trang",
+        "Lời chứng bến phía đông",
+        "Mở hộp gốc",
+        "Đầu mối phiếu diễn giải",
+        "Buổi đối chiếu độc lập",
+        "Ghi nhận hậu quả",
+        "Kết tập và móc tuyến dài",
+        "Lời chào kết"
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "be2114d95e1b6afdc9986812071cae24ba54bb71a8c7f13193c71d9e4e9463a9",
+        "script_character_count": 24460
+      },
+      "package_variants": [
+        {
+          "path": "[DDKA-0001] Hồ sơ số không - Tập 2 - Người nằm trong cột xác minh",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-1d76ec7057e96c03",
+      "story_sha256": "1d76ec7057e96c03e00e5e4aaeb4e10b1669e86f798bb10b93fec6a396ee9ebd",
+      "title": "Hồ sơ số không — Tập 3: Những dòng mã lạc nghĩa",
+      "normalized_title": "ho so so khong tap 3 nhung dong ma lac nghia",
+      "series": "Hồ sơ số không",
+      "episode": 3,
+      "profile": "SERIAL_DETECTIVE",
+      "age_band": "18+",
+      "language": "vi",
+      "genre": "Trinh thám hồ sơ, bí ẩn xã hội",
+      "tone": "Điều tra điềm tĩnh, hồi hộp, nhân văn",
+      "tags": [
+        "hồ sơ",
+        "trinh thám",
+        "dữ liệu",
+        "đối chiếu",
+        "quyền riêng tư"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "Linh",
+          "role": "Chuyên viên lưu trữ, điều tra chính"
+        },
+        {
+          "character_id": "c002",
+          "name": "Quân",
+          "role": "Phóng viên điều tra, cộng sự"
+        },
+        {
+          "character_id": "c003",
+          "name": "Hạnh",
+          "role": "Người bị hiển thị sai trạng thái cư trú"
+        },
+        {
+          "character_id": "c006",
+          "name": "Tâm",
+          "role": "Cán bộ phòng đọc"
+        },
+        {
+          "character_id": "c007",
+          "name": "Vy",
+          "role": "Cán bộ đối chiếu nguồn"
+        },
+        {
+          "character_id": "c008",
+          "name": "Nhu",
+          "role": "Cựu nhân viên sổ bến"
+        },
+        {
+          "character_id": "c009",
+          "name": "Phúc",
+          "role": "Cán bộ giám sát"
+        },
+        {
+          "character_id": "c010",
+          "name": "Hà",
+          "role": "Cán bộ kiểm toán hồ sơ"
+        },
+        {
+          "character_id": "c012",
+          "name": "Người phụ trách",
+          "role": "Đại diện bộ phận vận hành"
+        }
+      ],
+      "outline_summaries": [
+        "Lời chào mở tập",
+        "Hạnh phát hiện bản đính chính không chặn bản tra cứu cũ",
+        "Hà tổ chức cuộc đối chiếu dấu vết và phân định vai trò Linh",
+        "Truy chuỗi bản tổng hợp từ sổ giao nhận đến bảng kê đóng tập",
+        "Phỏng vấn Nhu và bóc tách ký hiệu bàn giao",
+        "Phúc mở lịch sử phiên nhập và phạm vi quyền",
+        "Đối chiếu bảng mã cũ với quy tắc hạn chế địa chỉ",
+        "Mẹ Linh gửi lời xác minh qua kênh độc lập",
+        "Quân khảo sát đường nhận cảnh báo ở các quầy",
+        "Kiểm chứng lỗi ánh xạ trên hồ sơ Hạnh và buộc tạm dừng phát hành sai",
+        "Hạnh xác nhận thay đổi tại quầy và phản ứng về quyền riêng tư",
+        "Lần ra người chấp bút bản tổng hợp từ chữ ký giao việc nhưng chưa gán lỗi",
+        "Lời chào kết"
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "2e10ee7974693c56428429b676dfcdf52aede33186bf43dbec93b60295c3e68f",
+        "script_character_count": 25509
+      },
+      "package_variants": [
+        {
+          "path": "[DDKA-0001] Hồ sơ số không - Tập 3 - Những dòng mã lạc nghĩa",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    },
+    {
+      "catalog_id": "story-a99bf87b0d966c81",
+      "story_sha256": "a99bf87b0d966c81c8ec4e5dc6087d89d370acc9bc26f07776a11f109e502692",
+      "title": "Hồ sơ số không — Tập 4: Dấu xác nhận bỏ trống",
+      "normalized_title": "ho so so khong tap 4 dau xac nhan bo trong",
+      "series": "Hồ sơ số không",
+      "episode": 4,
+      "profile": "SERIAL_DETECTIVE",
+      "age_band": "18+",
+      "language": "vi",
+      "genre": "Trinh thám điều tra, bí ẩn hồ sơ",
+      "tone": "Căng thẳng tiết chế, công bằng với chứng cứ",
+      "tags": [
+        "trinh thám",
+        "điều tra hồ sơ",
+        "dữ liệu chuyển đổi",
+        "chứng cứ",
+        "trách nhiệm",
+        "bí ẩn nhiều tập"
+      ],
+      "characters": [
+        {
+          "character_id": "c001",
+          "name": "Linh",
+          "role": "Chuyên viên lưu trữ, nhân vật điều tra chính"
+        },
+        {
+          "character_id": "c002",
+          "name": "Quân",
+          "role": "Phóng viên điều tra và cộng sự"
+        },
+        {
+          "character_id": "c003",
+          "name": "Hạnh",
+          "role": "Cán bộ đối chiếu cư trú, người bị xóa trạng thái"
+        },
+        {
+          "character_id": "c006",
+          "name": "Tâm",
+          "role": "Cán bộ phòng đọc"
+        },
+        {
+          "character_id": "c007",
+          "name": "Vy",
+          "role": "Cán bộ đối chiếu nguồn"
+        },
+        {
+          "character_id": "c009",
+          "name": "Phúc",
+          "role": "Cán bộ giám sát"
+        },
+        {
+          "character_id": "c010",
+          "name": "Hà",
+          "role": "Cán bộ kiểm toán hồ sơ"
+        },
+        {
+          "character_id": "c011",
+          "name": "Trần Minh Duy",
+          "role": "Cán bộ tổ tổng hợp cũ, được giao chủ trì biên soạn bản tổng hợp số không"
+        },
+        {
+          "character_id": "c012",
+          "name": "Người phụ trách",
+          "role": "Đại diện bộ phận vận hành tham gia hội nghị rà soát"
+        }
+      ],
+      "outline_summaries": [
+        "Lời dẫn vào tập bốn và câu hỏi về một dấu xác nhận",
+        "Hà mở kế hoạch xác minh và Hạnh đề nghị bảo vệ địa chỉ",
+        "Tâm giao sổ hậu kiểm và nhận diện mẫu không chứng minh đã kiểm Hạnh",
+        "Duy giải thích phạm vi tài liệu và đưa ghi chú đường nhận",
+        "Phiếu cảnh báo trước phát hành xuất hiện",
+        "Một quầy chưa cập nhật hướng dẫn gây nguy cơ lặp thiệt hại",
+        "Quân lần dấu điểm chuyển phát chiếc hộp nâu",
+        "Cuộc rà soát quyết định có nêu tên người ký và kết luận hậu kiểm không",
+        "Hạnh nhận hướng dẫn rõ ràng và nhóm bàn giao chứng cứ",
+        "Sơ đồ hai đường chứng cứ và móc nối sang tập năm"
+      ],
+      "content_signature": {
+        "normalized_script_sha256": "0466a100edc9812985e149dab6547b2871f354e4e9388b1b0fa660a3e4f05c32",
+        "script_character_count": 30873
+      },
+      "package_variants": [
+        {
+          "path": "[DDKA-0001] Hồ sơ số không - Tập 4 - Dấu xác nhận bỏ trống",
+          "kind": "directory",
+          "prompt_version": null,
+          "stage": null,
+          "status": null
+        }
+      ]
+    }
+  ],
+  "invalid_sources": [],
+  "duplicate_groups": []
+}

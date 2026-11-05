@@ -117,6 +117,19 @@ def test_story_reader_includes_repetition_tab() -> None:
     assert "render_repetition_report(report," in source
 
 
+def test_story_reader_uses_workspace_navigation_and_reading_modes() -> None:
+    source = Path("studio/story_report.py").read_text(encoding="utf-8")
+    assert 'st.columns([1, 3], gap="large")' in source
+    assert '("Đọc", "Kiểm tra", "Tập trung")' in source
+    assert 'class="story-scene-heading"' in source
+
+
+def test_story_analysis_tools_are_grouped_under_one_tab() -> None:
+    source = Path("studio/story_report.py").read_text(encoding="utf-8")
+    assert '["Đọc truyện", "Dàn ý", "Nhân vật", "Phân tích"]' in source
+    assert '("Lặp câu", "Thống kê")' in source
+
+
 def test_story_reader_centers_zone_thumbnail_at_half_content_width() -> None:
     source = __import__("pathlib").Path("studio/story_report.py").read_text(encoding="utf-8")
     assert "_left_space, image_column, _right_space = st.columns([1, 2, 1])" in source
