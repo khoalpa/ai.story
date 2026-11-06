@@ -29,6 +29,15 @@ def test_loopback_http_provider_url_is_allowed(tmp_path: Path) -> None:
     assert check_text(path, 'base_url = "http://127.0.0.1:1234/v1"\n', tmp_path) == []
 
 
+def test_docx_xml_namespace_is_allowed_but_http_endpoint_is_not(tmp_path: Path) -> None:
+    path = tmp_path / "reader.py"
+    namespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+    assert check_text(path, f'namespace = "{{{namespace}}}"', tmp_path) == []
+    assert any("must use HTTPS" in error for error in check_text(path, f'base_url = "{namespace}"', tmp_path))
+    assert any("must use HTTPS" in error for error in check_text(path, f'namespace = "{{{namespace}/other}}"', tmp_path))
+
+
 def test_unsafe_subprocess_forms_are_rejected(tmp_path: Path) -> None:
     path = tmp_path / "runner.py"
     text = 'import subprocess\nsubprocess.run("tool --flag", shell=True)\n'

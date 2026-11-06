@@ -18,6 +18,8 @@ SECRET_PATTERNS = (
 )
 URL_PATTERN = re.compile(r"https?://[^\s'\"<>]+", re.IGNORECASE)
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+# ElementTree expanded names identify XML vocabulary; they are not fetched URLs.
+XML_NAMESPACE_NAMES = {"{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"}
 SUBPROCESS_CALLS = {"run", "Popen", "call", "check_call", "check_output"}
 
 
@@ -50,6 +52,8 @@ def check_text(path: Path, text: str, root: Path) -> list[str]:
 
     for match in URL_PATTERN.finditer(text):
         raw_url = match.group(0).rstrip(".,);]")
+        if match.start() > 0 and text[match.start() - 1] == "{" and "{" + raw_url in XML_NAMESPACE_NAMES:
+            continue
         parsed = urlparse(raw_url)
         if parsed.scheme.lower() == "http" and (parsed.hostname or "").lower() not in LOOPBACK_HOSTS:
             line = text.count("\n", 0, match.start()) + 1

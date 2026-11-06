@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROMPTS = ROOT / "prompts"
 RELEASE = ROOT / "docs" / "releases" / "v5.2.2-r3"
 EXPECTED_PROMPT_SHA256 = "b5df7d75cd9c1de60a5513bb9cbc9f639b3d0cf1cdb2cd72e6135c1cf4f9ab0c"
-EXPECTED_QUICKSTART_SHA256 = "0d23521ac463fcc5cf1e3953c2cc53cf8d262af8528e0761708b82dbe7d82f8b"
+EXPECTED_QUICKSTART_SHA256 = "363d1cd4897e35cf059e4ecf2eea3990c22624b2ec92a8e202e1bcd0cbc94f6e"
 
 
 def _sha256(path: Path) -> str:
@@ -22,8 +22,8 @@ def _sha256(path: Path) -> str:
 
 
 def verify() -> dict[str, Any]:
-    prompt = PROMPTS / "ChatGPT_prompt_v5.2.2.txt"
-    quickstart = PROMPTS / "ChatGPT_prompt_v5.2.2_Quickstart.txt"
+    prompt = PROMPTS / "story_prompt_v5.2.2.txt"
+    quickstart = PROMPTS / "story_prompt_v5.2.2_quickstart.txt"
     policy_path = RELEASE / "release_policy_v5.2.2_r3.json"
     report_path = RELEASE / "Bao_cao_Prompt_v5.2.2_r3.md"
     policy = json.loads(policy_path.read_text(encoding="utf-8"))

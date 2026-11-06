@@ -85,7 +85,7 @@ def test_catalog_rejects_inconsistent_summary(tmp_path: Path) -> None:
 
 
 def test_prompt_v522_r3_is_full_self_contained_three_stage_contract() -> None:
-    prompt = (PROJECT_ROOT / "prompts" / "ChatGPT_prompt_v5.2.2.txt").read_text(encoding="utf-8")
+    prompt = (PROJECT_ROOT / "prompts" / "story_prompt_v5.2.2.txt").read_text(encoding="utf-8")
     assert len(prompt.splitlines()) >= 900
     required_topics = (
         "KIỂM TRA KHẢ NĂNG THỰC TẾ", "BA PROFILE VÀ AN TOÀN NỘI DUNG",

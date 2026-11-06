@@ -23,6 +23,11 @@ from studio.reference_samples import (
     suggest_reference_metadata,
     write_reference_sidecar,
 )
+from studio.summary_prompt_contract import (
+    discover_available_summary_prompts,
+    discover_summary_prompts,
+    load_summary_prompt_contract,
+)
 from studio.ui_components import (
     render_empty_state,
     render_summary_card,
@@ -102,13 +107,26 @@ def load_prompt(path: Path) -> PromptDocument:
         text = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError as exc:
         raise ValueError(f"Prompt không phải UTF-8 hợp lệ: {exc}") from exc
-    major, minor, patch = (int(part) for part in path.stem.removeprefix("ChatGPT_prompt_v").split("."))
+    major, minor, patch = (int(part) for part in path.stem.removeprefix("story_prompt_v").split("."))
     version = (major, minor, patch)
     version_label = ".".join(map(str, version))
     if not text.startswith(f"CHATGPT AUDIO STORY PACKAGE — v{version_label}"):
         raise ValueError(f"Nội dung không phải hợp đồng prompt v{version_label}.")
     lines = tuple(text.splitlines())
     return PromptDocument(path, version, text, lines, _parse_modules(lines))
+
+
+def discover_summary_prompt_files(directory: Path) -> list[Path]:
+    """Return supported summary prompts in version order."""
+    return discover_summary_prompts(directory)
+
+
+def load_summary_prompt(path: Path) -> PromptDocument:
+    """Load and parse a supported summary prompt."""
+    contract = load_summary_prompt_contract(path)
+    text = path.read_text(encoding="utf-8-sig")
+    lines = tuple(text.splitlines())
+    return PromptDocument(path, contract.version, text, lines, _parse_modules(lines))
 
 
 def search_prompt(document: PromptDocument, query: str, *, limit: int = 200) -> list[dict[str, str | int]]:
@@ -364,6 +382,39 @@ def _render_structure(document: PromptDocument) -> None:
     )
 
 
+def _render_summary_structure(document: PromptDocument) -> None:
+    import streamlit as st
+
+    contract = load_summary_prompt_contract(document.path)
+    columns = st.columns(4)
+    with columns[0]:
+        render_summary_card("Phiên bản prompt", document.version_label, detail="Summary contract")
+    with columns[1]:
+        render_summary_card("Schema Summary", contract.summary_schema_version, detail="Canonical summary.json")
+    with columns[2]:
+        render_summary_card("Projection Story", contract.story_projection_schema_version, detail="Audio/Video adapter")
+    with columns[3]:
+        render_summary_card("Image mode", contract.default_image_mode, detail="Mặc định hình ảnh")
+    st.info(
+        "Summary dùng artifact summary_* riêng; story.json, story.txt và visual_plan.json "
+        "chỉ được tạo qua projection đã validate."
+    )
+    st.dataframe(
+        [
+            {
+                "Mục": module.name,
+                "Tiêu đề": module.title,
+                "Dòng bắt đầu": module.start_line,
+                "Dòng kết thúc": module.end_line,
+                "Số dòng": module.line_count,
+            }
+            for module in document.modules
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+
+
 def _render_reference_packages(dataset: ReferenceDataset) -> None:
     import streamlit as st
 
@@ -519,6 +570,48 @@ def render_prompt_library_workspace(*, embedded: bool = False) -> None:
 
     if not embedded:
         st.set_page_config(page_title="Thông tin prompt", page_icon=":material/code_blocks:", layout="wide")
+    prompt_family = st.radio(
+        "Loại prompt",
+        ("Story", "Summary"),
+        horizontal=True,
+        key="prompt_library_family",
+    )
+    if prompt_family == "Summary":
+        summary_paths = discover_available_summary_prompts()
+        if not summary_paths:
+            render_empty_state(
+                "Chưa tìm thấy Summary prompt",
+                "Hãy thêm summary_prompt_vX.Y.Z.txt được hỗ trợ vào thư mục prompts.",
+                icon="!",
+            )
+            return
+        names = [path.name for path in reversed(summary_paths)]
+        selected_name = st.selectbox(
+            "Phiên bản Summary prompt",
+            names,
+            key="summary_prompt_library_version",
+        )
+        summary_path = next(path for path in summary_paths if path.name == selected_name)
+        try:
+            document = load_summary_prompt(summary_path)
+            summary_contract = load_summary_prompt_contract(summary_path)
+        except (OSError, UnicodeError, ValueError) as exc:
+            st.error(f"Không nạp được Summary prompt: {exc}")
+            return
+        render_workspace_header(
+            "Thông tin Summary prompt",
+            "Đọc hợp đồng tóm tắt, claim graph và projection sang Audio/Video.",
+            eyebrow="Tài liệu & kiểm chứng",
+            status=f"Đang dùng · {document.version_label}",
+            status_tone="success",
+        )
+        st.caption(f"SHA-256: `{summary_contract.sha256}`")
+        reader, structure = st.tabs(["Tra cứu", "Tổng quan hợp đồng"])
+        with reader:
+            _render_document(document)
+        with structure:
+            _render_summary_structure(document)
+        return
     prompt_paths = discover_prompt_files(PROJECT_ROOT / "prompts")
     if not prompt_paths:
         render_workspace_header(
@@ -681,9 +774,11 @@ __all__ = [
     "PromptModule",
     "REFERENCE_PACKAGE_NAMES",
     "_select_prompt_page",
+    "discover_summary_prompt_files",
     "discover_prompt_files",
     "inspect_reference_packages",
     "load_prompt",
+    "load_summary_prompt",
     "render_prompt_library_workspace",
     "search_prompt",
 ]

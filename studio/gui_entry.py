@@ -25,6 +25,7 @@ def main() -> int:
             render_story_studio_navigation,
             render_story_studio_workspace,
         )
+        from studio.summary_studio import render_summary_studio_workspace
         from studio.ui_components import (
             render_global_run_feedback,
             render_pipeline_progress,
@@ -73,12 +74,12 @@ def main() -> int:
         os.environ.pop(PROMPT_FILE_ENV, None)
         st.warning("Không tìm thấy hoặc không thể đọc prompt chuẩn của dự án.")
         st.caption(str(exc))
-        st.markdown("Chọn một tệp `ChatGPT_prompt_vX.Y.Z.txt` để tiếp tục.")
+        st.markdown("Chọn một tệp `story_prompt_vX.Y.Z.txt` để tiếp tục.")
 
         prompt_path = st.text_input(
             "Đường dẫn tệp prompt",
             key="studio_prompt_path_input",
-            placeholder=r"D:\prompts\ChatGPT_prompt_v3.11.14.txt",
+            placeholder=r"D:\prompts\story_prompt_v3.11.14.txt",
         )
         uploaded_prompt = st.file_uploader(
             "Hoặc tải tệp prompt lên",
@@ -89,7 +90,7 @@ def main() -> int:
         candidate: Path | None = None
         if uploaded_prompt is not None:
             if not PROMPT_FILENAME.match(uploaded_prompt.name):
-                st.error("Tên tệp phải có dạng ChatGPT_prompt_vX.Y.Z.txt (có thể có tiền tố số).")
+                st.error("Tên tệp phải có dạng story_prompt_vX.Y.Z.txt (có thể có tiền tố số).")
             else:
                 raw = uploaded_prompt.getvalue()
                 digest = hashlib.sha256(raw).hexdigest()
@@ -118,13 +119,14 @@ def main() -> int:
     workspace_labels = {
         "Overview": "Tổng quan",
         "Story Studio": "Nội dung truyện",
+        "Summary Studio": "Tóm tắt tài liệu",
         "Audio Studio": "Âm thanh",
         "Video Studio": "Video",
         "Prompt Info": "Thông tin prompt",
     }
     selected = st.sidebar.radio(
         "Không gian làm việc",
-        ["Overview", "Story Studio", "Audio Studio", "Video Studio", "Prompt Info"],
+        ["Overview", "Story Studio", "Summary Studio", "Audio Studio", "Video Studio", "Prompt Info"],
         key="studio_workspace",
         format_func=lambda workspace: workspace_labels[workspace],
     )
@@ -136,6 +138,7 @@ def main() -> int:
     renderers = {
         "Overview": render_overview,
         "Story Studio": lambda: render_story_studio_workspace(embedded=True, show_navigation=False),
+        "Summary Studio": lambda: render_summary_studio_workspace(embedded=True),
         "Audio Studio": lambda: render_audio_workspace(embedded=True),
         "Video Studio": lambda: render_video_workspace(embedded=True),
         "Prompt Info": lambda: render_prompt_library_workspace(embedded=True),

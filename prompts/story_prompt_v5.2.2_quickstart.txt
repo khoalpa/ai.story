@@ -3,7 +3,7 @@ Prompt version: 5.2.2 | Revision: r3 | Story/visual/video schema: 4.1.3 | Packag
 
 Điều chỉnh revision r3: BỎ gate T5-512; không có yêu cầu xác minh tokenizer hoặc giới hạn 512 token.
 
-Bản đặc tả Production-ready theo tiêu chuẩn rút gọn (PRODUCTION_READY_SPEC); pipeline thực tế chưa được chứng nhận. Bản vận hành đầy đủ, tự chứa. Đính kèm ChatGPT_prompt_v5.2.2.txt và story_catalog.json v1.0 khi có; chỉ dùng quickstart để định tuyến, không thay prompt chính.
+Bản đặc tả Production-ready theo tiêu chuẩn rút gọn (PRODUCTION_READY_SPEC); pipeline thực tế chưa được chứng nhận. Bản vận hành đầy đủ, tự chứa. Đính kèm story_prompt_v5.2.2.txt và story_catalog.json v1.0 khi có; chỉ dùng quickstart để định tuyến, không thay prompt chính.
 
 ROUTING
 - “Tạo gói truyện” chưa rõ profile/anchor: hỏi một lần đủ 3 lựa chọn: 1. Trẻ em/thiếu niên; 2. Người trưởng thành; 3. Trinh thám nhiều tập.

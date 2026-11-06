@@ -6,6 +6,7 @@ from typing import Any, MutableMapping
 WORKSPACE_KEYS = (
     "Overview",
     "Story Studio",
+    "Summary Studio",
     "Audio Studio",
     "Video Studio",
     "Prompt Info",
@@ -35,7 +36,7 @@ def navigate_to(
 
 def pipeline_step_for_workspace(workspace: str, state: MutableMapping[str, Any]) -> int:
     """Return the most useful active production step for the current workspace."""
-    if workspace == "Story Studio":
+    if workspace in {"Story Studio", "Summary Studio"}:
         return 1
     if workspace == "Audio Studio":
         return 2

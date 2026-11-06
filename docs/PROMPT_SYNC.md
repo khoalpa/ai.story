@@ -1,6 +1,6 @@
 # Prompt–runtime synchronization
 
-Versioned `ChatGPT_prompt_vX.Y.Z.txt` files in `prompts/` are the normative authoring contract.
+Versioned `story_prompt_vX.Y.Z.txt` files in `prompts/` are the normative authoring contract.
 An optional numeric prefix such as `01-` is supported; version selection ignores that prefix. The
 repository automatically selects the highest semantic version. Older prompts may
 remain beside it for comparison.
@@ -21,7 +21,7 @@ rather than manufacturing a `PASS`.
 
 ## Upgrade procedure
 
-1. Add the new `ChatGPT_prompt_vX.Y.Z.txt` to `prompts/`; do not overwrite an older
+1. Add the new `story_prompt_vX.Y.Z.txt` to `prompts/`; do not overwrite an older
    version when its history is still useful.
 2. Run `pytest -q tests/contracts/test_prompt_library.py tests/contracts/test_story_package_v416.py`. A changed projected
    literal intentionally fails until the corresponding runtime consumer and test

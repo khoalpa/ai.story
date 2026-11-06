@@ -30,6 +30,7 @@ dependencies = [
   "neucodec>=0.0.5",
   "streamlit>=1.49,<2",
   "Pillow>=10,<12",
+  "pypdf>=6.21,<7",
 ]
 
 [project.optional-dependencies]
@@ -60,13 +61,17 @@ render-video = "video.cli:main"
 render-video-gui = "video.gui_entry:main"
 ai-studio-gui = "studio.gui_entry:main"
 ai-story-audit = "studio.prompt_audit:main"
+ai-summary-build = "studio.summary_cli:build_main"
+ai-summary-project = "studio.summary_cli:project_main"
+ai-summary-audit = "studio.summary_cli:audit_main"
+ai-summary-migrate = "studio.summary_cli:migrate_main"
 
 
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.data-files]
-"share/ai-story/prompts" = ["prompts/ChatGPT_prompt_v4.1.6.txt", "prompts/ChatGPT_prompt_v4.2.0.txt", "prompts/ChatGPT_prompt_v5.2.0.txt", "prompts/ChatGPT_prompt_v5.2.2.txt", "prompts/ChatGPT_prompt_v5.2.2_Quickstart.txt"]
+"share/ai-story/prompts" = ["prompts/story_prompt_v4.1.6.txt", "prompts/story_prompt_v4.2.0.txt", "prompts/story_prompt_v5.2.0.txt", "prompts/story_prompt_v5.2.2.txt", "prompts/story_prompt_v5.2.2_quickstart.txt", "prompts/summary_prompt_v1.4.0.txt"]
 "share/ai-story/releases/v5.2.2-r3" = ["docs/releases/v5.2.2-r3/release_policy_v5.2.2_r3.json", "docs/releases/v5.2.2-r3/Bao_cao_Prompt_v5.2.2_r3.md"]
 
 [tool.setuptools.package-data]

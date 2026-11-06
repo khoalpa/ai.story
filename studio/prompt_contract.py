@@ -15,18 +15,18 @@ from types import MappingProxyType
 from typing import Any, Mapping
 
 CURRENT_PROMPT_VERSION = (5, 2, 2)
-CURRENT_PROMPT_FILENAME = "ChatGPT_prompt_v5.2.2.txt"
+CURRENT_PROMPT_FILENAME = "story_prompt_v5.2.2.txt"
 SUPPORTED_PROMPT_VERSIONS = (
     (4, 1, 6), (4, 2, 0), (5, 0, 0), (5, 1, 0), (5, 2, 0), CURRENT_PROMPT_VERSION,
 )
 SUPPORTED_PROMPT_FILENAMES = tuple(
-    f"ChatGPT_prompt_v{'.'.join(map(str, version))}.txt"
+    f"story_prompt_v{'.'.join(map(str, version))}.txt"
     for version in SUPPORTED_PROMPT_VERSIONS
 )
 # Compatibility aliases retained for callers that mean "the active prompt".
 SUPPORTED_PROMPT_VERSION = CURRENT_PROMPT_VERSION
 SUPPORTED_PROMPT_FILENAME = CURRENT_PROMPT_FILENAME
-PROMPT_FILENAME = re.compile(r"^ChatGPT_prompt_v(\d+)\.(\d+)\.(\d+)\.txt$", re.IGNORECASE)
+PROMPT_FILENAME = re.compile(r"^story_prompt_v(\d+)\.(\d+)\.(\d+)\.txt$", re.IGNORECASE)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROMPTS_DIRECTORY = PROJECT_ROOT / "prompts"
 PROMPTS_DIRECTORY_ENV = "AI_STUDIO_PROMPTS_DIR"
@@ -130,7 +130,7 @@ def canonical_prompt_path(directory: Path | None = None) -> Path:
             return current if current in paths else paths[-1]
     searched = ", ".join(str(item) for item in directories)
     raise FileNotFoundError(
-        f"Không tìm thấy ChatGPT_prompt_v*.*.*.txt trong: {searched}. "
+        f"Không tìm thấy story_prompt_v*.*.*.txt trong: {searched}. "
         f"Có thể đặt {PROMPTS_DIRECTORY_ENV}."
     )
 
@@ -144,7 +144,7 @@ def prompt_contract_for_version(version_label: str, *, directory: Path | None = 
     if version not in SUPPORTED_PROMPT_VERSIONS:
         supported = ", ".join(".".join(map(str, item)) for item in SUPPORTED_PROMPT_VERSIONS)
         raise ValueError(f"Chỉ hỗ trợ prompt {supported}; nhận {version_label!r}")
-    filename = f"ChatGPT_prompt_v{version_label}.txt"
+    filename = f"story_prompt_v{version_label}.txt"
     if directory is not None:
         return load_prompt_contract(directory / filename)
     for candidate in prompt_directories():

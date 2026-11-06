@@ -79,12 +79,63 @@ mức độ sẵn sàng của ảnh trước khi dựng slideshow.
 ## Làm việc với kịch bản và gói truyện
 
 Các tài liệu biên soạn chuẩn nằm trong `prompts/`, theo tên
-`ChatGPT_prompt_vX.Y.Z.txt`; tên tệp có thể có thêm tiền tố số như `01-`. Runtime
+`story_prompt_vX.Y.Z.txt`; tên tệp có thể có thêm tiền tố số như `01-`. Runtime
 luôn chọn phiên bản semantic mới nhất, đồng thời ghi nhận phiên bản và SHA-256.
 Prompt 5.2.2 revision r2 là nguồn mặc định cho gói mới: Stage 1 tạo story cùng
 prompt ảnh/video, pipeline kết thúc ở Stage 3. Prompt 4.1.6, 4.2.0 và các bản v5
 trước đó tiếp tục được hỗ trợ để đọc, kiểm tra, migration và xử lý snapshot mà
 không tự ý thay version payload.
+
+`summary_prompt_vX.Y.Z.txt` là hợp đồng độc lập cho tóm tắt và phân tích tài
+liệu. Summary dùng các artifact `summary_*` và chỉ tạo `story.json`, `story.txt`
+hoặc `visual_plan.json` qua projection đã kiểm tra. Prompt Info cho phép chuyển
+giữa thư viện Story và Summary; chế độ hình ảnh mặc định của Summary là `SCENE`.
+`ai-story-audit` tự nhận diện gói Summary qua `summary.json`; có thể ép loại bằng
+`ai-story-audit <path> --type summary`.
+
+Các lệnh Summary độc lập:
+
+```bash
+ai-summary-migrate legacy_summary.json --output summary.json
+ai-summary-project summary.json --output projected --targets story visual image video
+ai-summary-build summary.json --output summary_package.zip
+ai-summary-audit summary_package.zip
+```
+
+Để đóng gói ảnh thật đã kiểm định, đặt ảnh trực tiếp trong `landscape/` và
+`portrait/` dưới thư mục media đầu vào, rồi chạy:
+
+```bash
+ai-summary-build summary.json --output summary_package.zip --media-root rendered --media-review approved_review.json
+```
+
+Trong ZIP, hai thư mục orientation vẫn nằm tại gốc (`landscape/`, `portrait/`),
+không nằm trong `media/`. Thiếu ảnh bắt buộc hoặc chưa có review làm package mang
+trạng thái `PARTIAL`; chỉ đủ ảnh và review PASS mới là `COMPLETE`.
+
+Package builder dùng serialization và timestamp ZIP xác định, tạo manifest/hash,
+mở lại package và chỉ giao khi audit sau đóng gói đạt.
+
+Workspace **Summary Studio** trong ứng dụng cho phép tải hoặc dán canonical
+`summary.json`, xem nguồn/claims/numeric facts/lời đọc, xuất citation, tạo các
+projection và tải package đã audit mà không cần chạy CLI.
+Tab **Scene plan** tạo và chỉnh `summary_visual_plan.json`, kiểm liên kết locator,
+narration và numeric fact, đồng thời dùng chính plan đã duyệt cho projection ảnh.
+Scene kiểu `DATA_CHART` bắt buộc trỏ tới ít nhất một numeric fact canonical.
+Workspace cũng trích xuất cục bộ TXT/Markdown, DOCX, PDF có text layer,
+SRT/VTT và transcript JSON để tạo draft có fingerprint và locator. Draft luôn
+được đánh dấu cần biên tập; PDF scan không có text vẫn cần OCR riêng.
+Nếu phát hiện Tesseract trong `PATH`, workspace mở thêm OCR cục bộ cho
+PNG/JPEG/TIFF và hiển thị capability ngay trên giao diện. Metadata, claims,
+claim relations, numeric facts và glossary có editor cấu trúc; chỉ thay canonical
+sau khi bản chỉnh sửa vượt closed-schema validator.
+PDF được xử lý theo từng trang: pypdf giữ text layer có sẵn; trang trống text
+được render bằng `pdftoppm` rồi OCR bằng Tesseract khi đủ cả hai capability.
+Locator trang được giữ nguyên và giao diện báo riêng trạng thái PDF text,
+PDF render, Image OCR và PDF scan OCR.
+Narration editor hiển thị số từ, thời lượng ước tính, chênh lệch mục tiêu và
+preview mapping xuyên suốt narration → Story zone/script → SCENE → video clip.
+Khi lời đọc đổi, dependency graph liệt kê và vô hiệu các artifact cần dựng lại.
 
 Kiểm tra một thư mục đầu ra hoặc gói truyện prompt v5 hoặc legacy v4 bằng lệnh:
 

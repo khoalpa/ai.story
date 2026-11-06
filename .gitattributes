@@ -1,3 +1,3 @@
 # Keep release-pinned prompt bytes stable across platforms.
-/prompts/ChatGPT_prompt_v5.2.2.txt text eol=lf
-/prompts/ChatGPT_prompt_v5.2.2_Quickstart.txt text eol=lf
+/prompts/story_prompt_v5.2.2.txt text eol=lf
+/prompts/story_prompt_v5.2.2_quickstart.txt text eol=lf

@@ -2,7 +2,8 @@ include README.md
 include LICENSE
 include VERSION
 include package_api_policy.json
-recursive-include prompts ChatGPT_prompt_v*.txt [0-9]*-ChatGPT_prompt_v*.txt
+recursive-include prompts story_prompt_v*.txt [0-9]*-story_prompt_v*.txt
+recursive-include prompts summary_prompt_v*.txt
 recursive-include docs/releases *.json *.md
 recursive-include audio/assets *
 recursive-include video/assets *

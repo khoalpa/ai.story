@@ -22,7 +22,7 @@ PROMPT = PROJECT_ROOT / "prompts" / SUPPORTED_PROMPT_FILENAME
 
 
 def test_discovery_returns_all_supported_prompts(tmp_path: Path) -> None:
-    for name in (*SUPPORTED_PROMPT_FILENAMES, "ChatGPT_prompt_v3.16.13.txt", "notes.txt"):
+    for name in (*SUPPORTED_PROMPT_FILENAMES, "story_prompt_v3.16.13.txt", "notes.txt"):
         (tmp_path / name).write_text("x", encoding="utf-8")
     assert discover_prompt_files(tmp_path) == [tmp_path / name for name in SUPPORTED_PROMPT_FILENAMES]
 
@@ -39,7 +39,7 @@ def test_prompt_loader_parses_v522_numbered_sections() -> None:
 
 def test_v522_routes_attached_series_anchor_to_next_episode() -> None:
     prompt = PROMPT.read_text(encoding="utf-8")
-    quickstart = PROMPT.with_name("ChatGPT_prompt_v5.2.2_Quickstart.txt").read_text(encoding="utf-8")
+    quickstart = PROMPT.with_name("story_prompt_v5.2.2_quickstart.txt").read_text(encoding="utf-8")
 
     required_rules = (
         "kiểm kê tên và loại các tệp đính kèm",
@@ -58,7 +58,7 @@ def test_v522_routes_attached_series_anchor_to_next_episode() -> None:
 
 
 def test_prompt_loader_rejects_old_or_renamed_prompt(tmp_path: Path) -> None:
-    old = tmp_path / "ChatGPT_prompt_v3.16.13.txt"
+    old = tmp_path / "story_prompt_v3.16.13.txt"
     old.write_text(PROMPT.read_text(encoding="utf-8"), encoding="utf-8")
 
     with pytest.raises(ValueError, match="Chỉ hỗ trợ"):

@@ -4,3 +4,4 @@ vieneu>=3.2.4,<4
 neucodec>=0.0.5
 streamlit>=1.49,<2
 Pillow>=10,<12
+pypdf>=6.21,<7
