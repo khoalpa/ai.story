@@ -267,7 +267,7 @@ def build_summary_draft(sources: Iterable[ExtractedSource], *, language: str = "
             narration.append({"narration_id": f"narration_{sequence:04d}", "section_id": section_id,
                               "text": summary, "claim_ids": [claim_id]})
     document = {
-        "schema_version": "1.1.0", "prompt_version": "1.4.0",
+        "schema_version": "1.1.0", "prompt_version": "1.5.0",
         "meta": {"title": "Bản nháp tóm tắt", "output_type": "SUMMARY_ANALYSIS", "source_genre": "MIXED",
                  "style": "NEUTRAL_CLEAR", "audience": "Người trưởng thành phổ thông", "language": language,
                  "target_words": None, "target_minutes": None, "image_mode": "SCENE", "coverage": "FULL_SUMMARY",

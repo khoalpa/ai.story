@@ -12,6 +12,7 @@ if __package__ in {None, ""}:
     if project_root_text not in sys.path:
         sys.path.insert(0, project_root_text)
 
+
 def main() -> int:
     try:
         import streamlit as st
@@ -44,11 +45,14 @@ def main() -> int:
 
     app_title = "AI Story Studio"
 
-    st.set_page_config(page_title=app_title, page_icon=":material/movie:", layout="wide")
+    st.set_page_config(
+        page_title=app_title, page_icon=":material/movie:", layout="wide"
+    )
 
     render_studio_style()
 
     from studio.themes.python_theme import render_streamlit
+
     render_streamlit()
 
     st.title(app_title)
@@ -90,7 +94,9 @@ def main() -> int:
         candidate: Path | None = None
         if uploaded_prompt is not None:
             if not PROMPT_FILENAME.match(uploaded_prompt.name):
-                st.error("Tên tệp phải có dạng story_prompt_vX.Y.Z.txt (có thể có tiền tố số).")
+                st.error(
+                    "Tên tệp phải có dạng story_prompt_vX.Y.Z.txt (có thể có tiền tố số)."
+                )
             else:
                 raw = uploaded_prompt.getvalue()
                 digest = hashlib.sha256(raw).hexdigest()
@@ -117,27 +123,38 @@ def main() -> int:
     st.sidebar.caption(f"Prompt · `{active_prompt.name}`")
 
     workspace_labels = {
-        "Overview": "Tổng quan",
-        "Story Studio": "Nội dung truyện",
-        "Summary Studio": "Tóm tắt tài liệu",
-        "Audio Studio": "Âm thanh",
-        "Video Studio": "Video",
-        "Prompt Info": "Thông tin prompt",
+        "Overview": "Overview",
+        "Story Studio": "Story Studio",
+        "Summary Studio": "Summary Studio",
+        "Audio Studio": "Audio Studio",
+        "Video Studio": "Video Studio",
+        "Prompt Info": "Prompt Info",
     }
     selected = st.sidebar.radio(
         "Không gian làm việc",
-        ["Overview", "Story Studio", "Summary Studio", "Audio Studio", "Video Studio", "Prompt Info"],
+        [
+            "Overview",
+            "Story Studio",
+            "Summary Studio",
+            "Audio Studio",
+            "Video Studio",
+            "Prompt Info",
+        ],
         key="studio_workspace",
         format_func=lambda workspace: workspace_labels[workspace],
     )
     if selected != "Prompt Info":
-        render_pipeline_progress(pipeline_step_for_workspace(selected, st.session_state))
+        render_pipeline_progress(
+            pipeline_step_for_workspace(selected, st.session_state)
+        )
         render_global_run_feedback(st.session_state)
     if selected == "Story Studio":
         render_story_studio_navigation()
     renderers = {
         "Overview": render_overview,
-        "Story Studio": lambda: render_story_studio_workspace(embedded=True, show_navigation=False),
+        "Story Studio": lambda: render_story_studio_workspace(
+            embedded=True, show_navigation=False
+        ),
         "Summary Studio": lambda: render_summary_studio_workspace(embedded=True),
         "Audio Studio": lambda: render_audio_workspace(embedded=True),
         "Video Studio": lambda: render_video_workspace(embedded=True),

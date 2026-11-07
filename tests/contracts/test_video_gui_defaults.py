@@ -3,6 +3,7 @@ from pathlib import Path
 from video import config
 from video.gui.settings import (
     build_subtitle_preview_html,
+    compatible_encoding_profile,
     default_subtitle_font_size,
     default_subtitle_position,
     should_update_subtitle_font_size,
@@ -35,6 +36,18 @@ def test_video_render_sidebar_defaults_to_youtube_slideshow() -> None:
     assert config.DEFAULT_SUBTITLE_FONT == "Playwrite VN"
     assert config.DEFAULT_SUBTITLE_FONT_SIZE == 12
     assert config.ENVIRONMENT_OVERLAY_INTENSITY == "normal"
+
+
+def test_encoding_profile_falls_back_when_aspect_changes() -> None:
+    assert compatible_encoding_profile("youtube_4k", "9x16") == "auto"
+    assert compatible_encoding_profile("youtube_1080p", "9x16") == "auto"
+    assert compatible_encoding_profile("tiktok", "16x9") == "auto"
+
+
+def test_encoding_profile_preserves_aspect_agnostic_choices() -> None:
+    assert compatible_encoding_profile("auto", "9x16") == "auto"
+    assert compatible_encoding_profile("balanced", "9x16") == "balanced"
+    assert compatible_encoding_profile("master", "16x9") == "master"
 
 
 def test_render_preview_tracks_the_current_scene() -> None:

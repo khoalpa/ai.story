@@ -129,6 +129,9 @@ def render_global_run_feedback(state: object) -> None:
     stage = str(state.get("workspace_last_job_stage") or "Đang xử lý")  # type: ignore[attr-defined]
     error = str(state.get("workspace_last_job_error") or "")  # type: ignore[attr-defined]
     output = str(state.get("workspace_last_job_output") or "")  # type: ignore[attr-defined]
+    message = str(state.get("workspace_last_job_message") or "")  # type: ignore[attr-defined]
+    updated_at = str(state.get("workspace_last_job_updated_at") or "")  # type: ignore[attr-defined]
+    summary = state.get("workspace_last_job_summary") or {}  # type: ignore[attr-defined]
     try:
         progress = max(0, min(100, int(state.get("workspace_last_job_progress") or 0)))  # type: ignore[attr-defined]
     except (TypeError, ValueError):
@@ -140,8 +143,21 @@ def render_global_run_feedback(state: object) -> None:
         left.markdown(f"**{app} · {stage}**")
         right.html(status_badge_html(label, tone=tone))
         if status == "running":
-            st.progress(progress / 100, text=f"{label} · {progress}%")
-            st.caption("Có thể chuyển workspace; trạng thái gần nhất vẫn được giữ trong phiên.")
+            st.progress(progress / 100, text=f"{progress}% · {message or label}")
+            details = []
+            if isinstance(summary, dict):
+                if summary.get("title"):
+                    details.append(str(summary["title"]))
+                details.extend(str(summary[key]) for key in ("aspect", "mode") if summary.get(key))
+            if details:
+                st.caption(" · ".join(details))
+            output_hint = output or (summary.get("output") if isinstance(summary, dict) else "")
+            if output_hint and progress >= 85:
+                st.caption(f"Video đã được tạo; tác vụ đang hoàn tất hậu kiểm. `{output_hint}`")
+            st.caption(
+                "Có thể chuyển workspace; trạng thái được giữ trong phiên."
+                + (f" Cập nhật lần cuối: {updated_at}." if updated_at else "")
+            )
         elif status == "completed":
             st.success("Tác vụ đã hoàn tất." + (f" Đầu ra: `{output}`" if output else ""))
         else:

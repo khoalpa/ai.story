@@ -12,7 +12,7 @@ from studio.story_studio import (
 
 def test_story_studio_section_order_is_stable() -> None:
     assert STORY_STUDIO_SECTIONS == (
-        "Tổng quan",
+        "Trạng thái gói",
         "Gói & quy trình",
         "Nội dung",
         "Kiểm định",
@@ -30,22 +30,25 @@ def test_story_studio_section_order_is_stable() -> None:
     )
 
 
-def test_story_sections_are_grouped_into_five_user_facing_areas() -> None:
+def test_story_sections_are_grouped_into_four_task_focused_areas() -> None:
     assert tuple(STORY_STUDIO_GROUPS) == (
-        "Tổng quan",
-        "Nội dung",
+        "Biên tập",
         "Kiểm định",
-        "Sản xuất",
-        "Dữ liệu kỹ thuật",
+        "Hình ảnh",
+        "Bàn giao",
     )
-    grouped = tuple(section for sections in STORY_STUDIO_GROUPS.values() for section in sections)
+    grouped = tuple(
+        section for sections in STORY_STUDIO_GROUPS.values() for section in sections
+    )
     assert set(grouped) == set(STORY_STUDIO_SECTIONS)
     assert len(grouped) == len(set(grouped))
 
 
 def test_each_story_section_has_distinct_heading_and_caption() -> None:
     assert set(STORY_STUDIO_SECTION_INTROS) == set(STORY_STUDIO_SECTIONS)
-    headings = [STORY_STUDIO_SECTION_INTROS[section][0] for section in STORY_STUDIO_SECTIONS]
+    headings = [
+        STORY_STUDIO_SECTION_INTROS[section][0] for section in STORY_STUDIO_SECTIONS
+    ]
     assert len(set(headings)) == len(STORY_STUDIO_SECTIONS)
     for heading, caption in STORY_STUDIO_SECTION_INTROS.values():
         assert heading.strip()
@@ -69,11 +72,15 @@ def test_integrated_shell_renders_navigation_before_story_workspace() -> None:
     assert "render_pipeline_progress" in shell
 
 
-def test_source_selector_is_rendered_only_for_overview() -> None:
+def test_source_selector_is_rendered_only_for_package_status() -> None:
     source = Path("studio/story_studio.py").read_text(encoding="utf-8")
-    overview_branch = source.index('if section == "Tổng quan":')
-    selector_call = source.index("reports, statuses = _render_source_selector()", overview_branch)
-    background_load = source.index("reports, statuses = _load_source_from_session()", selector_call)
+    overview_branch = source.index('if section == "Trạng thái gói":')
+    selector_call = source.index(
+        "reports, statuses = _render_source_selector()", overview_branch
+    )
+    background_load = source.index(
+        "reports, statuses = _load_source_from_session()", selector_call
+    )
 
     assert overview_branch < selector_call < background_load
     assert "return" in source[selector_call:background_load]
@@ -85,7 +92,9 @@ def test_story_sections_have_distinct_replaceable_placeholders() -> None:
     section_renderer = source.index("def _render_story_studio_section(", workspace)
     body = source[workspace:section_renderer]
 
-    assert "section_slots = {name: st.empty() for name in STORY_STUDIO_SECTIONS}" in body
+    assert (
+        "section_slots = {name: st.empty() for name in STORY_STUDIO_SECTIONS}" in body
+    )
     assert "with section_slots[section].container():" in body
     assert "_render_story_studio_section(section)" in body
 

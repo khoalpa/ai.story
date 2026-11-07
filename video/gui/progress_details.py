@@ -1,6 +1,19 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping, MutableMapping
+
+
+def initial_video_progress(
+    state: MutableMapping[str, Any], settings: Mapping[str, Any],
+) -> tuple[float, str]:
+    from video.gui.global_run_monitor import global_run_monitor_state
+
+    monitor = global_run_monitor_state(state)
+    active = monitor.app.casefold() == "video" and monitor.status == "running"
+    percent = monitor.progress if active else 0
+    message = monitor.message if active else "Chưa bắt đầu"
+    details = [f"mode={settings.get('mode')}", f"aspect={settings.get('aspect')}"]
+    return percent / 100, format_progress_text(percent, message, details)
 
 
 def format_duration(seconds: float | int | None) -> str:

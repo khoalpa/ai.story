@@ -38,6 +38,7 @@ MEDIA_FILE_FIELDS = FILE_FIELDS | {
     "height",
     "review_status",
 }
+SUPPORTED_PROMPT_VERSIONS = {"1.5.0", "1.5.1", "1.5.2", "1.5.3"}
 
 
 @dataclass
@@ -113,7 +114,7 @@ def _audit_manifest(members: Mapping[str, bytes], result: SummaryAuditResult) ->
     if (
         set(manifest) != MANIFEST_FIELDS
         or manifest.get("schema_version") != "1.1.0"
-        or manifest.get("prompt_version") != "1.4.0"
+        or manifest.get("prompt_version") not in SUPPORTED_PROMPT_VERSIONS
     ):
         result.fail("summary_manifest.json không đúng closed schema/version")
     if manifest.get("status") not in {"COMPLETE", "PARTIAL", "BLOCKED"}:
@@ -209,6 +210,22 @@ def _audit_media_contracts(
     )
     present = [name in members for name in names]
     if any(present) and not all(present):
+        stage = (
+            _json(members, "summary_stage.json", result)
+            if "summary_stage.json" in members
+            else None
+        )
+        if (
+            present == [True, False, False]
+            and stage is not None
+            and stage.get("stage") == 1
+        ):
+            plan = _json(members, names[0], result)
+            if plan is not None:
+                for error in validate_render_plan(plan):
+                    result.fail(error)
+            result.checks["rendered_media"] = "NOT_APPLICABLE"
+            return
         result.fail("Media workflow phải có đủ render plan, render log và media review")
         return
     if not all(present):
@@ -288,6 +305,39 @@ def audit_summary_package(path: Path) -> SummaryAuditResult:
         "PASS" if summary is not None and not result.errors else "FAIL"
     )
     _audit_manifest(members, result)
+    if "summary_stage.json" in members:
+        stage = _json(members, "summary_stage.json", result)
+        if stage is not None:
+            expected = {
+                "schema_version",
+                "prompt_version",
+                "stage",
+                "parent_package_sha256",
+                "status",
+            }
+            if (
+                set(stage) != expected
+                or stage.get("schema_version") != "1.0.0"
+                or stage.get("prompt_version") not in SUPPORTED_PROMPT_VERSIONS
+                or stage.get("stage") not in {1, 2, 3}
+                or stage.get("status") not in {"COMPLETE", "PARTIAL", "BLOCKED"}
+            ):
+                result.fail("summary_stage.json không đúng closed schema/version")
+            parent = stage.get("parent_package_sha256")
+            if stage.get("stage") == 1 and parent is not None:
+                result.fail("Stage 1 không được có parent package")
+            if stage.get("stage") in {2, 3} and (
+                not isinstance(parent, str) or len(parent) != 64
+            ):
+                result.fail("Stage 2/3 thiếu parent_package_sha256")
+            manifest = _json(members, "summary_manifest.json", result)
+            if manifest is not None and (
+                stage.get("status") != manifest.get("status")
+                or stage.get("parent_package_sha256")
+                != manifest.get("parent_package_sha256")
+            ):
+                result.fail("summary_stage.json không khớp manifest status/lineage")
+            result.checks["summary_stage"] = "PASS" if not result.errors else "FAIL"
     _audit_media_contracts(members, result)
 
     summary_visual = (

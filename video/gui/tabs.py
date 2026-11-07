@@ -24,7 +24,11 @@ from video.gui.panel_utils import (
     render_json_summary_expander,
     render_session_history,
 )
-from video.gui.progress_details import format_duration, format_progress_text
+from video.gui.progress_details import (
+    format_duration,
+    format_progress_text,
+    initial_video_progress,
+)
 from video.gui.runtime_usage import render_runtime_usage_compact
 from video.gui.service import run_concat_job, run_video_job
 from video.gui.shared_state import (
@@ -861,7 +865,8 @@ def render_run_tab(settings: dict[str, Any]) -> None:
         detail_col.caption(f"{len(preview_images)} ảnh khả dụng · tỷ lệ {settings.get('aspect', '—')}")
         detail_col.caption("Thứ tự đầy đủ có thể kiểm tra ở mục Xem trước.")
 
-    progress = st.progress(0.0, text=format_progress_text(0, "Not started", [f"mode={settings.get('mode')}", f"aspect={settings.get('aspect')}"]))
+    initial_value, initial_text = initial_video_progress(st.session_state, settings)
+    progress = st.progress(initial_value, text=initial_text)
     status = st.empty()
     st.html(VIDEO_RUN_PREVIEW_STYLE)
     with st.container(key="video_run_preview"):
@@ -881,10 +886,11 @@ def render_run_tab(settings: dict[str, Any]) -> None:
             )
         update_global_run_monitor(
             app="Video",
-            stage="Render",
+            stage="Chuẩn bị",
             status="running",
-            progress=10,
+            progress=1,
             summary=inputs["summary"],
+            message="Đang chuẩn bị đầu vào",
         )
         append_global_run_event(
             app="Video",
@@ -924,10 +930,12 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                 render_runtime_usage_compact()
                 update_global_run_monitor(
                     app="Video",
-                    stage="Render",
+                    stage="Hậu kiểm" if percent >= 85 else ("Mã hóa video" if percent >= 5 else "Chuẩn bị"),
                     status="running",
                     progress=percent,
                     summary=inputs["summary"],
+                    output_path=str(inputs["output"]) if percent >= 85 else "",
+                    message=message or "Đang xử lý",
                 )
 
             result = run_video_job(
@@ -1011,6 +1019,7 @@ def render_run_tab(settings: dict[str, Any]) -> None:
                 progress=100,
                 output_path=workspace_source_outputs(st.session_state).video_output,
                 summary=inputs["summary"],
+                message="Video sẵn sàng bàn giao",
             )
             append_global_run_event(
                 app="Video",

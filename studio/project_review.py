@@ -1,4 +1,6 @@
 """Shared package assessment for both Studio summaries."""
+import hashlib
+import json
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -26,6 +28,116 @@ VERIFICATION_SOURCE_LABELS = {
 }
 
 
+def _summary_workflow(root: Path) -> dict[str, Any] | None:
+    """Return the workflow view for an extracted canonical Summary package.
+
+    Summary packages deliberately use ``summary_manifest.json`` and
+    ``summary_stage.json``.  Treating their Story projection as a standalone
+    Story package produces a false "missing manifest.json" failure.
+    """
+    summary_path = root / "summary.json"
+    manifest_path = root / "summary_manifest.json"
+    stage_path = root / "summary_stage.json"
+    if not summary_path.is_file() or not manifest_path.is_file():
+        return None
+
+    checks: list[dict[str, str]] = []
+    errors: list[str] = []
+    manifest: dict[str, Any] = {}
+    stage_document: dict[str, Any] = {}
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            raise ValueError("root phải là object")
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        errors.append(f"summary_manifest.json không hợp lệ: {exc}")
+    try:
+        if stage_path.is_file():
+            stage_document = json.loads(stage_path.read_text(encoding="utf-8"))
+            if not isinstance(stage_document, dict):
+                raise ValueError("root phải là object")
+        else:
+            errors.append("Thiếu summary_stage.json")
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        errors.append(f"summary_stage.json không hợp lệ: {exc}")
+
+    stage_number = stage_document.get("stage")
+    stage = f"STAGE{stage_number}" if type(stage_number) is int and stage_number in {1, 2, 3} else None
+    if stage is None:
+        errors.append("summary_stage.stage phải là số nguyên 1..3")
+    manifest_status = manifest.get("status")
+    stage_status = stage_document.get("status")
+    if manifest_status not in {"COMPLETE", "PARTIAL", "BLOCKED"}:
+        errors.append("summary_manifest.status không hợp lệ")
+    if stage_status != manifest_status:
+        errors.append("summary_stage.status không khớp summary_manifest.status")
+
+    rows = manifest.get("files")
+    declared: set[str] = set()
+    if not isinstance(rows, list):
+        errors.append("summary_manifest.files phải là array")
+        rows = []
+    for index, row in enumerate(rows, 1):
+        if not isinstance(row, Mapping):
+            errors.append(f"summary_manifest.files[{index}] không hợp lệ")
+            continue
+        name = row.get("path")
+        if not isinstance(name, str) or not name or name in declared:
+            errors.append(f"summary_manifest.files[{index}].path không hợp lệ hoặc trùng")
+            continue
+        declared.add(name)
+        candidate = (root / name).resolve()
+        try:
+            if not candidate.is_relative_to(root.resolve()):
+                raise ValueError("đường dẫn ngoài dự án")
+            raw = candidate.read_bytes()
+        except (OSError, ValueError) as exc:
+            errors.append(f"Không đọc được {name}: {exc}")
+            continue
+        if row.get("size_bytes") != len(raw) or row.get("sha256") != hashlib.sha256(raw).hexdigest():
+            errors.append(f"Manifest size/hash không khớp: {name}")
+
+    actual = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and path.name != "summary_manifest.json"
+    }
+    if declared != actual:
+        missing = sorted(declared - actual)
+        extra = sorted(actual - declared)
+        detail = []
+        if missing:
+            detail.append("thiếu " + ", ".join(missing[:3]))
+        if extra:
+            detail.append("ngoài manifest " + ", ".join(extra[:3]))
+        errors.append("Manifest file set không khớp payload" + (": " + "; ".join(detail) if detail else ""))
+
+    integrity = "FAIL" if errors else "PASS"
+    checks.append({
+        "check": "summary_manifest",
+        "status": integrity,
+        "detector_class": "DETERMINISTIC",
+        "detail": "; ".join(errors) if errors else "Summary manifest, file set, size và SHA-256 đồng bộ.",
+    })
+    overall = "FAIL" if errors or manifest_status == "BLOCKED" else ("PASS" if manifest_status == "COMPLETE" else "PARTIAL")
+    stage_gate = "PASS" if not errors and manifest_status == "COMPLETE" else ("FAIL" if errors else "PARTIAL")
+    return {
+        "stage": stage,
+        "status": overall,
+        "overall_status": overall,
+        "integrity_status": integrity,
+        "stage_gate_status": stage_gate,
+        "publish_status": "PASS" if overall == "PASS" else overall,
+        "package_completion_status": manifest_status,
+        "manifest": manifest,
+        "files": rows,
+        "checks": checks,
+        "verification_source": "SUMMARY_DIRECTORY",
+        "source_comparison": None,
+        "package_kind": "SUMMARY",
+    }
+
+
 def selected_verification_source(root: Path, state: Mapping[str, Any]) -> str:
     if state.get(VERIFICATION_ROOT_KEY) != str(root.resolve()):
         return DIRECTORY_SOURCE
@@ -42,6 +154,9 @@ def inspect_selected_workflow(root: Path, state: Mapping[str, Any], *, overridde
                               parent: Mapping[str, bytes] | None = None) -> dict[str, Any]:
     """Inspect the shared verification source and compare ZIP bytes with the content directory."""
     source = selected_verification_source(root, state)
+    summary = _summary_workflow(root) if source == DIRECTORY_SOURCE else None
+    if summary is not None:
+        return summary
     directory_result = inspect_directory(root, overridden=overridden, parent=parent)
     if source == DIRECTORY_SOURCE:
         directory_result["verification_source"] = source
@@ -145,6 +260,17 @@ def review_package(root: Path, reports: Mapping[str, Any], statuses: Mapping[str
     workflow["video_prompt_validation"] = video_plan_result
     bindings = inspect_report_bindings(root, reports, story_bytes=overrides.get("story"))
     assets = inspect_project_assets(root, reports)
+    if workflow.get("package_kind") == "SUMMARY":
+        declared_files = {
+            str(row.get("path"))
+            for row in _items(_object(workflow.get("manifest")).get("files"))
+            if row.get("path")
+        }
+        # ``story.json`` is only a production projection for Summary packages.
+        # Its visual plan may expose Story-only convenience slots (cover,
+        # greeting, farewell, outro); they are not package requirements unless
+        # the Summary manifest actually declares them.
+        assets = [row for row in assets if str(row.get("name")) in declared_files]
     issues = ([] if validation.get("prompt_version") in {"4.1.6", "4.2.0", "5.0.0", "5.1.0", "5.2.0", "5.2.2"} else
               [{"section": "Kiểm định", "text": text} for text in gate_issues(validation)])
     if video_plan_issue:

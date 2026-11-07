@@ -251,3 +251,29 @@ def test_quality_gate_error_preserves_created_artifact_paths(tmp_path: Path) -> 
     assert error.output_path.name == "story.mp4"
     assert error.report_path.name == "story.video_quality.json"
     assert "visual_ssim" in str(error)
+
+
+def test_visual_ssim_reports_scene_progress(monkeypatch, tmp_path: Path) -> None:
+    video = tmp_path / "video.mp4"
+    reference = tmp_path / "scene_0004.png"
+    video.write_bytes(b"video")
+    reference.write_bytes(b"image")
+    monkeypatch.setattr(
+        media_quality,
+        "_run_quality_command",
+        lambda *_args, **_kwargs: type("Result", (), {"stderr": "All:0.98", "returncode": 0})(),
+    )
+    updates: list[tuple[float, str]] = []
+
+    media_quality.sample_visual_ssim(
+        video,
+        [reference],
+        width=1920,
+        height=1080,
+        duration=10.0,
+        ffmpeg_exe="ffmpeg",
+        progress_callback=lambda value, message: updates.append((value, message)),
+    )
+
+    assert updates[0] == (0.0, "Đang đối chiếu cảnh 1/1: scene_0004.png")
+    assert updates[-1] == (1.0, "Đã đối chiếu 1/1 cảnh")

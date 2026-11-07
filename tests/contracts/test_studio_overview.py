@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -9,16 +10,21 @@ from PIL import Image
 from studio.overview import build_overview_model, workflow_verdict
 from studio.project_context import project_directory_has_files
 from studio.story_images import EXPECTED_IMAGE_STEMS
-from studio.workflow_views import workflow_stage_caption
+from studio.workflow_views import render_manifest_repair, workflow_stage_caption
 
 
-@pytest.mark.parametrize("status,message,kind", [
-    ("PASS", "Gói đạt các phép kiểm tra đã chạy", "success"),
-    ("PARTIAL", "Gói đã kiểm định nhưng chưa hoàn tất", "warning"),
-    ("NOT_VERIFIED", "Gói chưa được xác minh đầy đủ", "warning"),
-    ("FAIL", "Gói có lỗi cần xử lý", "error"),
-])
-def test_workflow_status_drives_overview_banner_and_stage_caption(status, message, kind):
+@pytest.mark.parametrize(
+    "status,message,kind",
+    [
+        ("PASS", "Gói đạt các phép kiểm tra đã chạy", "success"),
+        ("PARTIAL", "Gói đã kiểm định nhưng chưa hoàn tất", "warning"),
+        ("NOT_VERIFIED", "Gói chưa được xác minh đầy đủ", "warning"),
+        ("FAIL", "Gói có lỗi cần xử lý", "error"),
+    ],
+)
+def test_workflow_status_drives_overview_banner_and_stage_caption(
+    status, message, kind
+):
     assert workflow_verdict(status) == (message, kind)
     caption = workflow_stage_caption("STAGE4", "STAGE4", status)
     if status == "PASS":
@@ -33,12 +39,20 @@ def test_workflow_status_drives_overview_banner_and_stage_caption(status, messag
 
 
 def test_workflow_stage_caption_distinguishes_completed_current_and_future_stages():
-    assert workflow_stage_caption("STAGE1", "STAGE3", "PASS") == "Đã hoàn thành · dữ liệu có trong gói hiện tại"
-    assert workflow_stage_caption("STAGE3", "STAGE3", "PASS") == "Stage hiện tại · đạt các phép kiểm tra đã chạy"
+    assert (
+        workflow_stage_caption("STAGE1", "STAGE3", "PASS")
+        == "Đã hoàn thành · dữ liệu có trong gói hiện tại"
+    )
+    assert (
+        workflow_stage_caption("STAGE3", "STAGE3", "PASS")
+        == "Stage hiện tại · đạt các phép kiểm tra đã chạy"
+    )
     assert workflow_stage_caption("STAGE4", "STAGE3", "PASS") == "Chưa thực hiện"
 
 
-def test_overview_model_combines_story_reports_and_pipeline_outputs(tmp_path: Path) -> None:
+def test_overview_model_combines_story_reports_and_pipeline_outputs(
+    tmp_path: Path,
+) -> None:
     audio = tmp_path / "story.mp3"
     subtitle = tmp_path / "story.srt"
     audio.write_bytes(b"audio")
@@ -50,16 +64,31 @@ def test_overview_model_combines_story_reports_and_pipeline_outputs(tmp_path: Pa
                 "title": "Chuyện thử",
                 "episode": 2,
                 "estimated_minutes": 8.5,
-            }
-            ,"outline": [{"scene_id": f"sc{i}"} for i in range(4)]
-            ,"script": [{"text": "một hai ba"}]
+            },
+            "outline": [{"scene_id": f"sc{i}"} for i in range(4)],
+            "script": [{"text": "một hai ba"}],
         },
-        "validation": {"prompt_version": "4.1.6", "status": "COMPLETE", "checks": [
-            {"id": "SCHEMA_LINKS", "status": "PASS"}
-        ], "limitations": [], "remaining_work": []},
+        "validation": {
+            "prompt_version": "4.1.6",
+            "status": "COMPLETE",
+            "checks": [{"id": "SCHEMA_LINKS", "status": "PASS"}],
+            "limitations": [],
+            "remaining_work": [],
+        },
     }
-    statuses = {"story": "Có dữ liệu", "validation": "Có dữ liệu", "quality": "Thiếu", "anchor": "Thiếu"}
-    state = {"last_result_summary": {"out_file": str(audio), "srt_path": str(subtitle), "audio_format": "mp3"}}
+    statuses = {
+        "story": "Có dữ liệu",
+        "validation": "Có dữ liệu",
+        "quality": "Thiếu",
+        "anchor": "Thiếu",
+    }
+    state = {
+        "last_result_summary": {
+            "out_file": str(audio),
+            "srt_path": str(subtitle),
+            "audio_format": "mp3",
+        }
+    }
 
     model = build_overview_model(reports, statuses, state, output_dir=tmp_path)
 
@@ -105,6 +134,175 @@ def test_overview_exposes_selected_package_versions(tmp_path: Path) -> None:
     ]
 
 
+def test_overview_recognizes_extracted_summary_package_without_story_manifest(
+    tmp_path: Path,
+) -> None:
+    summary_raw = json.dumps({"schema_version": "1.1.0"}).encode()
+    stage_raw = json.dumps(
+        {
+            "schema_version": "1.0.0",
+            "prompt_version": "1.5.2",
+            "stage": 3,
+            "parent_package_sha256": "a" * 64,
+            "status": "PARTIAL",
+        }
+    ).encode()
+    validation_raw = json.dumps({"status": "PARTIAL"}).encode()
+    (tmp_path / "summary.json").write_bytes(summary_raw)
+    (tmp_path / "summary_stage.json").write_bytes(stage_raw)
+    (tmp_path / "summary_validation_report.json").write_bytes(validation_raw)
+    files = [
+        {
+            "path": name,
+            "size_bytes": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "origin": "STAGE1_CANONICAL",
+        }
+        for name, raw in (
+            ("summary.json", summary_raw),
+            ("summary_stage.json", stage_raw),
+            ("summary_validation_report.json", validation_raw),
+        )
+    ]
+    (tmp_path / "summary_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "prompt_version": "1.5.2",
+                "status": "PARTIAL",
+                "parent_package_sha256": "a" * 64,
+                "source_fingerprints": [],
+                "files": files,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    model = build_overview_model(
+        {"story": {"meta": {"title": "Summary thử"}}},
+        {"story": "Có dữ liệu"},
+        {},
+        output_dir=tmp_path,
+    )
+
+    assert model["workflow"]["package_kind"] == "SUMMARY"
+    assert model["workflow"]["stage"] == "STAGE3"
+    assert model["workflow"]["integrity_status"] == "PASS"
+    assert model["verdict"] == "Gói đã kiểm định nhưng chưa hoàn tất"
+    assert not any("story.zip" in action["text"] for action in model["actions"])
+    assert not any(
+        "Bổ sung dữ liệu: Kiểm định" in action["text"] for action in model["actions"]
+    )
+
+
+def test_complete_summary_does_not_require_story_only_zone_images(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    declared_paths = []
+    for aspect in ("landscape", "portrait"):
+        directory = tmp_path / aspect
+        directory.mkdir()
+        for index in range(1, 9):
+            path = directory / f"scene_{index:04d}.png"
+            Image.new("RGB", (16, 9) if aspect == "landscape" else (9, 16)).save(path)
+            declared_paths.append(path.relative_to(tmp_path).as_posix())
+    (tmp_path / "visual_plan.json").write_text(
+        json.dumps(
+            {
+                "image_mode": "SCENE",
+                "assets": [
+                    {"basename": name, "role": "SCENE", "source_script_ids": ["s0001"]}
+                    for name in (
+                        "cover.png",
+                        "greeting.png",
+                        *[f"scene_{i:04d}.png" for i in range(1, 9)],
+                        "farewell.png",
+                        "outro.png",
+                    )
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    reports = {
+        "story": {
+            "meta": {"title": "Summary hoàn tất"},
+            "script": [{"id": "s0001", "text": "Nội dung"}],
+        },
+        "validation": {
+            "prompt_version": "5.2.2",
+            "status": "COMPLETE",
+            "checks": [],
+            "remaining_work": [],
+        },
+        "workflow": {
+            "package_kind": "SUMMARY",
+            "stage": "STAGE3",
+            "status": "PASS",
+            "overall_status": "PASS",
+            "integrity_status": "PASS",
+            "stage_gate_status": "PASS",
+            "publish_status": "PASS",
+            "package_completion_status": "COMPLETE",
+            "manifest": {
+                "status": "COMPLETE",
+                "files": [{"path": path} for path in declared_paths],
+            },
+            "checks": [],
+        },
+    }
+    workflow = reports["workflow"]
+    monkeypatch.setattr(
+        "studio.overview.review_package",
+        lambda *_args, **_kwargs: {
+            "workflow": workflow,
+            "story_ready": True,
+            "issues": [],
+            "asset_issues": [],
+        },
+    )
+
+    model = build_overview_model(reports, {}, {}, output_dir=tmp_path)
+
+    assert not any("ảnh cần kiểm tra" in action["text"] for action in model["actions"])
+    assert model["image_assets"]["landscape"]["expected"] == 8
+    assert model["image_assets"]["landscape"]["count"] == 8
+    assert model["image_assets"]["portrait"]["expected"] == 8
+    assert model["image_assets"]["portrait"]["count"] == 8
+    landscape_row = next(
+        row for row in model["resources"] if row[0] == "Ảnh · Landscape"
+    )
+    assert landscape_row[1:3] == ("Đủ file", "8/8 ảnh")
+
+
+def test_overview_banner_does_not_embed_primary_action() -> None:
+    source = Path("studio/overview.py").read_text(encoding="utf-8")
+    banner = "st.markdown(f\"### {model['verdict']}\")"
+
+    assert banner in source
+
+
+def test_story_manifest_repair_is_noop_for_summary_package(tmp_path: Path) -> None:
+    render_manifest_repair(
+        tmp_path,
+        {
+            "package_kind": "SUMMARY",
+            "integrity_status": "PASS",
+            "package_completion_status": "PARTIAL",
+        },
+    )
+
+
+def test_workflow_workspace_routes_summary_before_story_manifest_tools() -> None:
+    source = Path("studio/workflow_views.py").read_text(encoding="utf-8")
+    start = source.index("def render_workflow_workspace")
+    summary_route = source.index('if (root / "summary.json").is_file()', start)
+    story_repair = source.index("render_manifest_repair(root, result)", start)
+
+    assert summary_route < story_repair
+
+
 def test_overview_treats_directory_without_files_as_empty(tmp_path: Path) -> None:
     (tmp_path / "landscape").mkdir()
 
@@ -131,7 +329,9 @@ def test_overview_exposes_atomic_stage_completion_action() -> None:
     assert "restore_integrity_backup(output_dir" in source
 
 
-def test_overview_uses_current_production_settings_before_first_render(tmp_path: Path) -> None:
+def test_overview_uses_current_production_settings_before_first_render(
+    tmp_path: Path,
+) -> None:
     state = {
         "audio_production_settings": {
             "tts_provider": "vieneu",
@@ -173,7 +373,9 @@ def test_completed_run_overrides_current_production_settings(tmp_path: Path) -> 
     assert model["video"]["Tỷ lệ"] == "9x16"
 
 
-def test_overview_restores_production_settings_from_persisted_quality_reports(tmp_path: Path) -> None:
+def test_overview_restores_production_settings_from_persisted_quality_reports(
+    tmp_path: Path,
+) -> None:
     reports = {
         "audio_quality": {
             "audio_file": str(tmp_path / "story.wav"),
@@ -186,8 +388,11 @@ def test_overview_restores_production_settings_from_persisted_quality_reports(tm
             "video_landscape": {
                 "quality": {
                     "video_stream": {
-                        "codec_name": "h264", "profile": "High", "pix_fmt": "yuv420p",
-                        "display_aspect_ratio": "16:9", "avg_frame_rate": "24/1",
+                        "codec_name": "h264",
+                        "profile": "High",
+                        "pix_fmt": "yuv420p",
+                        "display_aspect_ratio": "16:9",
+                        "avg_frame_rate": "24/1",
                     },
                     "subtitle": {"present": True},
                 },
@@ -208,10 +413,24 @@ def test_overview_restores_production_settings_from_persisted_quality_reports(tm
     assert model["video"]["Phụ đề"] == "Bật"
 
 
-def test_overview_uses_current_scenes_directory_and_canonical_image_count(tmp_path: Path) -> None:
-    (tmp_path / "visual_plan.json").write_text(json.dumps({"image_mode": "ZONE", "targets": {
-        "landscape": {"size_policy": "MODEL_DEFAULT"}, "portrait": {"size_policy": "MODEL_DEFAULT"}},
-        "assets": [{"basename": f"{stem}.png"} for stem in EXPECTED_IMAGE_STEMS]}), encoding="utf-8")
+def test_overview_uses_current_scenes_directory_and_canonical_image_count(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "visual_plan.json").write_text(
+        json.dumps(
+            {
+                "image_mode": "ZONE",
+                "targets": {
+                    "landscape": {"size_policy": "MODEL_DEFAULT"},
+                    "portrait": {"size_policy": "MODEL_DEFAULT"},
+                },
+                "assets": [
+                    {"basename": f"{stem}.png"} for stem in EXPECTED_IMAGE_STEMS
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     landscape = tmp_path / "landscape"
     landscape.mkdir()
     for stem in EXPECTED_IMAGE_STEMS:
@@ -234,22 +453,37 @@ def test_overview_uses_current_scenes_directory_and_canonical_image_count(tmp_pa
 
     assert model["video"]["Ảnh · Landscape"] == "10/10"
     assert not any(row[0] == "Ảnh cảnh" for row in model["resources"])
-    landscape_row = next(row for row in model["resources"] if row[0] == "Ảnh · Landscape")
+    landscape_row = next(
+        row for row in model["resources"] if row[0] == "Ảnh · Landscape"
+    )
     assert landscape_row[1:3] == ("Đủ file", "10/10 ảnh")
     assert landscape_row[3] == str(landscape)
 
 
 def test_overview_selects_portrait_image_set_from_video_aspect(tmp_path: Path) -> None:
-    (tmp_path / "visual_plan.json").write_text(json.dumps({"image_mode": "ZONE", "targets": {
-        "landscape": {"size_policy": "MODEL_DEFAULT"}, "portrait": {"size_policy": "MODEL_DEFAULT"}},
-        "assets": [{"basename": f"{stem}.png"} for stem in EXPECTED_IMAGE_STEMS]}), encoding="utf-8")
+    (tmp_path / "visual_plan.json").write_text(
+        json.dumps(
+            {
+                "image_mode": "ZONE",
+                "targets": {
+                    "landscape": {"size_policy": "MODEL_DEFAULT"},
+                    "portrait": {"size_policy": "MODEL_DEFAULT"},
+                },
+                "assets": [
+                    {"basename": f"{stem}.png"} for stem in EXPECTED_IMAGE_STEMS
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     portrait = tmp_path / "portrait"
     portrait.mkdir()
     for stem in EXPECTED_IMAGE_STEMS[:3]:
         Image.new("RGB", (8, 8)).save(portrait / f"{stem}.png")
 
     model = build_overview_model(
-        {}, {},
+        {},
+        {},
         {
             "video_production_settings": {"aspect": "9x16"},
             "video_input_scenes_dir": str(portrait),
@@ -290,7 +524,9 @@ def test_overview_surfaces_repeated_sentence_count_and_action(tmp_path: Path) ->
             ],
         }
     }
-    statuses = {key: "Có dữ liệu" for key in ("story", "validation", "quality", "anchor")}
+    statuses = {
+        key: "Có dữ liệu" for key in ("story", "validation", "quality", "anchor")
+    }
 
     model = build_overview_model(reports, statuses, {}, output_dir=tmp_path)
 
@@ -298,13 +534,17 @@ def test_overview_surfaces_repeated_sentence_count_and_action(tmp_path: Path) ->
     assert any("1 cặp câu lặp" in action["text"] for action in model["actions"])
 
 
-def test_overview_navigation_uses_button_callback_instead_of_late_widget_mutation() -> None:
+def test_overview_navigation_uses_button_callback_instead_of_late_widget_mutation() -> (
+    None
+):
     source = Path("studio/overview.py").read_text(encoding="utf-8")
     assert "on_click=open_workspace" in source
-    assert 'if button_col.button(f"Mở {action[\'workspace\']}"' not in source
+    assert "if button_col.button(f\"Mở {action['workspace']}\"" not in source
 
 
-def test_overview_consolidates_integrity_failures_into_one_action(tmp_path: Path, monkeypatch) -> None:
+def test_overview_consolidates_integrity_failures_into_one_action(
+    tmp_path: Path, monkeypatch
+) -> None:
     workflow = {
         "stage": "STAGE3",
         "status": "FAIL",
@@ -312,25 +552,31 @@ def test_overview_consolidates_integrity_failures_into_one_action(tmp_path: Path
         "integrity_status": "FAIL",
         "stage_gate_status": "FAIL",
         "publish_status": "FAIL",
-        "checks": [{
-            "check": "file_digest",
-            "status": "FAIL",
-            "detail": "Payload không khớp manifest: story.json (sai SHA-256).",
-        }],
+        "checks": [
+            {
+                "check": "file_digest",
+                "status": "FAIL",
+                "detail": "Payload không khớp manifest: story.json (sai SHA-256).",
+            }
+        ],
         "manifest": {"status": "COMPLETE"},
     }
     review = {
         "workflow": workflow,
-        "issues": [{
-            "section": "Gói & quy trình",
-            "text": "file_digest: Payload không khớp manifest: story.json (sai SHA-256).",
-        }],
+        "issues": [
+            {
+                "section": "Gói & quy trình",
+                "text": "file_digest: Payload không khớp manifest: story.json (sai SHA-256).",
+            }
+        ],
         "assets": [],
         "asset_issues": [],
         "story_ready": False,
         "package_ready": False,
     }
-    monkeypatch.setattr("studio.overview.review_package", lambda *_args, **_kwargs: review)
+    monkeypatch.setattr(
+        "studio.overview.review_package", lambda *_args, **_kwargs: review
+    )
 
     model = build_overview_model({}, {}, {}, output_dir=tmp_path)
 
@@ -353,19 +599,30 @@ def test_overview_explains_video_variants_that_are_not_ready(tmp_path: Path) -> 
 
     model = build_overview_model(reports, {}, {}, output_dir=tmp_path)
 
-    video_state = next(row for row in model["progress_states"] if row["label"] == "Video")
+    video_state = next(
+        row for row in model["progress_states"] if row["label"] == "Video"
+    )
     assert video_state == {
         "label": "Video",
         "status": "0/2 đạt",
         "tone": "warning",
         "reason": "Chưa đạt: Landscape, Portrait.",
     }
-    assert [row["label"] for row in model["video_failure_details"]] == ["Landscape", "Portrait"]
-    assert "Thiếu `video_landscape.result.json`." in model["video_failure_details"][0]["reasons"]
+    assert [row["label"] for row in model["video_failure_details"]] == [
+        "Landscape",
+        "Portrait",
+    ]
+    assert (
+        "Thiếu `video_landscape.result.json`."
+        in model["video_failure_details"][0]["reasons"]
+    )
 
 
 def test_overview_does_not_infer_success_from_status_text_suffix() -> None:
     source = Path("studio/overview.py").read_text(encoding="utf-8")
 
     assert 'status.endswith(" đạt")' not in source
-    assert 'progress_icons = {"success": "✓", "warning": "!", "error": "✕", "neutral": "○"}' in source
+    assert (
+        'progress_icons = {"success": "✓", "warning": "!", "error": "✕", "neutral": "○"}'
+        in source
+    )

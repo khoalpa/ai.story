@@ -49,10 +49,12 @@ def load_project_canonical_default(
         return story_path if story_path.is_file() else None
     if not story_path.is_file():
         return None
-    text, _inspection = load_project_directory(story_path.parent)
+    text, inspection = load_project_directory(story_path.parent)
     state["canonical_json_text"] = text
     state["canonical_editor"] = text
     state[CANONICAL_PROJECT_SOURCE_KEY] = source
+    state["audio_story_package_kind"] = inspection.get("package_kind", "STORY")
+    state["audio_story_package_stage"] = inspection.get("stage")
     state[DRAFT_KEY] = False
     state.pop("audio_story_editor_error", None)
     _queue_plain_script_from_canonical(state, text)
@@ -174,7 +176,13 @@ def render_workspace_tab() -> None:
             st.rerun()
         _sync_editor_state("canonical_json_text", "canonical_editor")
         if project_story is not None:
-            st.caption(f"Gói prompt v5/v4 legacy đã kiểm tra từ Thư mục dữ liệu dự án · `{project_story}`")
+            package_kind = st.session_state.get("audio_story_package_kind", "STORY")
+            label = (
+                "Summary package đã xác minh · story.json projection"
+                if package_kind == "SUMMARY"
+                else "Gói prompt v5/v4 legacy đã kiểm tra"
+            )
+            st.caption(f"{label} từ Thư mục dữ liệu dự án · `{project_story}`")
         uploaded_canonical = st.file_uploader(
             "Tải story.json hoặc gói ZIP prompt v4", type=["json", "zip"], key="canonical_upload",
             help="Nhận story schema 4.1.3 từ prompt v5 hoặc v4 legacy; gói cũ hơn không được mở.",

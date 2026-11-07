@@ -32,7 +32,10 @@ PURPOSES: tuple[str, ...] = ()
 MANIFEST_FIELDS = ("schema_version", "prompt_version", "stage", "status", "parent_package_sha256", "files")
 FILE_FIELDS = ("path", "size_bytes", "sha256", "origin_stage")
 VALIDATION_FIELDS: tuple[str, ...] = ()
-MAX_MEMBER_BYTES = 128 * 1024 * 1024
+# Delivery packages may contain a single high-resolution video larger than
+# 128 MiB. Keep the per-member ceiling below the overall package ceiling so
+# archive-bomb protection remains bounded while valid 4K media can be audited.
+MAX_MEMBER_BYTES = 256 * 1024 * 1024
 MAX_PACKAGE_BYTES = 512 * 1024 * 1024
 MAX_JSON_BYTES = 5 * 1024 * 1024
 ZONE_BASENAMES = ("cover.png", "greeting.png", "opening.png", "introduction.png", "development.png", "climax.png", "falling.png", "ending.png", "farewell.png", "outro.png")

@@ -15,7 +15,7 @@ from studio.workflow_package import active_image_basenames, validate_visual_plan
 
 def summary_fixture() -> dict:
     return {
-        "schema_version": "1.1.0", "prompt_version": "1.4.0",
+        "schema_version": "1.1.0", "prompt_version": "1.5.0",
         "meta": {"title": "Bản tóm tắt kiểm thử", "output_type": "SUMMARY_ANALYSIS",
                  "source_genre": "NONFICTION", "style": "NEUTRAL_CLEAR",
                  "audience": "Người trưởng thành phổ thông", "language": "vi",

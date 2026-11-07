@@ -15,6 +15,8 @@ WORKSPACE_LAST_JOB_PROGRESS_KEY = "workspace_last_job_progress"
 WORKSPACE_LAST_JOB_OUTPUT_KEY = "workspace_last_job_output"
 WORKSPACE_LAST_JOB_ERROR_KEY = "workspace_last_job_error"
 WORKSPACE_LAST_JOB_SUMMARY_KEY = "workspace_last_job_summary"
+WORKSPACE_LAST_JOB_MESSAGE_KEY = "workspace_last_job_message"
+WORKSPACE_LAST_JOB_UPDATED_AT_KEY = "workspace_last_job_updated_at"
 WORKSPACE_JOB_TIMELINE_KEY = "workspace_job_timeline"
 WORKSPACE_NOW_OVERRIDE_KEY = "_workspace_now_override"
 CANONICAL_RUN_STATUSES = {"idle", "running", "warning", "failed", "blocked", "completed"}
@@ -102,6 +104,21 @@ class GlobalRunMonitorState:
         self.state[WORKSPACE_LAST_JOB_SUMMARY_KEY] = value
 
     @property
+    def message(self) -> str:
+        return _get_text(WORKSPACE_LAST_JOB_MESSAGE_KEY, state=self.state)
+
+    @message.setter
+    def message(self, value: str) -> None:
+        self.state[WORKSPACE_LAST_JOB_MESSAGE_KEY] = value or ""
+
+    @property
+    def updated_at(self) -> str:
+        return _get_text(WORKSPACE_LAST_JOB_UPDATED_AT_KEY, state=self.state)
+
+    def touch(self) -> None:
+        self.state[WORKSPACE_LAST_JOB_UPDATED_AT_KEY] = datetime.now().strftime("%H:%M:%S")
+
+    @property
     def timeline(self) -> list[dict[str, str]]:
         value = self.state.get(WORKSPACE_JOB_TIMELINE_KEY) or []
         return list(value)
@@ -119,6 +136,8 @@ class GlobalRunMonitorState:
             "output": self.output,
             "error": self.error,
             "summary": self.summary,
+            "message": self.message,
+            "updated_at": self.updated_at,
         }
 
     def append_timeline_event(

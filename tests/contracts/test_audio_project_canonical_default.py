@@ -12,6 +12,9 @@ from audio.gui.workspace import (
     load_project_canonical_default,
 )
 from studio.project_context import PROJECT_DIRECTORY_KEY
+from studio.summary_stages import build_summary_stage1
+from studio.workflow_package import read_archive
+from tests.contracts.test_summary_projection import summary_fixture
 
 
 def test_audio_loads_verified_v416_project_by_default(sample_stage1_project: Path) -> None:
@@ -40,6 +43,36 @@ def test_audio_rejects_project_without_current_manifest(tmp_path: Path) -> None:
     state: dict[str, object] = {PROJECT_DIRECTORY_KEY: str(tmp_path)}
     with pytest.raises(ValueError, match="v4.1.6"):
         load_project_canonical_default(state)
+
+
+def test_audio_loads_story_projection_from_complete_summary_directory(tmp_path: Path) -> None:
+    package = build_summary_stage1(summary_fixture(), tmp_path / "summary_stage1.zip")
+    root = tmp_path / "summary"
+    root.mkdir()
+    for name, raw in read_archive(package).items():
+        destination = root / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(raw)
+    state: dict[str, object] = {PROJECT_DIRECTORY_KEY: str(root)}
+
+    assert load_project_canonical_default(state) == (root / "story.json").resolve()
+    assert state["audio_story_package_kind"] == "SUMMARY"
+    assert state["audio_story_package_stage"] == "SUMMARY_STAGE1"
+    assert "SCRIPT:" in str(state[PENDING_PLAIN_SCRIPT_KEY])
+
+
+def test_audio_rejects_tampered_story_projection_in_summary_directory(tmp_path: Path) -> None:
+    package = build_summary_stage1(summary_fixture(), tmp_path / "summary_stage1.zip")
+    root = tmp_path / "summary"
+    root.mkdir()
+    for name, raw in read_archive(package).items():
+        destination = root / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(raw)
+    (root / "story.json").write_bytes((root / "story.json").read_bytes() + b" ")
+
+    with pytest.raises(ValueError, match="Summary package không đạt audit"):
+        load_project_canonical_default({PROJECT_DIRECTORY_KEY: str(root)})
 
 
 def test_audio_leaves_editor_unchanged_when_project_has_no_story(tmp_path: Path) -> None:

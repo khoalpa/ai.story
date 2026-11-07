@@ -1,4 +1,5 @@
 """Unified authoring, validation, quality, continuity, and tools workspace."""
+
 from __future__ import annotations
 
 from io import BytesIO
@@ -67,7 +68,7 @@ REPORT_SPECS = {
 }
 
 STORY_STUDIO_SECTIONS = (
-    "Tổng quan",
+    "Trạng thái gói",
     "Gói & quy trình",
     "Nội dung",
     "Kiểm định",
@@ -85,23 +86,48 @@ STORY_STUDIO_SECTIONS = (
 )
 
 STORY_STUDIO_GROUPS = {
-    "Tổng quan": ("Tổng quan", "Gói & quy trình"),
-    "Nội dung": ("Nội dung", "Series", "Visual Bible", "Bộ ảnh nhân vật"),
+    "Biên tập": ("Nội dung", "Series", "Visual Bible"),
     "Kiểm định": ("Kiểm định", "Chất lượng"),
-    "Sản xuất": ("Kế hoạch ảnh", "Tài nguyên", "Kế hoạch video", "Âm thanh & phụ đề", "Video đầu ra"),
-    "Dữ liệu kỹ thuật": ("Danh mục truyện", "Công cụ"),
+    "Hình ảnh": ("Bộ ảnh nhân vật", "Kế hoạch ảnh", "Tài nguyên"),
+    "Bàn giao": (
+        "Trạng thái gói",
+        "Gói & quy trình",
+        "Kế hoạch video",
+        "Âm thanh & phụ đề",
+        "Video đầu ra",
+        "Danh mục truyện",
+        "Công cụ",
+    ),
 }
 
 STORY_STUDIO_SECTION_INTROS = {
-    "Gói & quy trình": ("Gói truyện & quy trình", "Kiểm tra manifest, ZIP, bytes kế thừa và bằng chứng theo từng stage; không sửa gói nguồn."),
-    "Visual Bible": ("Visual Bible · lineage Stage 2", "Tra cứu kế hoạch hình ảnh và khóa continuity; được giữ read-only trong gói Stage 2–4."),
-    "Bộ ảnh nhân vật": ("Character Image Pack", "Kiểm bộ bốn ảnh mỗi nhân vật và tạo repair snapshot Stage 2 khi liên kết FRONT có chủ đích."),
-    "Kế hoạch ảnh": ("Kế hoạch prompt ảnh Stage 1", "Kiểm source hash, asset links và prompt ngang/dọc trước khi tạo ảnh."),
-    "Kế hoạch video": ("Kế hoạch video", "Trong v5 đây là artifact Stage 1; gói v4 legacy có thể đặt ở Stage 4."),
-    "Tài nguyên": ("Tài nguyên dự án", "Duyệt ảnh nhân vật, so sánh ngang/dọc và đối chiếu kích thước, SHA-256."),
-    "Tổng quan": (
-        "Tổng quan Story Studio",
-        "Theo dõi mức độ sẵn sàng, chỉ số chính và hành động ưu tiên của gói nội dung.",
+    "Gói & quy trình": (
+        "Gói truyện & quy trình",
+        "Kiểm tra manifest, ZIP, bytes kế thừa và bằng chứng theo từng stage; không sửa gói nguồn.",
+    ),
+    "Visual Bible": (
+        "Visual Bible · lineage Stage 2",
+        "Tra cứu kế hoạch hình ảnh và khóa continuity; được giữ read-only trong gói Stage 2–4.",
+    ),
+    "Bộ ảnh nhân vật": (
+        "Character Image Pack",
+        "Kiểm bộ bốn ảnh mỗi nhân vật và tạo repair snapshot Stage 2 khi liên kết FRONT có chủ đích.",
+    ),
+    "Kế hoạch ảnh": (
+        "Kế hoạch prompt ảnh Stage 1",
+        "Kiểm source hash, asset links và prompt ngang/dọc trước khi tạo ảnh.",
+    ),
+    "Kế hoạch video": (
+        "Kế hoạch video",
+        "Trong v5 đây là artifact Stage 1; gói v4 legacy có thể đặt ở Stage 4.",
+    ),
+    "Tài nguyên": (
+        "Tài nguyên dự án",
+        "Duyệt ảnh nhân vật, so sánh ngang/dọc và đối chiếu kích thước, SHA-256.",
+    ),
+    "Trạng thái gói": (
+        "Trạng thái gói truyện",
+        "Kiểm tra độ đầy đủ, mức độ sẵn sàng và các điều kiện bàn giao của gói truyện.",
     ),
     "Nội dung": (
         "Nội dung truyện",
@@ -138,7 +164,7 @@ STORY_STUDIO_SECTION_INTROS = {
 }
 
 STORY_STUDIO_SECTION_ANCHORS = {
-    "Tổng quan": "story-studio-overview",
+    "Trạng thái gói": "story-studio-package-status",
     "Gói & quy trình": "story-studio-package-workflow",
     "Bộ ảnh nhân vật": "story-studio-character-image-pack",
     "Kế hoạch ảnh": "story-studio-image-prompts",
@@ -191,13 +217,23 @@ def load_story_package(directory: Path) -> tuple[dict[str, Any], dict[str, str]]
             statuses[key] = f"Không hợp lệ: {exc}"
     manifest = _object(reports.get("workflow"))
     manifest_stage = manifest.get("stage")
-    stage = f"STAGE{manifest_stage}" if type(manifest_stage) is int and manifest_stage in range(1, 5) else None
+    stage = (
+        f"STAGE{manifest_stage}"
+        if type(manifest_stage) is int and manifest_stage in range(1, 5)
+        else None
+    )
     is_v5 = manifest.get("prompt_version") in {"5.0.0", "5.1.0", "5.2.0", "5.2.2"}
-    for key, applicable in (("quality", stage in {"STAGE3", "STAGE4"}),
-                            ("image_prompts", is_v5),
-                            ("visual_bible", stage in {"STAGE2", "STAGE3", "STAGE4"}),
-                            ("video_prompts", is_v5 or stage == "STAGE4")):
-        if stage in {"STAGE1", "STAGE2", "STAGE3", "STAGE4"} and not applicable and statuses.get(key) == "Thiếu":
+    for key, applicable in (
+        ("quality", stage in {"STAGE3", "STAGE4"}),
+        ("image_prompts", is_v5),
+        ("visual_bible", stage in {"STAGE2", "STAGE3", "STAGE4"}),
+        ("video_prompts", is_v5 or stage == "STAGE4"),
+    ):
+        if (
+            stage in {"STAGE1", "STAGE2", "STAGE3", "STAGE4"}
+            and not applicable
+            and statuses.get(key) == "Thiếu"
+        ):
             statuses[key] = (
                 f"Không thuộc gói {stage.replace('STAGE', 'Stage ')} · lineage Visual Bible bắt buộc từ Stage 2"
                 if key == "visual_bible"
@@ -208,7 +244,11 @@ def load_story_package(directory: Path) -> tuple[dict[str, Any], dict[str, str]]
         row.get("path") == "series_anchor.json"
         for row in _items(_object(reports.get("workflow")).get("files"))
     )
-    if statuses.get("anchor") == "Thiếu" and story_profile != "SERIAL_DETECTIVE" and not manifest_has_anchor:
+    if (
+        statuses.get("anchor") == "Thiếu"
+        and story_profile != "SERIAL_DETECTIVE"
+        and not manifest_has_anchor
+    ):
         statuses["anchor"] = "Không áp dụng"
     production, production_statuses = load_audio_delivery(directory)
     reports.update(production)
@@ -233,16 +273,21 @@ def _prepare_overrides(state: Any, directory: Path) -> dict[str, bytes]:
 
 def _has_active_overrides(state: Any, directory: Path) -> bool:
     """Return whether uploaded project data is active for this directory."""
-    return (
-        state.get("story_override_root") == str(directory.resolve())
-        and bool(state.get("story_overrides"))
+    return state.get("story_override_root") == str(directory.resolve()) and bool(
+        state.get("story_overrides")
     )
 
 
-def load_effective_package(directory: Path, state: Any) -> tuple[dict[str, Any], dict[str, str]]:
+def load_effective_package(
+    directory: Path, state: Any
+) -> tuple[dict[str, Any], dict[str, str]]:
     """Re-read disk files, then apply durable project-scoped uploaded bytes."""
     reports, statuses = load_story_package(directory)
-    overrides = state.get("story_overrides", {}) if state.get("story_override_root") == str(directory.resolve()) else {}
+    overrides = (
+        state.get("story_overrides", {})
+        if state.get("story_override_root") == str(directory.resolve())
+        else {}
+    )
     for key, raw in overrides.items():
         try:
             source = BytesIO(raw)
@@ -253,7 +298,9 @@ def load_effective_package(directory: Path, state: Any) -> tuple[dict[str, Any],
             elif key in PRODUCTION_FILES:
                 reports[key] = read_audio_delivery_override(source, key)
             else:
-                apply_video_report_override(reports.setdefault("video_deliveries", {}), source, key)
+                apply_video_report_override(
+                    reports.setdefault("video_deliveries", {}), source, key
+                )
             statuses[key] = "Có dữ liệu · tệp thay thế"
         except (OSError, UnicodeError, ValueError) as exc:
             if key in REPORT_SPECS or key in PRODUCTION_FILES:
@@ -268,23 +315,48 @@ def load_effective_package(directory: Path, state: Any) -> tuple[dict[str, Any],
 
 
 def render_source_provenance(
-    directory: Path, reports: Mapping[str, Any], statuses: Mapping[str, str], *, compact: bool = False,
+    directory: Path,
+    reports: Mapping[str, Any],
+    statuses: Mapping[str, str],
+    *,
+    compact: bool = False,
 ) -> None:
     import streamlit as st
 
-    overrides = st.session_state.get("story_overrides", {}) if st.session_state.get("story_override_root") == str(directory.resolve()) else {}
-    content_detail = f"{len(overrides)} tệp thay thế đang dùng" if overrides else "Từ thư mục"
+    overrides = (
+        st.session_state.get("story_overrides", {})
+        if st.session_state.get("story_override_root") == str(directory.resolve())
+        else {}
+    )
+    content_detail = (
+        f"{len(overrides)} tệp thay thế đang dùng" if overrides else "Từ thư mục"
+    )
     if not compact:
         st.caption(f"Nguồn nội dung: {directory.resolve()} · {content_detail}")
-        st.caption(f"Nguồn kiểm định: {verification_source_label(directory, st.session_state)}")
+        st.caption(
+            f"Nguồn kiểm định: {verification_source_label(directory, st.session_state)}"
+        )
     source_label = "Thông tin nguồn" if compact else "Nguồn dữ liệu và độ mới báo cáo"
     with st.expander(source_label):
         if compact:
             st.caption(f"Nguồn nội dung: {directory.resolve()} · {content_detail}")
-            st.caption(f"Nguồn kiểm định: {verification_source_label(directory, st.session_state)}")
-        st.caption("Điểm là khai báo của báo cáo; kiểm tra tại máy chỉ đối chiếu bytes và tài nguyên, không chấm lại truyện.")
-        st.dataframe([{"Thành phần": key, "Nguồn / trạng thái": value} for key, value in statuses.items()], hide_index=True, width="stretch")
-        for row in inspect_report_bindings(directory, reports, story_bytes=overrides.get("story")):
+            st.caption(
+                f"Nguồn kiểm định: {verification_source_label(directory, st.session_state)}"
+            )
+        st.caption(
+            "Điểm là khai báo của báo cáo; kiểm tra tại máy chỉ đối chiếu bytes và tài nguyên, không chấm lại truyện."
+        )
+        st.dataframe(
+            [
+                {"Thành phần": key, "Nguồn / trạng thái": value}
+                for key, value in statuses.items()
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+        for row in inspect_report_bindings(
+            directory, reports, story_bytes=overrides.get("story")
+        ):
             message = f"{row['report']}: {row['status']}"
             (st.warning if "đã cũ" in row["status"] else st.caption)(message)
 
@@ -336,21 +408,33 @@ def _render_source_selector() -> tuple[dict[str, Any], dict[str, str]]:
     if st.session_state.get("story_studio_directory_error"):
         st.error(st.session_state["story_studio_directory_error"])
     else:
-        st.caption("Mặc định đồng bộ theo Thư mục dữ liệu dự án; lựa chọn riêng chỉ áp dụng cho Story Studio.")
+        st.caption(
+            "Mặc định đồng bộ theo Thư mục dữ liệu dự án; lựa chọn riêng chỉ áp dụng cho Story Studio."
+        )
     directory = Path(directory_text.strip()).expanduser()
     overrides = _prepare_overrides(st.session_state, directory)
     reports, statuses = load_effective_package(directory, st.session_state)
 
-    with st.expander("Chọn tệp riêng để thay thế dữ liệu trong thư mục"):
-        st.caption("Tệp thay thế dùng chung giữa các mục và Overview của cùng dự án. Không ghi đè tệp trên đĩa; dùng nút bên dưới để trở lại dữ liệu thư mục.")
+    active_override_count = sum(
+        key in overrides for key in (*REPORT_SPECS, "video_prompts", *PRODUCTION_FILES)
+    )
+    st.caption(f"NGUỒN · {directory} · {active_override_count} tệp thay thế")
+    with st.expander("Quản lý nguồn dữ liệu", expanded=False):
+        st.caption(
+            "Tệp thay thế dùng chung giữa các mục và Overview của cùng dự án. Không ghi đè tệp trên đĩa; dùng nút bên dưới để trở lại dữ liệu thư mục."
+        )
+
         def clear_overrides() -> None:
             st.session_state["story_overrides"] = {}
             for key in list(st.session_state):
                 if key.startswith("story_studio_upload_"):
                     st.session_state.pop(key, None)
+
         st.button("Bỏ tất cả tệp thay thế", on_click=clear_overrides)
         columns = st.columns(2)
-        for index, (key, (filename, label, _validator)) in enumerate(REPORT_SPECS.items()):
+        for index, (key, (filename, label, _validator)) in enumerate(
+            REPORT_SPECS.items()
+        ):
             uploaded = columns[index % 2].file_uploader(
                 f"{label} · {filename}", type=["json"], key=f"story_studio_upload_{key}"
             )
@@ -382,7 +466,9 @@ def _render_source_selector() -> tuple[dict[str, Any], dict[str, str]]:
             ("subtitle", "Phụ đề", ["srt"]),
             ("handoff", "Bàn giao video", ["json"]),
         )
-        for index, (key, label, file_types) in enumerate(production_uploads, start=len(REPORT_SPECS) + 1):
+        for index, (key, label, file_types) in enumerate(
+            production_uploads, start=len(REPORT_SPECS) + 1
+        ):
             filename = PRODUCTION_FILES[key]
             uploaded = columns[index % 2].file_uploader(
                 f"{label} · {filename}",
@@ -421,12 +507,22 @@ def _render_source_selector() -> tuple[dict[str, Any], dict[str, str]]:
 
     render_source_provenance(directory, reports, statuses)
     status_columns = st.columns(4)
-    for column, (key, (_filename, label, _validator)) in zip(status_columns, REPORT_SPECS.items()):
+    for column, (key, (_filename, label, _validator)) in zip(
+        status_columns, REPORT_SPECS.items()
+    ):
         status = statuses.get(key, "Thiếu")
-        icon = "✓" if status.startswith("Có dữ liệu") else ("—" if status == "Thiếu" else "!")
+        icon = (
+            "✓"
+            if status.startswith("Có dữ liệu")
+            else ("—" if status == "Thiếu" else "!")
+        )
         column.metric(label, f"{icon} {status}")
     stage_number = _object(reports.get("workflow")).get("stage")
-    stage = f"STAGE{stage_number}" if type(stage_number) is int and stage_number in range(1, 5) else None
+    stage = (
+        f"STAGE{stage_number}"
+        if type(stage_number) is int and stage_number in range(1, 5)
+        else None
+    )
     if stage == "STAGE2":
         visual_status = statuses.get("visual_bible", "Thiếu")
         icon = "✓" if visual_status.startswith("Có dữ liệu") else "!"
@@ -439,15 +535,25 @@ def _render_source_selector() -> tuple[dict[str, Any], dict[str, str]]:
         (("audio_quality", "Audio"), ("subtitle", "Phụ đề"), ("handoff", "Handoff")),
     ):
         status = statuses.get(key, "Thiếu")
-        icon = "✓" if status.startswith("Có dữ liệu") else ("—" if status == "Thiếu" else "!")
+        icon = (
+            "✓"
+            if status.startswith("Có dữ liệu")
+            else ("—" if status == "Thiếu" else "!")
+        )
         column.metric(label, f"{icon} {status}")
     video_variants = reports.get("video_deliveries", {})
     st.caption("ĐẦU RA VIDEO")
     if isinstance(video_variants, Mapping) and video_variants:
         video_columns = st.columns(min(4, len(video_variants)))
-        for column, (variant, variant_reports) in zip(video_columns, sorted(video_variants.items())):
-            result_ok = isinstance(variant_reports, Mapping) and "result" in variant_reports
-            quality_ok = isinstance(variant_reports, Mapping) and "quality" in variant_reports
+        for column, (variant, variant_reports) in zip(
+            video_columns, sorted(video_variants.items())
+        ):
+            result_ok = (
+                isinstance(variant_reports, Mapping) and "result" in variant_reports
+            )
+            quality_ok = (
+                isinstance(variant_reports, Mapping) and "quality" in variant_reports
+            )
             column.metric(
                 variant.replace("video_", "").replace("_", " ").title(),
                 f"{'✓' if result_ok and quality_ok else '!'} {int(result_ok) + int(quality_ok)}/2 báo cáo",
@@ -461,10 +567,17 @@ def _story_title(reports: Mapping[str, Mapping[str, Any]]) -> str:
     story_meta = _object(_object(reports.get("story")).get("meta"))
     quality_identity = _object(_object(reports.get("quality")).get("package_identity"))
     anchor_series = _object(_object(reports.get("anchor")).get("series"))
-    return str(story_meta.get("title") or quality_identity.get("title") or anchor_series.get("title") or "Gói nội dung")
+    return str(
+        story_meta.get("title")
+        or quality_identity.get("title")
+        or anchor_series.get("title")
+        or "Gói nội dung"
+    )
 
 
-def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping[str, str]) -> None:
+def _render_overview(
+    reports: Mapping[str, Mapping[str, Any]], statuses: Mapping[str, str]
+) -> None:
     import streamlit as st
 
     story = _object(reports.get("story"))
@@ -472,7 +585,9 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
     anchor = _object(reports.get("anchor"))
     continuity = _object(anchor.get("continuity"))
     checks = _items(validation.get("checks"))
-    passed_checks = sum(row.get("status") in {"PASS", "NOT_APPLICABLE"} for row in checks)
+    passed_checks = sum(
+        row.get("status") in {"PASS", "NOT_APPLICABLE"} for row in checks
+    )
     failed_checks = sum(row.get("status") == "FAIL" for row in checks)
     remaining_work = _items(validation.get("remaining_work"))
     repetition = analyze_story_repetition(story) if story else {"summary": {}}
@@ -480,7 +595,9 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
     repetition_pairs = int(repetition_summary.get("pair_count") or 0)
     repeated_sentences = int(repetition_summary.get("affected_sentence_count") or 0)
 
-    image_root = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
+    image_root = Path(
+        str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")
+    ).expanduser()
     review = review_package(image_root, reports, statuses, st.session_state)
     publish_ready = review["package_ready"]
     production_ready = review["story_ready"]
@@ -490,42 +607,83 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
         if statuses.get(key) == "Thiếu" and key in required_report_keys(reports)
     ]
     if review["workflow"]["stage"]:
-        st.info("Trạng thái gói nằm trong quy trình bên trên. Audio/video render được theo dõi độc lập.")
-    elif failed_checks or remaining_work or review["issues"] or (validation and not production_ready):
-        verdict, message = "Cần xử lý", "Có lỗi hoặc cổng kiểm định cần xem lại trước khi tiếp tục."
+        st.info(
+            "Trạng thái gói nằm trong quy trình bên trên. Audio/video render được theo dõi độc lập."
+        )
+    elif (
+        failed_checks
+        or remaining_work
+        or review["issues"]
+        or (validation and not production_ready)
+    ):
+        verdict, message = (
+            "Cần xử lý",
+            "Có lỗi hoặc cổng kiểm định cần xem lại trước khi tiếp tục.",
+        )
         st.error(f"**{verdict}** · {message}")
     elif publish_ready and production_ready:
-        st.success("**Gói nội dung đạt** · Theo báo cáo truyện và chất lượng gói; chưa phải kết luận xuất bản audio/video.")
+        st.success(
+            "**Gói nội dung đạt** · Theo báo cáo truyện và chất lượng gói; chưa phải kết luận xuất bản audio/video."
+        )
     elif production_ready:
-        st.info("**Truyện đạt theo báo cáo** · Cần hoàn tất các kiểm tra chất lượng gói và tài nguyên bên dưới.")
+        st.info(
+            "**Truyện đạt theo báo cáo** · Cần hoàn tất các kiểm tra chất lượng gói và tài nguyên bên dưới."
+        )
     else:
         st.warning("**Chưa đủ dữ liệu kết luận** · Bổ sung các báo cáo còn thiếu.")
 
     st.subheader("Hành động ưu tiên")
-    actions: list[str] = [f"Mở **{issue['section']}**: {issue['text']}" for issue in review["issues"]]
+    actions: list[str] = [
+        f"Mở **{issue['section']}**: {issue['text']}" for issue in review["issues"]
+    ]
     if review["asset_issues"]:
-        actions.append(f"Mở **Tài nguyên**: {len(review['asset_issues'])} ảnh cần kiểm tra.")
+        actions.append(
+            f"Mở **Tài nguyên**: {len(review['asset_issues'])} ảnh cần kiểm tra."
+        )
     if missing:
         actions.append("Bổ sung dữ liệu: " + ", ".join(missing) + ".")
     if failed_checks:
-        actions.append(f"Mở **Kiểm định** và xử lý {failed_checks} phép kiểm tra chưa đạt.")
+        actions.append(
+            f"Mở **Kiểm định** và xử lý {failed_checks} phép kiểm tra chưa đạt."
+        )
     if remaining_work:
-        actions.append(f"Mở **Kiểm định** và hoàn tất {len(remaining_work)} đầu việc còn lại.")
+        actions.append(
+            f"Mở **Kiểm định** và hoàn tất {len(remaining_work)} đầu việc còn lại."
+        )
     if repetition_pairs:
-        actions.append(f"Mở **Nội dung → Lặp câu** để xem lại {repetition_pairs} cặp câu lặp hoặc gần trùng.")
-    open_threads = sum(item.get("status") == "open" for item in _items(continuity.get("open_threads")))
+        actions.append(
+            f"Mở **Nội dung → Lặp câu** để xem lại {repetition_pairs} cặp câu lặp hoặc gần trùng."
+        )
+    open_threads = sum(
+        item.get("status") == "open" for item in _items(continuity.get("open_threads"))
+    )
     if open_threads:
-        actions.append(f"Mở **Series** để theo dõi {open_threads} luồng truyện đang mở.")
+        actions.append(
+            f"Mở **Series** để theo dõi {open_threads} luồng truyện đang mở."
+        )
     if not actions:
-        actions.append("Không có hành động bắt buộc cho gói nội dung." if publish_ready else "Chưa đủ dữ liệu kết luận; kiểm tra nguồn báo cáo.")
+        actions.append(
+            "Không có hành động bắt buộc cho gói nội dung."
+            if publish_ready
+            else "Chưa đủ dữ liệu kết luận; kiểm tra nguồn báo cáo."
+        )
+
     def open_section(section: str) -> None:
         st.session_state["story_studio_section"] = section
+
     for index, item in enumerate(actions):
         text_col, button_col = st.columns([4, 1])
         text_col.markdown(f"- {item}")
-        section = next((name for name in STORY_STUDIO_SECTIONS if f"**{name}" in item), None)
+        section = next(
+            (name for name in STORY_STUDIO_SECTIONS if f"**{name}" in item), None
+        )
         if section:
-            button_col.button(f"Mở {section}", key=f"story_priority_{index}", on_click=open_section, args=(section,))
+            button_col.button(
+                f"Mở {section}",
+                key=f"story_priority_{index}",
+                on_click=open_section,
+                args=(section,),
+            )
 
     with st.expander("Quy trình, gate và bằng chứng", expanded=False):
         render_workflow_summary(review["workflow"])
@@ -534,17 +692,26 @@ def _render_overview(reports: Mapping[str, Mapping[str, Any]], statuses: Mapping
     columns = st.columns(6)
     columns[0].metric("Stage", review["workflow"].get("stage") or "—")
     columns[1].metric("Trạng thái", validation.get("status", "—"))
-    columns[2].metric("Kiểm tra đạt", f"{passed_checks}/{len(checks)}" if checks else "—")
+    columns[2].metric(
+        "Kiểm tra đạt", f"{passed_checks}/{len(checks)}" if checks else "—"
+    )
     columns[3].metric("Không đạt", failed_checks)
     columns[4].metric("Việc còn lại", len(remaining_work))
     columns[5].metric("Câu lặp cần xem", repeated_sentences)
 
-    image_root = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
+    image_root = Path(
+        str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")
+    ).expanduser()
     st.subheader("Hình ảnh truyện")
     stage_number = _object(reports.get("workflow")).get("stage")
-    stage = f"STAGE{stage_number}" if type(stage_number) is int and stage_number in range(1, 5) else None
-    render_aspect_cover_gallery(image_root, key_prefix="story_overview_cover", stage=stage)
-
+    stage = (
+        f"STAGE{stage_number}"
+        if type(stage_number) is int and stage_number in range(1, 5)
+        else None
+    )
+    render_aspect_cover_gallery(
+        image_root, key_prefix="story_overview_cover", stage=stage
+    )
 
 
 def _render_missing(label: str, filename: str, status: str) -> None:
@@ -552,7 +719,7 @@ def _render_missing(label: str, filename: str, status: str) -> None:
 
     render_empty_state(
         f"Chưa có dữ liệu {label.lower()}",
-        f"Thêm {filename} vào thư mục gói hoặc mở Tổng quan để chọn một tệp thay thế.",
+        f"Thêm {filename} vào thư mục gói hoặc mở Trạng thái gói để chọn một tệp thay thế.",
         icon="＋",
     )
     if status not in {"Thiếu", ""}:
@@ -566,7 +733,7 @@ def _render_technical(reports: Mapping[str, Mapping[str, Any]]) -> None:
     if not reports:
         render_empty_state(
             "Chưa có báo cáo kỹ thuật",
-            "Chọn thư mục gói ở Tổng quan; JSON nguồn và công cụ QA sẽ xuất hiện tại đây.",
+            "Chọn thư mục gói ở Trạng thái gói; JSON nguồn và công cụ QA sẽ xuất hiện tại đây.",
             icon="{}",
         )
     for key, report in reports.items():
@@ -584,9 +751,9 @@ def render_story_studio_navigation() -> str:
     """Render the shared Story Studio section selector."""
     import streamlit as st
 
-    current = str(st.session_state.get("story_studio_section") or "Tổng quan")
+    current = str(st.session_state.get("story_studio_section") or "Nội dung")
     if current not in STORY_STUDIO_SECTIONS:
-        current = "Tổng quan"
+        current = "Nội dung"
         st.session_state["story_studio_section"] = current
     current_group = next(
         group for group, sections in STORY_STUDIO_GROUPS.items() if current in sections
@@ -598,25 +765,31 @@ def render_story_studio_navigation() -> str:
         st.session_state["story_studio_group"] = current_group
 
     def select_group() -> None:
-        group = str(st.session_state.get("story_studio_group") or "Tổng quan")
+        group = str(st.session_state.get("story_studio_group") or "Biên tập")
         st.session_state["story_studio_section"] = STORY_STUDIO_GROUPS[group][0]
 
-    group = st.segmented_control(
-        "Nhóm nội dung",
-        tuple(STORY_STUDIO_GROUPS),
-        key="story_studio_group",
-        on_change=select_group,
-    ) or "Tổng quan"
+    group = (
+        st.segmented_control(
+            "Nhóm nội dung",
+            tuple(STORY_STUDIO_GROUPS),
+            key="story_studio_group",
+            on_change=select_group,
+        )
+        or "Biên tập"
+    )
     options = STORY_STUDIO_GROUPS[group]
     if st.session_state.get("story_studio_section") not in options:
         st.session_state["story_studio_section"] = options[0]
-    selected = st.segmented_control(
-        "Mục",
-        options,
-        key="story_studio_section",
-        label_visibility="collapsed" if len(options) == 1 else "visible",
-    ) or options[0]
-    return selected if selected in STORY_STUDIO_SECTIONS else "Tổng quan"
+    selected = (
+        st.segmented_control(
+            "Mục",
+            options,
+            key="story_studio_section",
+            label_visibility="collapsed" if len(options) == 1 else "visible",
+        )
+        or options[0]
+    )
+    return selected if selected in STORY_STUDIO_SECTIONS else "Nội dung"
 
 
 def render_story_studio_workspace(
@@ -625,14 +798,18 @@ def render_story_studio_workspace(
     import streamlit as st
 
     if not embedded:
-        st.set_page_config(page_title="Story Studio", page_icon=":material/auto_stories:", layout="wide")
+        st.set_page_config(
+            page_title="Story Studio",
+            page_icon=":material/auto_stories:",
+            layout="wide",
+        )
         st.header("Story Studio")
     if show_navigation:
         section = render_story_studio_navigation()
     else:
-        section = str(st.session_state.get("story_studio_section") or "Tổng quan")
+        section = str(st.session_state.get("story_studio_section") or "Nội dung")
         if section not in STORY_STUDIO_SECTIONS:
-            section = "Tổng quan"
+            section = "Nội dung"
     # Give every section a stable, distinct delta-tree slot. Reusing one slot
     # for two different st.tabs layouts can leave the previous tab group visible
     # after navigation; the inactive slots below are explicitly empty instead.
@@ -650,10 +827,15 @@ def _render_story_studio_section(section: str) -> None:
         st.header(heading, anchor=STORY_STUDIO_SECTION_ANCHORS[section])
         st.caption(caption)
     else:
-        st.markdown(f'<span id="{STORY_STUDIO_SECTION_ANCHORS[section]}"></span>', unsafe_allow_html=True)
-    if section == "Tổng quan":
+        st.markdown(
+            f'<span id="{STORY_STUDIO_SECTION_ANCHORS[section]}"></span>',
+            unsafe_allow_html=True,
+        )
+    if section == "Trạng thái gói":
         reports, statuses = _render_source_selector()
-        directory = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
+        directory = Path(
+            str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")
+        ).expanduser()
         if (
             directory.is_dir()
             and not project_directory_has_files(directory)
@@ -675,7 +857,9 @@ def _render_story_studio_section(section: str) -> None:
         return
 
     reports, statuses = _load_source_from_session()
-    directory = Path(str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")).expanduser()
+    directory = Path(
+        str(st.session_state.get(STORY_DIRECTORY_KEY) or Path.cwd() / "output")
+    ).expanduser()
     if (
         directory.is_dir()
         and not project_directory_has_files(directory)
@@ -683,60 +867,96 @@ def _render_story_studio_section(section: str) -> None:
     ):
         render_empty_state(
             "Thư mục dữ liệu dự án đang trống",
-            "Chưa có dữ liệu để hiển thị hoặc kiểm định. Hãy mở Tổng quan để chọn thư mục đã chứa gói nội dung hoặc thêm dữ liệu dự án để bắt đầu.",
+            "Chưa có dữ liệu để hiển thị hoặc kiểm định. Hãy mở Trạng thái gói để chọn thư mục đã chứa gói nội dung hoặc thêm dữ liệu dự án để bắt đầu.",
             icon="○",
         )
         return
-    render_source_provenance(directory, reports, statuses, compact=section == "Nội dung")
+    render_source_provenance(
+        directory, reports, statuses, compact=section == "Nội dung"
+    )
     if section == "Gói & quy trình":
         render_workflow_workspace(directory, reports, st.session_state)
     elif section == "Kế hoạch ảnh":
         render_image_prompt_plan(_object(reports.get("image_prompts")), root=directory)
     elif section == "Visual Bible":
         stage_number = _object(reports.get("workflow")).get("stage")
-        stage = f"STAGE{stage_number}" if type(stage_number) is int and stage_number in range(1, 5) else None
+        stage = (
+            f"STAGE{stage_number}"
+            if type(stage_number) is int and stage_number in range(1, 5)
+            else None
+        )
         if stage not in {"STAGE2", "STAGE3", "STAGE4"}:
             st.info("Visual Bible không áp dụng ở stage này.")
             if reports.get("visual_bible"):
-                st.warning("Phát hiện visual_plan.json ngoài phạm vi manifest của stage hiện tại; kiểm tra lại thư mục giải nén.")
+                st.warning(
+                    "Phát hiện visual_plan.json ngoài phạm vi manifest của stage hiện tại; kiểm tra lại thư mục giải nén."
+                )
         else:
             render_visual_bible(reports.get("visual_bible", {}), root=directory)
     elif section == "Kế hoạch video":
         render_video_plan(reports.get("video_prompts", {}), root=directory)
     elif section == "Nội dung" and "story" in reports:
-        directory = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
-        render_story_report(reports["story"], include_technical=False, images_root=directory)
+        directory = Path(
+            str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")
+        ).expanduser()
+        render_story_report(
+            reports["story"], include_technical=False, images_root=directory
+        )
     elif section == "Kiểm định" and "validation" in reports:
-        package_inspection = inspect_selected_workflow(directory, st.session_state) if (directory / "manifest.json").is_file() else None
+        package_inspection = (
+            inspect_selected_workflow(directory, st.session_state)
+            if (directory / "manifest.json").is_file()
+            else None
+        )
         render_story_validation_report(
-            reports["validation"], include_technical=False, root=directory,
+            reports["validation"],
+            include_technical=False,
+            root=directory,
             package_inspection=package_inspection,
         )
     elif section == "Chất lượng":
-        st.info("Prompt v5 và v4 legacy không có package_quality_report.json riêng. Kết quả chất lượng và giới hạn nằm trong validation_report.json.")
+        st.info(
+            "Prompt v5 và v4 legacy không có package_quality_report.json riêng. Kết quả chất lượng và giới hạn nằm trong validation_report.json."
+        )
         if "validation" in reports:
-            package_inspection = inspect_selected_workflow(directory, st.session_state) if (directory / "manifest.json").is_file() else None
+            package_inspection = (
+                inspect_selected_workflow(directory, st.session_state)
+                if (directory / "manifest.json").is_file()
+                else None
+            )
             render_story_validation_report(
-                reports["validation"], include_technical=False, root=directory,
+                reports["validation"],
+                include_technical=False,
+                root=directory,
                 package_inspection=package_inspection,
             )
     elif section == "Tài nguyên":
         render_project_assets(directory, reports)
     elif section == "Âm thanh & phụ đề":
-        directory = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
+        directory = Path(
+            str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")
+        ).expanduser()
         render_audio_delivery(reports, directory)
     elif section == "Video đầu ra":
-        directory = Path(str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")).expanduser()
+        directory = Path(
+            str(st.session_state.get("story_studio_directory") or Path.cwd() / "output")
+        ).expanduser()
         variants = reports.get("video_deliveries", {})
-        render_video_deliveries(variants if isinstance(variants, Mapping) else {}, directory)
+        render_video_deliveries(
+            variants if isinstance(variants, Mapping) else {}, directory
+        )
     elif section == "Series" and "anchor" in reports:
         render_series_anchor_report(reports["anchor"], include_technical=False)
     elif section == "Series" and "anchor" not in required_report_keys(reports):
-        st.info("Series không bắt buộc theo manifest/profile hoặc khai báo standalone hợp lệ. Metadata series/tập được giữ để tham khảo.")
+        st.info(
+            "Series không bắt buộc theo manifest/profile hoặc khai báo standalone hợp lệ. Metadata series/tập được giữ để tham khảo."
+        )
     elif section == "Công cụ":
         _render_technical(reports)
     else:
-        key = {"Nội dung": "story", "Kiểm định": "validation", "Series": "anchor"}[section]
+        key = {"Nội dung": "story", "Kiểm định": "validation", "Series": "anchor"}[
+            section
+        ]
         filename, label, _validator = REPORT_SPECS[key]
         _render_missing(label, filename, statuses.get(key, "Thiếu"))
 

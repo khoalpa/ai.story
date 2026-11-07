@@ -1,0 +1,17 @@
+SUMMARY v1.5.2 — QUICKSTART
+
+Nguồn: summary_prompt_v1.5.2.txt và story_prompt_v5.2.2.txt.
+Ba giai đoạn: Stage 1 nội dung/projection/queue; Stage 2 ảnh ngang; Stage 3 ảnh dọc + parity. Không chuyển Stage tự động.
+
+Stage 1: đọc PDF nguồn, giữ locator/claims, tạo summary.json 1.1.0, narration, summary_visual_plan.json, summary_render_plan.json; xây Story adapter story.json, visual_plan.json, video_prompts.json theo schema 4.1.3. Kế hoạch Summary 8 SCENE khác Story visual 8 SCENE + cover/greeting/farewell/outro.
+
+Preflight: chạy runtime gốc nếu có. Nếu không có, được chọn CONTRACT_VALIDATED với mã kiểm thực thi đối chiếu Story Prompt v5.2.2 và Summary v1.5.2. PASS chỉ sau chạy CODE hoặc review thật. Cần kiểm strict JSON, closed fields, type, ID/links, Unicode spans, timing, CRC/SHA256, zip path và file set; chạy regression dương tính/âm tính.
+
+Nhãn nghiệm thu: OFFICIAL_RUNTIME (runtime gốc) hoặc CONTRACT_VALIDATED (bộ kiểm độc lập, không mạo nhận chứng thực gốc). COMPLETE chỉ khi mọi required gate PASS; thiếu gate thì PARTIAL. Không tự tăng version của inherited canonical, không đổi nội dung ảnh để đạt kiểm.
+
+Lệnh mẫu:
+python contract_runtime.py project summary.json summary_visual_plan.json --output projected
+python contract_runtime.py audit summary_stage1_v1.5.2_contract_validated.zip --pdf 'Đắc Nhân Tâm.pdf'
+python -m unittest -v test_contract.py
+
+Stage 2: chỉ nhận Stage 1 COMPLETE, xác định queue chuẩn trước pilot. Stage 3: portrait tái bố cục dựa trên landscape VALIDATED. Ảnh và audio chưa có ở Stage 1.

@@ -1,0 +1,15 @@
+SUMMARY v1.5.3 — QUICKSTART
+Ngày phát hành: 07/11/2026. Nguồn chuẩn: summary_prompt_v1.5.3.txt; Story schema lấy từ story_prompt_v5.2.2.txt. Prompt mới ưu tiên mục 0 v1.5.3; nội dung v1.5.2 trở xuống chỉ là phụ lục kế thừa.
+
+Cốt lõi: ba Stage; Summary canonical 1.1.0; Story/Visual/Video projection 4.1.3; SCENE và MODEL_DEFAULT mặc định. Không tự chuyển Stage, không sửa exact bytes inherited payload để đổi version. Artifact mới có trường prompt_version sử dụng "1.5.3"; artifact kế thừa giữ nguyên.
+
+STAGE 1 — tóm tắt/claim/locator/narration/SCENE plan; adapter Story 4.1.3 và queue; kiểm nguồn, JSON, link, timing, ZIP. COMPLETE chỉ nếu mọi gate required đạt theo OFFICIAL_RUNTIME hoặc CONTRACT_VALIDATED được ghi rõ.
+STAGE 2 — khóa số lượng scene từ Summary queue, mỗi asset tạo 1 ảnh ngang độc lập. Bắt đầu pilot 1–3 scene thật. Không chấp nhận poster/collage/dashboards, placeholder, chữ ngoài brief. Xem ảnh thật, kiểm visual_fact, format/size/orientation, log kết quả; lỗi sai SCENE phải sửa prompt/mapping, không gửi lại vô hạn.
+STAGE 3 — dùng đúng landscape VALIDATED, tạo ảnh 9:16 tương ứng; không mặc định crop. Mỗi cặp kiểm subject/identity, bối cảnh, hành động/trạng thái, đạo cụ và ý nghĩa. Nếu user yêu cầu "portrait độc lập", ảnh crop/blur từ landscape không đủ gate dù parity PASS; cần sự chấp thuận rõ để đổi phương án.
+
+RETRY: tối đa max_attempts_per_asset thực tế. Validation error trước generator không tính generation attempt; log riêng. Sau 2 lỗi nội dung cùng loại phải kiểm mapping/capability và dừng nếu không có khắc phục đáng tin.
+POSTZIP: khóa payload→report→hash every file (trừ manifest)→manifest→ZIP→mở lại chính ZIP→CRC/safe-path/duplicate/file-set/hash→trạng thái cuối. Lỗi ZIP/manifest/parity/independence => *_partial.zip, không dùng summary_package.zip nhãn COMPLETE.
+
+Khi bàn giao nêu số ảnh độc lập thực tế, số ảnh hợp lệ, kiểm nội dung MODEL_REVIEW, check kỹ thuật CODE, các lỗi còn lại, OFFICIAL_RUNTIME hay CONTRACT_VALIDATED và hạn chế được chứng minh. Prompt không thay bằng chứng tạo ảnh thật.
+
+TEST TRƯỚC PHÁT HÀNH: chạy `python -m unittest -v test_release_v153.py` trên fixture độc lập; kiểm report JSON. Test fixture PASS không đồng nghĩa toàn bộ model/pipeline đã được kiểm thử thực tế.

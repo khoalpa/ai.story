@@ -8,8 +8,9 @@ from pathlib import Path
 
 from studio.prompt_contract import DEFAULT_PROMPTS_DIRECTORY, prompt_directories
 
-CURRENT_SUMMARY_PROMPT_VERSION = (1, 4, 0)
-CURRENT_SUMMARY_PROMPT_FILENAME = "summary_prompt_v1.4.0.txt"
+CURRENT_SUMMARY_PROMPT_VERSION = (1, 5, 0)
+CURRENT_SUMMARY_PROMPT_FILENAME = "summary_prompt_v1.5.0.txt"
+CURRENT_SUMMARY_QUICKSTART_FILENAME = "summary_prompt_v1.5.0_quickstart.txt"
 SUPPORTED_SUMMARY_PROMPT_VERSIONS = (CURRENT_SUMMARY_PROMPT_VERSION,)
 SUPPORTED_SUMMARY_PROMPT_FILENAMES = tuple(
     f"summary_prompt_v{'.'.join(map(str, version))}.txt"
@@ -91,6 +92,12 @@ def load_summary_prompt_contract(path: Path) -> SummaryPromptContract:
         "summary_manifest.json",
         "summary_render_plan.json",
         "summary_media_review.json",
+        "summary_stage1.zip",
+        "summary_stage2.zip",
+        "summary_stage.json",
+        "ai-summary-stage3",
+        "ai-summary-render",
+        "summary_media_review_draft.json",
         "`landscape/` và `portrait/`",
         "studio.summary_schema.validate_summary_document",
         "FULL_SUMMARY` ánh xạ thành video coverage `FULL_STORY",
@@ -118,13 +125,24 @@ def current_summary_prompt_path(
     raise FileNotFoundError(f"Không tìm thấy {CURRENT_SUMMARY_PROMPT_FILENAME}")
 
 
+def current_summary_quickstart_path(directory: Path | None = None) -> Path:
+    directories = (directory,) if directory is not None else tuple(prompt_directories())
+    for candidate in directories:
+        path = candidate / CURRENT_SUMMARY_QUICKSTART_FILENAME
+        if path.is_file():
+            return path
+    raise FileNotFoundError(f"Không tìm thấy {CURRENT_SUMMARY_QUICKSTART_FILENAME}")
+
+
 __all__ = [
     "CURRENT_SUMMARY_PROMPT_FILENAME",
     "CURRENT_SUMMARY_PROMPT_VERSION",
+    "CURRENT_SUMMARY_QUICKSTART_FILENAME",
     "SUMMARY_PROMPT_FILENAME",
     "SUPPORTED_SUMMARY_PROMPT_FILENAMES",
     "SummaryPromptContract",
     "current_summary_prompt_path",
+    "current_summary_quickstart_path",
     "discover_available_summary_prompts",
     "discover_summary_prompts",
     "load_summary_prompt_contract",

@@ -12,18 +12,21 @@ from studio.prompt_library import (
 )
 from studio.summary_prompt_contract import (
     CURRENT_SUMMARY_PROMPT_FILENAME,
+    CURRENT_SUMMARY_QUICKSTART_FILENAME,
     SUPPORTED_SUMMARY_PROMPT_FILENAMES,
+    current_summary_quickstart_path,
     discover_summary_prompts,
     load_summary_prompt_contract,
 )
 
 SUMMARY_PROMPT = PROJECT_ROOT / "prompts" / CURRENT_SUMMARY_PROMPT_FILENAME
+SUMMARY_QUICKSTART = PROJECT_ROOT / "prompts" / CURRENT_SUMMARY_QUICKSTART_FILENAME
 
 
 def test_summary_prompt_contract_is_self_consistent() -> None:
     contract = load_summary_prompt_contract(SUMMARY_PROMPT)
 
-    assert contract.version == (1, 4, 0)
+    assert contract.version == (1, 5, 0)
     assert contract.summary_schema_version == "1.1.0"
     assert contract.story_projection_schema_version == "4.1.3"
     assert contract.plain_script_format_version == "1.1.0"
@@ -56,7 +59,7 @@ def test_summary_loader_rejects_renamed_or_incomplete_prompt(tmp_path: Path) -> 
 
     incomplete = tmp_path / CURRENT_SUMMARY_PROMPT_FILENAME
     incomplete.write_text(
-        "CHATGPT SUMMARY & ANALYSIS PACKAGE — v1.4.0\n",
+        "CHATGPT SUMMARY & ANALYSIS PACKAGE — v1.5.0\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="thiếu contract"):
@@ -84,6 +87,23 @@ def test_summary_prompt_uses_namespaced_artifacts_and_explicit_projections() -> 
     assert all(literal in text for literal in required)
 
 
+def test_summary_quickstart_routes_to_full_prompt_and_media_pipeline() -> None:
+    text = SUMMARY_QUICKSTART.read_text(encoding="utf-8")
+
+    assert current_summary_quickstart_path(PROJECT_ROOT / "prompts") == SUMMARY_QUICKSTART
+    assert text.startswith("CHATGPT SUMMARY & ANALYSIS PACKAGE — v1.5.0 QUICKSTART")
+    assert "không thay thế prompt chính" in text
+    assert "`landscape/` và `portrait/`" in text
+    assert "summary_render_plan.json" in text
+    assert "summary_media_review.json" in text
+    assert "ai-summary-build" in text
+    assert "summary_stage1.zip" in text
+    assert "summary_stage2.zip" in text
+    assert "summary_stage.json" in text
+    assert "ai-summary-stage3" in text
+    assert "ai-summary-render" in text
+
+
 def test_summary_prompt_is_in_distribution_configuration() -> None:
     root_pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     studio_pyproject = (PROJECT_ROOT / "packages" / "studio" / "pyproject.toml").read_text(
@@ -93,4 +113,14 @@ def test_summary_prompt_is_in_distribution_configuration() -> None:
 
     assert CURRENT_SUMMARY_PROMPT_FILENAME in root_pyproject
     assert CURRENT_SUMMARY_PROMPT_FILENAME in studio_pyproject
+    assert CURRENT_SUMMARY_QUICKSTART_FILENAME in root_pyproject
+    assert CURRENT_SUMMARY_QUICKSTART_FILENAME in studio_pyproject
+    for command in (
+        "ai-summary-render",
+        "ai-summary-stage1",
+        "ai-summary-stage2",
+        "ai-summary-stage3",
+    ):
+        assert command in root_pyproject
+        assert command in studio_pyproject
     assert "summary_prompt_v*.txt" in manifest

@@ -6,14 +6,19 @@ import hashlib
 import io
 import json
 import zipfile
+from pathlib import Path
 from typing import Any, Mapping
 
 from studio.artifact_validation import strict_json_bytes
+from studio.project_context import PROJECT_DIRECTORY_KEY
 from studio.summary_capabilities import detect_summary_capabilities
 from studio.summary_editing import replace_summary_rows, update_summary_meta
 from studio.summary_exports import affected_artifacts, export_citations
 from studio.summary_ingestion import build_summary_draft, extract_source
-from studio.summary_migration import migrate_summary_document
+from studio.summary_migration import (
+    migrate_summary_document,
+    normalize_summary_v110_ids,
+)
 from studio.summary_package import (
     PROJECTION_TARGETS,
     build_summary_package_bytes,
@@ -24,11 +29,35 @@ from studio.summary_preview import estimate_summary_timing, preview_projection_m
 from studio.summary_schema import validate_summary_document
 from studio.summary_visual import build_summary_visual_plan, visual_density
 from studio.summary_visual_schema import validate_summary_visual_plan
+from studio.summary_workflow import (
+    complete_summary_stage,
+    plan_summary_completion,
+    repair_summary_manifest,
+    revalidate_summary_media,
+    summary_manifest_issues,
+)
 from studio.ui_components import (
     render_empty_state,
     render_summary_card,
     render_workspace_header,
 )
+
+SUMMARY_EDITOR_KEY = "summary_json_editor"
+SUMMARY_EDITOR_PENDING_KEY = "summary_json_editor_pending"
+SUMMARY_STEPS = ("Nguồn", "Trích xuất", "Nội dung", "Lời đọc & cảnh", "Xuất bản")
+
+
+def queue_summary_editor_update(state: Any, text: str) -> None:
+    """Queue canonical text for the next run, before the editor widget exists."""
+    state[SUMMARY_EDITOR_PENDING_KEY] = text
+
+
+def apply_pending_summary_editor_update(state: Any) -> bool:
+    """Apply a queued editor value before Streamlit instantiates the widget."""
+    if SUMMARY_EDITOR_PENDING_KEY not in state:
+        return False
+    state[SUMMARY_EDITOR_KEY] = state.pop(SUMMARY_EDITOR_PENDING_KEY)
+    return True
 
 
 def parse_summary_text(text: str) -> tuple[dict[str, Any] | None, list[str]]:
@@ -145,9 +174,9 @@ def _render_overview(st: Any, document: Mapping[str, Any]) -> None:
             except ValueError as exc:
                 st.error(str(exc))
             else:
-                st.session_state["summary_json_editor"] = canonical_json_bytes(
-                    updated
-                ).decode("utf-8")
+                queue_summary_editor_update(
+                    st.session_state, canonical_json_bytes(updated).decode("utf-8")
+                )
                 st.session_state.pop("summary_projection_files", None)
                 st.session_state.pop("summary_package_bytes", None)
                 st.session_state.pop("summary_visual_plan", None)
@@ -179,9 +208,9 @@ def _render_claims(st: Any, document: Mapping[str, Any]) -> None:
         except (TypeError, ValueError) as exc:
             st.error(str(exc))
         else:
-            st.session_state["summary_json_editor"] = canonical_json_bytes(
-                updated
-            ).decode("utf-8")
+            queue_summary_editor_update(
+                st.session_state, canonical_json_bytes(updated).decode("utf-8")
+            )
             st.session_state.pop("summary_projection_files", None)
             st.session_state.pop("summary_package_bytes", None)
             st.session_state.pop("summary_visual_plan", None)
@@ -225,9 +254,9 @@ def _render_narration(st: Any, document: Mapping[str, Any]) -> None:
         else:
             invalidated = affected_artifacts(["narration"])
             st.session_state["summary_invalidated_artifacts"] = invalidated
-            st.session_state["summary_json_editor"] = canonical_json_bytes(
-                updated
-            ).decode("utf-8")
+            queue_summary_editor_update(
+                st.session_state, canonical_json_bytes(updated).decode("utf-8")
+            )
             st.session_state.pop("summary_projection_files", None)
             st.session_state.pop("summary_package_bytes", None)
             st.session_state.pop("summary_projection_preview", None)
@@ -410,115 +439,276 @@ def _render_exports(st: Any, document: Mapping[str, Any]) -> None:
         )
 
 
-def render_summary_studio_workspace(*, embedded: bool = False) -> None:
-    import streamlit as st
+def _render_package_management(st: Any) -> None:
+    """Inspect and safely repair/complete the Summary package in the shared project."""
+    root_text = str(st.session_state.get(PROJECT_DIRECTORY_KEY) or "").strip()
+    root = Path(root_text).expanduser() if root_text else None
+    if root is None or not (root / "summary_manifest.json").is_file():
+        return
+    with st.expander("Quản lý Summary package hiện tại", expanded=True):
+        st.caption(str(root.resolve()))
+        try:
+            plan = plan_summary_completion(root)
+            manifest_issues = summary_manifest_issues(root)
+        except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+            st.error(f"Không thể phân tích Summary package: {exc}")
+            return
+        columns = st.columns(3)
+        columns[0].metric("Stage", plan.get("stage") or "—")
+        columns[1].metric("Trạng thái", plan.get("status") or "—")
+        columns[2].metric("Manifest", "Cần sửa" if manifest_issues else "Đồng bộ")
+        if plan["blockers"]:
+            st.warning(
+                f"Chưa thể hoàn tất Stage · {len(plan['blockers'])} điều kiện chưa đạt"
+            )
+            for blocker in plan["blockers"]:
+                st.markdown(f"- {blocker}")
+        elif plan["status"] == "COMPLETE":
+            st.success("Stage đã COMPLETE và manifest đang đồng bộ.")
+        else:
+            st.success("Tất cả điều kiện đã đạt; có thể hoàn tất Stage.")
+        if plan.get("render_plan_sync"):
+            st.caption(
+                f"Khi hoàn tất, {len(plan['render_plan_sync'])} trạng thái trong render plan "
+                "sẽ được đồng bộ thành VALIDATED từ media review đã đạt."
+            )
 
-    if not embedded:
-        st.set_page_config(
-            page_title="Summary Studio", page_icon=":material/summarize:", layout="wide"
+        st.markdown("##### Kiểm định lại media từ thư mục hiện tại")
+        approved_upload = st.file_uploader(
+            "Media review đã quan sát và phê duyệt",
+            type=["json"],
+            key="summary_current_media_review_upload",
+            help="Review phải chứa asset_id và bảy semantic checks cho toàn bộ asset Stage 3.",
         )
-    render_workspace_header(
-        "Summary Studio",
-        "Kiểm tra canonical Summary, truy vết claims, xuất citation và tạo package Audio/Video.",
-        eyebrow="Tóm tắt & phân tích",
+        if st.button(
+            "Dựng lại plan, log, validation và manifest",
+            disabled=approved_upload is None,
+            key="summary_revalidate_current_media",
+            width="stretch",
+        ):
+            try:
+                approved = strict_json_bytes(approved_upload.getvalue())
+                backup = revalidate_summary_media(root, approved)
+            except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+                st.error(f"Không thể kiểm định lại media: {exc}")
+            else:
+                st.session_state["summary_package_feedback"] = (
+                    "success",
+                    f"Đã dựng lại media evidence và validation. Bản sao lưu: {backup}",
+                )
+                st.rerun()
+
+        action_columns = st.columns(3)
+        if action_columns[0].button(
+            "Nạp summary.json", key="summary_load_project_canonical", width="stretch"
+        ):
+            try:
+                st.session_state[SUMMARY_EDITOR_KEY] = (
+                    root / "summary.json"
+                ).read_text(encoding="utf-8")
+            except (OSError, UnicodeError) as exc:
+                st.error(f"Không thể nạp summary.json: {exc}")
+            else:
+                st.rerun()
+        if action_columns[1].button(
+            "Sửa Summary manifest",
+            disabled=not manifest_issues,
+            key="summary_repair_project_manifest",
+            width="stretch",
+        ):
+            try:
+                backup = repair_summary_manifest(root)
+            except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+                st.error(f"Không thể sửa Summary manifest: {exc}")
+            else:
+                st.session_state["summary_package_feedback"] = (
+                    "success",
+                    f"Đã đồng bộ manifest. Bản sao lưu: {backup}",
+                )
+                st.rerun()
+        if action_columns[2].button(
+            "Xác minh và hoàn tất Stage",
+            type="primary",
+            disabled=not plan["can_complete"],
+            key="summary_complete_project_stage",
+            width="stretch",
+        ):
+            try:
+                backup = complete_summary_stage(root)
+            except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+                st.error(f"Không thể hoàn tất Stage: {exc}")
+            else:
+                st.session_state["summary_package_feedback"] = (
+                    "success",
+                    f"Stage đã COMPLETE. Bản sao lưu: {backup}",
+                )
+                st.rerun()
+
+
+def _render_source_step(st: Any, capabilities: Any) -> None:
+    """Collect source documents without exposing extraction/runtime details up front."""
+    st.subheader("Tài liệu nguồn")
+    st.caption("Thêm tài liệu cần tóm tắt hoặc nạp một summary.json đã có.")
+    source_types = ["txt", "md", "docx", "pdf", "srt", "vtt", "json"]
+    if capabilities.image_ocr:
+        source_types.extend(["png", "jpg", "jpeg", "tif", "tiff"])
+    source_uploads = st.file_uploader(
+        "Kéo thả tài liệu nguồn",
+        type=source_types,
+        accept_multiple_files=True,
+        key="summary_source_uploads",
     )
-    capabilities = detect_summary_capabilities()
-    capability_columns = st.columns(4)
-    capability_columns[0].caption(
-        f"PDF text · {'Sẵn sàng' if capabilities.pdf_text else 'Thiếu pypdf'}"
+    needs_ocr = any(
+        Path(source.name).suffix.lower() in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+        for source in source_uploads
     )
-    capability_columns[1].caption(
-        f"PDF render · {'Sẵn sàng' if capabilities.pdf_render else 'Thiếu pdftoppm'}"
-    )
-    capability_columns[2].caption(
-        f"Image OCR · {'Sẵn sàng' if capabilities.image_ocr else 'Thiếu Tesseract'}"
-    )
-    capability_columns[3].caption(
-        f"PDF scan OCR · {'Sẵn sàng' if capabilities.scanned_pdf_ocr else 'Chưa đủ capability'}"
-    )
-    with st.expander("Tạo bản nháp từ tài liệu nguồn", expanded=False):
-        source_types = ["txt", "md", "docx", "pdf", "srt", "vtt", "json"]
-        if capabilities.image_ocr:
-            source_types.extend(["png", "jpg", "jpeg", "tif", "tiff"])
-        source_uploads = st.file_uploader(
-            "Nguồn TXT, Markdown, DOCX, PDF, SRT, VTT, transcript JSON hoặc ảnh OCR",
-            type=source_types,
-            accept_multiple_files=True,
-            key="summary_source_uploads",
-        )
+    with st.expander("Tùy chọn trích xuất", expanded=needs_ocr):
+        if needs_ocr and not capabilities.image_ocr:
+            st.warning("Cần cài Tesseract để đọc nguồn ảnh.")
         ocr_language = st.text_input(
-            "Ngôn ngữ Tesseract (tùy chọn)",
+            "Ngôn ngữ OCR",
             value="vie+eng" if capabilities.image_ocr else "",
             disabled=not capabilities.image_ocr,
+            key="summary_ocr_language",
         )
-        if st.button("Trích xuất nguồn", disabled=not source_uploads):
-            extracted, diagnostics = [], []
-            for source in source_uploads:
-                try:
-                    item = extract_source(
-                        source.name,
-                        source.getvalue(),
-                        source.type,
-                        ocr_language=ocr_language.strip() or None,
-                    )
-                except (OSError, UnicodeError, ValueError, zipfile.BadZipFile) as exc:
-                    diagnostics.append(
-                        {"Tệp": source.name, "Trạng thái": "FAIL", "Chi tiết": str(exc)}
-                    )
-                else:
-                    extracted.append(item)
-                    diagnostics.append(
-                        {
-                            "Tệp": source.name,
-                            "Trạng thái": "PASS",
-                            "Chi tiết": f"{len(item.blocks)} khối · {item.extraction_method}",
-                        }
-                    )
-            st.session_state["summary_extracted_sources"] = extracted
-            st.session_state["summary_extraction_diagnostics"] = diagnostics
-        diagnostics = st.session_state.get("summary_extraction_diagnostics", [])
-        if diagnostics:
-            st.dataframe(diagnostics, hide_index=True, width="stretch")
-        extracted = st.session_state.get("summary_extracted_sources", [])
-        if st.button("Tạo summary.json bản nháp", disabled=not extracted):
+        st.caption(
+            "PDF text: "
+            + ("Sẵn sàng" if capabilities.pdf_text else "Thiếu pypdf")
+            + " · OCR ảnh: "
+            + ("Sẵn sàng" if capabilities.image_ocr else "Thiếu Tesseract")
+        )
+    if st.button("Trích xuất tài liệu", type="primary", disabled=not source_uploads):
+        extracted, diagnostics = [], []
+        for source in source_uploads:
             try:
-                draft = build_summary_draft(extracted)
-            except ValueError as exc:
-                st.error(str(exc))
+                item = extract_source(
+                    source.name,
+                    source.getvalue(),
+                    source.type,
+                    ocr_language=ocr_language.strip() or None,
+                )
+            except (OSError, UnicodeError, ValueError, zipfile.BadZipFile) as exc:
+                diagnostics.append(
+                    {"Tệp": source.name, "Trạng thái": "Cần sửa", "Chi tiết": str(exc)}
+                )
             else:
-                st.session_state["summary_json_editor"] = canonical_json_bytes(
-                    draft
-                ).decode("utf-8")
-                st.session_state.pop("summary_projection_files", None)
-                st.session_state.pop("summary_package_bytes", None)
-                st.session_state.pop("summary_visual_plan", None)
-                st.rerun()
+                extracted.append(item)
+                diagnostics.append(
+                    {
+                        "Tệp": source.name,
+                        "Trạng thái": "Sẵn sàng",
+                        "Chi tiết": f"{len(item.blocks)} khối · {item.extraction_method}",
+                    }
+                )
+        st.session_state["summary_extracted_sources"] = extracted
+        st.session_state["summary_extraction_diagnostics"] = diagnostics
+        st.session_state["summary_step"] = "Trích xuất"
+        st.rerun()
+
+    st.divider()
     uploaded = st.file_uploader(
-        "Chọn summary.json",
-        type=["json"],
-        key="summary_studio_upload",
+        "Hoặc nạp summary.json", type=["json"], key="summary_studio_upload"
     )
     if uploaded is not None:
         raw = uploaded.getvalue()
         digest = hashlib.sha256(raw).hexdigest()
         if st.session_state.get("summary_upload_sha256") != digest:
-            st.session_state["summary_json_editor"] = raw.decode(
+            st.session_state[SUMMARY_EDITOR_KEY] = raw.decode(
                 "utf-8-sig", errors="replace"
             )
             st.session_state["summary_upload_sha256"] = digest
             st.session_state.pop("summary_projection_files", None)
             st.session_state.pop("summary_package_bytes", None)
             st.session_state.pop("summary_visual_plan", None)
-    text = st.text_area(
-        "Canonical JSON",
-        key="summary_json_editor",
-        height=320,
-        placeholder="Dán summary.json schema 1.1.0 hoặc tải tệp ở trên.",
+            st.session_state["summary_step"] = "Nội dung"
+            st.rerun()
+
+
+def _render_extraction_step(st: Any) -> None:
+    """Review extraction diagnostics before creating the canonical draft."""
+    st.subheader("Kiểm tra kết quả trích xuất")
+    diagnostics = st.session_state.get("summary_extraction_diagnostics", [])
+    extracted = st.session_state.get("summary_extracted_sources", [])
+    if not diagnostics:
+        render_empty_state(
+            "Chưa trích xuất tài liệu",
+            "Quay lại bước Nguồn và thêm ít nhất một tài liệu.",
+            icon="↥",
+        )
+        return
+    st.dataframe(diagnostics, hide_index=True, width="stretch")
+    total_blocks = sum(len(item.blocks) for item in extracted)
+    st.caption(f"{len(extracted)} nguồn sẵn sàng · {total_blocks} khối nội dung")
+    if st.button("Tạo bản tóm tắt", type="primary", disabled=not extracted):
+        try:
+            draft = build_summary_draft(extracted)
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            st.session_state[SUMMARY_EDITOR_KEY] = canonical_json_bytes(draft).decode(
+                "utf-8"
+            )
+            st.session_state.pop("summary_projection_files", None)
+            st.session_state.pop("summary_package_bytes", None)
+            st.session_state.pop("summary_visual_plan", None)
+            st.session_state["summary_step"] = "Nội dung"
+            st.rerun()
+
+
+def _render_advanced_json(st: Any, document: Mapping[str, Any]) -> None:
+    with st.expander("Công cụ nâng cao · Canonical JSON", expanded=False):
+        st.text_area("Canonical JSON", key=SUMMARY_EDITOR_KEY, height=320)
+        st.json(document, expanded=False)
+        st.download_button(
+            "Tải summary.json",
+            canonical_json_bytes(document),
+            file_name="summary.json",
+            mime="application/json",
+        )
+
+
+def render_summary_studio_workspace(*, embedded: bool = False) -> None:
+    import streamlit as st
+
+    apply_pending_summary_editor_update(st.session_state)
+    if not embedded:
+        st.set_page_config(
+            page_title="Summary Studio", page_icon=":material/summarize:", layout="wide"
+        )
+    render_workspace_header(
+        "Tóm tắt",
+        "Chuyển tài liệu nguồn thành bản tóm tắt có dẫn chứng và sẵn sàng xuất bản.",
+        eyebrow="Tài liệu → nội dung → package",
     )
+    capabilities = detect_summary_capabilities()
+    if feedback := st.session_state.pop("summary_package_feedback", None):
+        (st.success if feedback[0] == "success" else st.error)(feedback[1])
+    if st.session_state.get("summary_step") not in SUMMARY_STEPS:
+        st.session_state["summary_step"] = (
+            "Nội dung" if st.session_state.get(SUMMARY_EDITOR_KEY) else "Nguồn"
+        )
+    step = (
+        st.segmented_control(
+            "Quy trình tóm tắt",
+            SUMMARY_STEPS,
+            key="summary_step",
+            width="stretch",
+        )
+        or "Nguồn"
+    )
+
+    if step == "Nguồn":
+        _render_source_step(st, capabilities)
+        return
+    if step == "Trích xuất":
+        _render_extraction_step(st)
+        return
+
+    text = str(st.session_state.get(SUMMARY_EDITOR_KEY) or "")
     if not text.strip():
         render_empty_state(
-            "Chưa có Summary",
-            "Tải hoặc dán summary.json để kiểm tra, projection và đóng gói.",
+            "Chưa có bản tóm tắt",
+            "Hoàn tất bước Nguồn và Trích xuất trước khi biên tập nội dung.",
             icon="Σ",
         )
         return
@@ -533,44 +723,79 @@ def render_summary_studio_workspace(*, embedded: bool = False) -> None:
             except ValueError as exc:
                 st.error(str(exc))
             else:
-                st.session_state["summary_json_editor"] = canonical_json_bytes(
-                    migrated
-                ).decode("utf-8")
+                queue_summary_editor_update(
+                    st.session_state, canonical_json_bytes(migrated).decode("utf-8")
+                )
                 st.rerun()
+    if errors and document.get("schema_version") == "1.1.0":
+        with st.expander("Chuẩn hóa Summary 1.1 hiện tại", expanded=True):
+            st.caption(
+                "Đổi ID legacy sang quy ước runtime và cập nhật toàn bộ tham chiếu trên "
+                "một bản sao. Canonical hiện tại chỉ được thay trong trình sửa khi hậu kiểm đạt."
+            )
+            citation_style = st.selectbox(
+                "Citation style thay thế khi giá trị hiện tại không hợp lệ",
+                ("MARKDOWN", "APA", "MLA", "CHICAGO", "BIBTEX"),
+                key="summary_normalization_citation_style",
+            )
+            if st.button(
+                "Chuẩn hóa và hậu kiểm", type="primary", key="summary_normalize_v110"
+            ):
+                try:
+                    migrated = normalize_summary_v110_ids(
+                        document, citation_style=citation_style
+                    )
+                except (TypeError, ValueError) as exc:
+                    st.error(str(exc))
+                else:
+                    queue_summary_editor_update(
+                        st.session_state, canonical_json_bytes(migrated).decode("utf-8")
+                    )
+                    st.session_state["summary_invalidated_artifacts"] = (
+                        affected_artifacts(
+                            ["source", "locator", "section", "claim", "narration"]
+                        )
+                    )
+                    st.session_state.pop("summary_projection_files", None)
+                    st.session_state.pop("summary_package_bytes", None)
+                    st.session_state.pop("summary_projection_preview", None)
+                    st.session_state.pop("summary_visual_plan", None)
+                    st.session_state["summary_normalization_feedback"] = (
+                        "Đã chuẩn hóa ID và liên kết; projection/package cũ đã bị vô hiệu hóa."
+                    )
+                    st.rerun()
+    if feedback := st.session_state.pop("summary_normalization_feedback", None):
+        st.success(feedback)
     if errors:
         st.error(f"Summary chưa hợp lệ · {len(errors)} lỗi")
         for error in errors:
             st.write(f"- {error}")
+        with st.expander("Sửa Canonical JSON", expanded=True):
+            st.text_area("Canonical JSON", key=SUMMARY_EDITOR_KEY, height=320)
         return
-    st.success("Summary schema 1.1 hợp lệ.")
-    tabs = st.tabs(
-        [
-            "Tổng quan",
-            "Claims & dữ liệu",
-            "Lời đọc",
-            "Scene plan",
-            "Xuất & package",
-            "JSON",
-        ]
-    )
-    with tabs[0]:
-        _render_overview(st, document)
-    with tabs[1]:
-        _render_claims(st, document)
-    with tabs[2]:
-        _render_narration(st, document)
-    with tabs[3]:
-        _render_visual_plan(st, document)
-    with tabs[4]:
+    st.success("Nội dung hợp lệ và sẵn sàng cho bước hiện tại.")
+    if step == "Nội dung":
+        overview_tab, claims_tab = st.tabs(["Bản tóm tắt", "Claims & dữ liệu"])
+        with overview_tab:
+            _render_overview(st, document)
+        with claims_tab:
+            _render_claims(st, document)
+    elif step == "Lời đọc & cảnh":
+        narration_tab, scene_tab = st.tabs(["Lời đọc", "Kế hoạch cảnh"])
+        with narration_tab:
+            _render_narration(st, document)
+        with scene_tab:
+            _render_visual_plan(st, document)
+    else:
+        _render_package_management(st)
         _render_exports(st, document)
-    with tabs[5]:
-        st.json(document, expanded=False)
-        st.download_button(
-            "Tải summary.json",
-            canonical_json_bytes(document),
-            file_name="summary.json",
-            mime="application/json",
-        )
+    _render_advanced_json(st, document)
 
 
-__all__ = ["parse_summary_text", "render_summary_studio_workspace", "summary_metrics"]
+__all__ = [
+    "apply_pending_summary_editor_update",
+    "parse_summary_text",
+    "queue_summary_editor_update",
+    "render_summary_studio_workspace",
+    "summary_metrics",
+]

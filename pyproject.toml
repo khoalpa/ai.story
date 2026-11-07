@@ -65,13 +65,17 @@ ai-summary-build = "studio.summary_cli:build_main"
 ai-summary-project = "studio.summary_cli:project_main"
 ai-summary-audit = "studio.summary_cli:audit_main"
 ai-summary-migrate = "studio.summary_cli:migrate_main"
+ai-summary-render = "studio.summary_cli:render_main"
+ai-summary-stage1 = "studio.summary_cli:stage1_main"
+ai-summary-stage2 = "studio.summary_cli:stage2_main"
+ai-summary-stage3 = "studio.summary_cli:stage3_main"
 
 
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.data-files]
-"share/ai-story/prompts" = ["prompts/story_prompt_v4.1.6.txt", "prompts/story_prompt_v4.2.0.txt", "prompts/story_prompt_v5.2.0.txt", "prompts/story_prompt_v5.2.2.txt", "prompts/story_prompt_v5.2.2_quickstart.txt", "prompts/summary_prompt_v1.4.0.txt"]
+"share/ai-story/prompts" = ["prompts/story_prompt_v4.1.6.txt", "prompts/story_prompt_v4.2.0.txt", "prompts/story_prompt_v5.2.0.txt", "prompts/story_prompt_v5.2.2.txt", "prompts/story_prompt_v5.2.2_quickstart.txt", "prompts/summary_prompt_v1.5.0.txt", "prompts/summary_prompt_v1.5.0_quickstart.txt"]
 "share/ai-story/releases/v5.2.2-r3" = ["docs/releases/v5.2.2-r3/release_policy_v5.2.2_r3.json", "docs/releases/v5.2.2-r3/Bao_cao_Prompt_v5.2.2_r3.md"]
 
 [tool.setuptools.package-data]

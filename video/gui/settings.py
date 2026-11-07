@@ -7,7 +7,14 @@ from typing import Any
 import streamlit as st
 
 from video import config
-from video.encoding_profiles import PROFILE_CHOICES
+from video.encoding_profiles import (
+    PROFILE_AUTO,
+    PROFILE_CHOICES,
+    PROFILE_TIKTOK,
+    PROFILE_YOUTUBE_4K,
+    PROFILE_YOUTUBE_1080P,
+    normalize_encoding_profile,
+)
 from video.gui.diagnostics_blocks import render_runtime_diagnostics_block
 from video.gui.sidebar_sections import SIDEBAR_SECTION_ORDER, SidebarSection
 from video.providers.base import VideoProviderDescriptor
@@ -141,12 +148,34 @@ def _option_index(options: list[str], value: object, default: int = 0) -> int:
         return default
 
 
-def _render_advanced_encoding_settings() -> dict[str, Any]:
+def compatible_encoding_profile(profile: object, aspect: str) -> str:
+    """Return a renderable profile, falling back to auto after an aspect switch."""
+    normalized = normalize_encoding_profile(profile)
+    landscape_only = {PROFILE_YOUTUBE_4K, PROFILE_YOUTUBE_1080P}
+    if aspect == "9x16" and normalized in landscape_only:
+        return PROFILE_AUTO
+    if aspect == "16x9" and normalized == PROFILE_TIKTOK:
+        return PROFILE_AUTO
+    return normalized
+
+
+def _sync_encoding_profile(aspect: str) -> None:
+    current = st.session_state.get(
+        "video_encoding_profile", config.DEFAULT_ENCODING_PROFILE
+    )
+    st.session_state["video_encoding_profile"] = compatible_encoding_profile(
+        current, aspect
+    )
+
+
+def _render_advanced_encoding_settings(aspect: str) -> dict[str, Any]:
+    _sync_encoding_profile(aspect)
     with st.expander("Advanced encoding", expanded=False):
         encoding_profile = st.selectbox(
             "Encoding profile",
             options=list(PROFILE_CHOICES),
             index=_option_index(list(PROFILE_CHOICES), config.DEFAULT_ENCODING_PROFILE),
+            key="video_encoding_profile",
             help="auto selects YouTube 4K for 16:9 and TikTok 1080x1920 for 9:16.",
         )
         loudness_profile = st.selectbox(
@@ -584,7 +613,7 @@ def get_video_settings() -> dict[str, Any]:
             )
         with sidebar_slots[SidebarSection.ADVANCED].container():
             advanced_settings = {
-                **_render_advanced_encoding_settings(),
+                **_render_advanced_encoding_settings(aspect),
                 **_render_subtitle_style_settings(mode, aspect),
                 **_render_slideshow_behavior_settings(),
                 **_render_environment_overlay_settings(mode),

@@ -148,3 +148,8 @@ def test_archive_rejects_symlinks_and_resource_limit(monkeypatch):
     monkeypatch.setattr(packages, "MAX_PACKAGE_BYTES", 1)
     with pytest.raises(ValueError, match="giới hạn"):
         packages.read_archive(raw.getvalue())
+
+
+def test_archive_limits_allow_one_high_resolution_video_member():
+    assert packages.MAX_MEMBER_BYTES == 256 * 1024 * 1024
+    assert packages.MAX_MEMBER_BYTES < packages.MAX_PACKAGE_BYTES

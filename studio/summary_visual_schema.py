@@ -73,7 +73,7 @@ def validate_summary_visual_plan(plan: Any, summary: Mapping[str, Any]) -> list[
     if (
         set(plan) != ROOT_FIELDS
         or plan.get("schema_version") != "1.0.0"
-        or plan.get("prompt_version") != "1.4.0"
+        or plan.get("prompt_version") != "1.5.0"
     ):
         errors.append("summary_visual_plan root/schema/prompt version không hợp lệ")
     if plan.get("image_mode") not in {"SCENE", "ZONE"} or plan.get("coverage") not in {

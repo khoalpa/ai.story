@@ -75,6 +75,7 @@ def build_video_run_summary(
 ) -> dict[str, Any]:
     summary = pick_mapping_values(settings, _VIDEO_SETTINGS_FIELDS)
     summary.update({
+        'title': output.parent.name,
         'audio': path_to_text(audio),
         'subtitle': path_to_text(subtitle),
         'story_json': path_to_text(story_json),

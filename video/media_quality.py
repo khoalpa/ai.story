@@ -283,6 +283,7 @@ def sample_visual_ssim(
     height: int,
     duration: float,
     ffmpeg_exe: str,
+    progress_callback=None,
 ) -> list[dict]:
     refs = []
     for item in references:
@@ -293,6 +294,8 @@ def sample_visual_ssim(
         return []
     results = []
     for index, (reference, requested_timestamp) in enumerate(refs):
+        if progress_callback is not None:
+            progress_callback(index / len(refs), f"Đang đối chiếu cảnh {index + 1}/{len(refs)}: {reference.name}")
         timestamp = requested_timestamp if requested_timestamp is not None else duration * (index + 0.5) / len(refs)
         filter_complex = (
             f"[0:v]format=yuv420p,setpts=PTS-STARTPTS[video];"
@@ -316,6 +319,8 @@ def sample_visual_ssim(
             "return_code": proc.returncode,
             "error": "" if match else (proc.stderr or "")[-2000:],
         })
+    if progress_callback is not None:
+        progress_callback(1.0, f"Đã đối chiếu {len(refs)}/{len(refs)} cảnh")
     return results
 
 
@@ -332,7 +337,10 @@ def write_video_quality_report(
     reference_images: Iterable[Path | tuple[Path, float]] = (),
     audio_preflight: Optional[dict] = None,
     subtitle_auto_wrapped: bool = False,
+    progress_callback=None,
 ) -> tuple[Path, dict]:
+    if progress_callback is not None:
+        progress_callback(0.02, "Đang đọc thông số video")
     probe = probe_media(video, ffprobe_exe)
     streams = probe.get("streams") or []
     video_stream: dict[str, Any] = next(
@@ -349,12 +357,20 @@ def write_video_quality_report(
     audio_start = float(audio_stream.get("start_time") or 0.0)
     start_delta = abs(video_start - audio_start)
     target = get_loudness_target(loudness_profile)
+    if progress_callback is not None:
+        progress_callback(0.12, "Đang kiểm tra âm lượng")
     loudness = analyze_loudness(video, ffmpeg_exe, target)
+    if progress_callback is not None:
+        progress_callback(0.30, "Đang kiểm tra khả năng giải mã")
     decode_ok, decode_errors, black_segments = _decode_check(video, ffmpeg_exe)
     subtitle_report = inspect_subtitle(subtitle, format_duration)
     visual_samples = sample_visual_ssim(
         video, reference_images, width=expected_width, height=expected_height,
         duration=format_duration, ffmpeg_exe=ffmpeg_exe,
+        progress_callback=(
+            (lambda done, message: progress_callback(0.45 + done * 0.50, message))
+            if progress_callback is not None else None
+        ),
     )
     valid_ssim = [sample["ssim"] for sample in visual_samples if sample["ssim"] is not None]
     all_visual_samples_measured = len(valid_ssim) == len(visual_samples)
@@ -413,4 +429,6 @@ def write_video_quality_report(
     }
     report_path = video.with_name(f"{video.stem}.video_quality.json")
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    if progress_callback is not None:
+        progress_callback(1.0, "Hậu kiểm hoàn tất")
     return report_path, report

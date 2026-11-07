@@ -102,6 +102,28 @@ ai-summary-build summary.json --output summary_package.zip
 ai-summary-audit summary_package.zip
 ```
 
+Pipeline ba Stage tương thích với prompt Summary v1.5:
+
+```bash
+ai-summary-stage1 summary.json --output summary_stage1.zip
+ai-summary-render summary_stage1.zip --output rendered --orientation landscape --provider-executable image-adapter
+ai-summary-stage2 summary_stage1.zip --output summary_stage2.zip --media-root rendered --media-review approved_review.json
+ai-summary-render summary_stage2.zip --output rendered --orientation portrait --provider-executable image-adapter
+ai-summary-stage3 summary_stage2.zip --output summary_package.zip --media-root rendered --media-review approved_review.json
+```
+
+`ai-summary-render` chỉ chạy adapter được chỉ định rõ. Adapter nhận một JSON UTF-8
+trên stdin (prompt, orientation, metadata và reference paths) và trả bytes ảnh
+trên stdout; stderr dành cho chẩn đoán. Renderer chạy pilot trước, retry lỗi kỹ
+thuật theo từng asset và tạo `summary_media_review_draft.json`. Draft giữ các
+check nội dung ở `NOT_CHECKED`; phải mở ảnh thật, duyệt và tạo
+`approved_review.json` trước khi Stage 2/3 có thể COMPLETE. `DATA_CHART` được dựng
+từ `numeric_facts` bằng renderer xác định, không gửi số liệu cho model ảnh.
+
+Stage 2 chỉ nhận Stage 1 COMPLETE; Stage 3 chỉ nhận Stage 2 COMPLETE. Mỗi Stage
+ghi SHA-256 của ZIP cha trong `summary_stage.json`, giữ payload canonical kế thừa
+và chạy audit sau khi đóng ZIP.
+
 Để đóng gói ảnh thật đã kiểm định, đặt ảnh trực tiếp trong `landscape/` và
 `portrait/` dưới thư mục media đầu vào, rồi chạy:
 

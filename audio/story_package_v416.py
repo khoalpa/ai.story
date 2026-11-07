@@ -8,10 +8,12 @@ from __future__ import annotations
 import json
 import math
 import re
+import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
 from studio.artifact_validation import strict_json_bytes
+from studio.summary_audit import audit_summary_package
 from studio.workflow_package import inspect_directory, inspect_members, read_archive
 
 SCHEMA_VERSION = "4.1.3"
@@ -251,8 +253,44 @@ def raw_script(story: Mapping[str, Any]) -> str:
     return "\n".join(row["text"].strip() for row in story["script"])
 
 
+def _load_summary_projection(
+    members: Mapping[str, bytes], audit_status: str, audit_errors: list[str]
+) -> tuple[str, dict[str, Any]]:
+    """Load a manifest-bound Story projection from a COMPLETE Summary package."""
+    if audit_status != "PASS":
+        raise ValueError("Summary package không đạt audit: " + "; ".join(audit_errors))
+    stage = strict_json_bytes(members.get("summary_stage.json", b""))
+    manifest = strict_json_bytes(members.get("summary_manifest.json", b""))
+    if stage.get("status") != "COMPLETE" or manifest.get("status") != "COMPLETE":
+        raise ValueError("Summary package chưa COMPLETE")
+    story_raw = members.get("story.json")
+    if story_raw is None:
+        raise ValueError("Summary package thiếu projection story.json")
+    try:
+        text = story_raw.decode("utf-8")
+    except UnicodeError as exc:
+        raise ValueError(f"story.json projection không phải UTF-8: {exc}") from exc
+    parse_story_text(text)
+    stage_number = stage.get("stage")
+    return text, {
+        "artifact": "summary_package",
+        "compatibility": "NATIVE_CURRENT",
+        "package_kind": "SUMMARY",
+        "stage": f"SUMMARY_STAGE{stage_number}" if stage_number in {1, 2, 3} else "SUMMARY",
+        "status": "PASS",
+        "overall_status": "PASS",
+        "manifest": dict(manifest),
+    }
+
+
 def load_package_bytes(raw: bytes) -> tuple[str, dict[str, Any]]:
     members = read_archive(raw)
+    if "summary_manifest.json" in members or "summary.json" in members:
+        with tempfile.TemporaryDirectory(prefix="audio-summary-") as temporary:
+            path = Path(temporary) / "summary.zip"
+            path.write_bytes(raw)
+            audit = audit_summary_package(path)
+        return _load_summary_projection(members, audit.status, audit.errors)
     inspection = inspect_members(members, archive=True)
     if inspection.get("compatibility") != "NATIVE_CURRENT" or inspection.get("status") != "PASS":
         details = [row.get("detail", "") for row in inspection.get("checks", []) if row.get("status") != "PASS"]
@@ -268,6 +306,17 @@ def load_package_bytes(raw: bytes) -> tuple[str, dict[str, Any]]:
 
 
 def load_project_directory(root: Path) -> tuple[str, dict[str, Any]]:
+    if (root / "summary_manifest.json").is_file() or (root / "summary.json").is_file():
+        audit = audit_summary_package(root)
+        try:
+            members = {
+                path.relative_to(root).as_posix(): path.read_bytes()
+                for path in root.rglob("*")
+                if path.is_file() and not path.is_symlink()
+            }
+        except OSError as exc:
+            raise ValueError(f"Không đọc được Summary package: {exc}") from exc
+        return _load_summary_projection(members, audit.status, audit.errors)
     inspection = inspect_directory(root)
     if inspection.get("compatibility") != "NATIVE_CURRENT" or inspection.get("status") != "PASS":
         details = [row.get("detail", "") for row in inspection.get("checks", []) if row.get("status") != "PASS"]

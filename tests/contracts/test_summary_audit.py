@@ -32,7 +32,7 @@ def _package_files() -> dict[str, bytes]:
         "video_prompts.json": _raw(video_prompts),
     }
     manifest = {
-        "schema_version": "1.1.0", "prompt_version": "1.4.0", "status": "COMPLETE",
+        "schema_version": "1.1.0", "prompt_version": "1.5.0", "status": "COMPLETE",
         "parent_package_sha256": None, "source_fingerprints": [],
         "files": [{"path": name, "size_bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(),
                    "origin": "summary_projection"} for name, raw in sorted(files.items())],

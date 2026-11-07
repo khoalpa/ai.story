@@ -361,6 +361,15 @@ def _execute_render_request_unlocked(
     result_manifest: Path | None = None
     quality_report: Path | None = None
     validate_render_request(request)
+
+    def report_progress(percent: float, message: str) -> None:
+        if progress_callback is not None:
+            progress_callback(percent, message)
+
+    def report_render_progress(percent: float, message: str = "") -> None:
+        # Encoding owns 5-85% of the user-facing job. The remaining range is
+        # reserved for quality checks and result persistence.
+        report_progress(5.0 + max(0.0, min(100.0, float(percent))) * 0.8, message or "Đang mã hóa video")
     effective_cover = (
         resolve_slideshow_cover(
             request.cover,
@@ -379,7 +388,7 @@ def _execute_render_request_unlocked(
         with _runtime_tool_env(request.ffmpeg_exe, request.ffprobe_exe), _render_runtime_overrides(request):
             with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
                 if progress_callback is not None:
-                    progress_callback(0.0, "Checking images and runtime...")
+                    progress_callback(0.0, "Đang kiểm tra hình ảnh và công cụ")
                 image_readiness = inspect_video_image_readiness(
                     mode=request.mode,
                     aspect=request.aspect,
@@ -410,7 +419,7 @@ def _execute_render_request_unlocked(
                 ensure_tools()
                 with tempfile.TemporaryDirectory(prefix="render_video_audio_") as temp_dir:
                     if progress_callback is not None:
-                        progress_callback(1.0, "Preparing audio...")
+                        progress_callback(3.0, "Đang chuẩn bị audio")
                     prepared_audio, audio_preflight = prepare_audio_for_video(
                         request.audio,
                         Path(temp_dir) / "normalized_audio.flac",
@@ -437,7 +446,7 @@ def _execute_render_request_unlocked(
                             aspect=request.aspect,
                             output=request.output,
                             subtitle=render_subtitle,
-                            progress_callback=progress_callback,
+                            progress_callback=report_render_progress,
                         )
                         reference_images = [request.cover] if request.cover is not None else []
                     elif request.mode == "slideshow":
@@ -467,7 +476,7 @@ def _execute_render_request_unlocked(
                             environment_overlay_fade=request.environment_overlay_fade,
                             environment_allow_lens_effects=request.environment_allow_lens_effects,
                             environment_global_film_grain=request.environment_global_film_grain,
-                            progress_callback=progress_callback,
+                            progress_callback=report_render_progress,
                         )
                         if timeline_mode in {"zone", "scene"} and request.story_json and request.subtitle and request.scenes_dir:
                             if timeline_mode == "scene":
@@ -547,6 +556,7 @@ def _execute_render_request_unlocked(
                         raise ValueError("mode must be 'static' or 'slideshow'.")
 
                 output_width, output_height = config.get_output_resolution(request.aspect)
+                report_progress(85.0, "Video đã tạo; bắt đầu hậu kiểm")
                 quality_report, quality = write_video_quality_report(
                     request.output,
                     ffmpeg_exe=request.ffmpeg_exe or get_ffmpeg_exe(),
@@ -559,7 +569,9 @@ def _execute_render_request_unlocked(
                     reference_images=reference_images,
                     audio_preflight=audio_preflight,
                     subtitle_auto_wrapped=subtitle_auto_wrapped,
+                    progress_callback=lambda done, message: report_progress(85.0 + done * 0.13, message),
                 )
+                report_progress(98.0, "Đang ghi báo cáo và kết quả")
                 result_manifest = write_result_manifest(
                     request.output.with_suffix(".result.json"),
                     video=request.output,

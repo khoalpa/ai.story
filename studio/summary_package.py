@@ -98,7 +98,7 @@ def project_summary_artifacts(
 def projection_report(summary_raw: bytes, files: Mapping[str, bytes]) -> dict[str, Any]:
     return {
         "schema_version": "1.0.0",
-        "prompt_version": "1.4.0",
+        "prompt_version": "1.5.0",
         "source_summary_sha256": hashlib.sha256(summary_raw).hexdigest(),
         "status": "COMPLETE",
         "artifacts": [
@@ -127,6 +127,10 @@ def build_summary_members(
     media: Mapping[str, bytes] | None = None,
     render_config: Mapping[str, Any] | None = None,
     media_review: Mapping[str, Any] | None = None,
+    *,
+    include_media_workflow: bool = True,
+    stage: int | None = None,
+    parent_package_sha256: str | None = None,
 ) -> dict[str, bytes]:
     summary_raw = canonical_json_bytes(summary)
     files: dict[str, bytes] = {"summary.json": summary_raw}
@@ -134,7 +138,7 @@ def build_summary_members(
     files.update(projected)
     package_status = "COMPLETE"
     media_paths: set[str] = set()
-    if "image" in targets:
+    if "image" in targets and include_media_workflow:
         visual_plan = (
             dict(summary_visual_plan)
             if summary_visual_plan is not None
@@ -155,14 +159,26 @@ def build_summary_members(
                 )
             files[name] = raw
             media_paths.add(name)
+    if stage is not None:
+        if stage not in {1, 2, 3}:
+            raise ValueError("Summary stage phải là 1, 2 hoặc 3")
+        files["summary_stage.json"] = canonical_json_bytes(
+            {
+                "schema_version": "1.0.0",
+                "prompt_version": "1.5.0",
+                "stage": stage,
+                "parent_package_sha256": parent_package_sha256,
+                "status": package_status,
+            }
+        )
     files["projection_report.json"] = canonical_json_bytes(
         projection_report(summary_raw, projected)
     )
     manifest = {
         "schema_version": "1.1.0",
-        "prompt_version": "1.4.0",
+        "prompt_version": "1.5.0",
         "status": package_status,
-        "parent_package_sha256": None,
+        "parent_package_sha256": parent_package_sha256,
         "source_fingerprints": [
             {
                 "source_id": row["source_id"],
@@ -211,12 +227,23 @@ def build_summary_package(
     media: Mapping[str, bytes] | None = None,
     render_config: Mapping[str, Any] | None = None,
     media_review: Mapping[str, Any] | None = None,
+    include_media_workflow: bool = True,
+    stage: int | None = None,
+    parent_package_sha256: str | None = None,
 ) -> Path:
     if output.exists() and not overwrite:
         raise FileExistsError(f"Tệp đã tồn tại: {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
     members = build_summary_members(
-        summary, targets, summary_visual_plan, media, render_config, media_review
+        summary,
+        targets,
+        summary_visual_plan,
+        media,
+        render_config,
+        media_review,
+        include_media_workflow=include_media_workflow,
+        stage=stage,
+        parent_package_sha256=parent_package_sha256,
     )
     handle, temporary_name = tempfile.mkstemp(
         prefix=".summary-package-", suffix=".zip", dir=output.parent
@@ -251,6 +278,10 @@ def build_summary_package_bytes(
     media: Mapping[str, bytes] | None = None,
     render_config: Mapping[str, Any] | None = None,
     media_review: Mapping[str, Any] | None = None,
+    *,
+    include_media_workflow: bool = True,
+    stage: int | None = None,
+    parent_package_sha256: str | None = None,
 ) -> bytes:
     with tempfile.TemporaryDirectory(prefix="ai-summary-package-") as temporary:
         path = Path(temporary) / "summary_package.zip"
@@ -262,6 +293,9 @@ def build_summary_package_bytes(
             media=media,
             render_config=render_config,
             media_review=media_review,
+            include_media_workflow=include_media_workflow,
+            stage=stage,
+            parent_package_sha256=parent_package_sha256,
         )
         return path.read_bytes()
 
@@ -288,7 +322,9 @@ def _manifest_row(
         width, height = image.size
         media_type = Image.MIME.get(image.format, "application/octet-stream")
     reviews = json.loads(review_raw or b"{}").get("assets", [])
-    review: dict[str, Any] = next((item for item in reviews if item.get("path") == name), {})
+    review: dict[str, Any] = next(
+        (item for item in reviews if item.get("path") == name), {}
+    )
     stem = Path(name).stem
     row.update(
         {

@@ -302,7 +302,8 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
 
     manifest = _object(result.get("manifest"))
     stage = result.get("stage")
-    st.subheader("Quy trình gói truyện")
+    is_summary = result.get("package_kind") == "SUMMARY"
+    st.subheader("Quy trình gói tóm tắt" if is_summary else "Quy trình gói truyện")
     st.caption(" · ".join(str(v) for v in (stage or "Chưa xác định stage", result.get("purpose"),
                manifest.get("active_profile"), f"Prompt {manifest.get('created_by_prompt_version', '—')}") if v))
     integrity_status = str(result.get("integrity_status") or "NOT_VERIFIED")
@@ -323,8 +324,11 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
         if isinstance(row, Mapping) and str(row.get("path", "")).startswith("landscape/")
     )
     is_v5 = manifest.get("prompt_version") in {"5.0.0", "5.1.0", "5.2.0", "5.2.2"}
-    active_stages = STAGES[:3] if is_v5 else STAGES
-    labels = list(STAGE_LABELS[:3] if is_v5 else STAGE_LABELS)
+    active_stages = STAGES[:3] if is_summary or is_v5 else STAGES
+    labels = (
+        ["Nội dung canonical", "Ảnh landscape", "Ảnh portrait & gói cuối"]
+        if is_summary else list(STAGE_LABELS[:3] if is_v5 else STAGE_LABELS)
+    )
     if image_count:
         labels[1] = f"{image_count} landscape"
         labels[2] = f"{image_count} portrait & gói audio"
@@ -358,7 +362,10 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
         st.caption("Nguyên nhân chưa thể publish: " + "; ".join(blockers) + ".")
     st.caption(f"Toàn vẹn & parent trực tiếp: {integrity_status} · Trạng thái manifest: {completion_status} · "
                f"Toàn bộ gate của stage: {gate_status} · Đủ điều kiện publish: {publish_status}")
-    st.caption("Chuyển stage thủ công. V5 kết thúc ở Stage 3; audio/video render nằm ngoài package stage. Báo cáo tự khai PASS không thay detector.")
+    if is_summary:
+        st.caption("Summary kết thúc ở Stage 3. Hoàn tất hoặc sửa package trong Tóm tắt; màn Truyện chỉ hiển thị projection ở chế độ đọc.")
+    else:
+        st.caption("Chuyển stage thủ công. V5 kết thúc ở Stage 3; audio/video render nằm ngoài package stage. Báo cáo tự khai PASS không thay detector.")
     if result.get("next_stage"):
         st.caption(f"Bước kế tiếp theo manifest: {result['next_stage']} · chỉ thực hiện khi toàn bộ gate đầu vào đạt.")
     if result.get("expected_count") is not None:
@@ -367,6 +374,8 @@ def render_workflow_summary(result: Mapping[str, Any]) -> None:
 
 def render_manifest_repair(root: Path, result: Mapping[str, Any]) -> None:
     """Preview and apply guarded integrity repairs for a directory package."""
+    if result.get("package_kind") == "SUMMARY":
+        return
     import streamlit as st
 
     failed_checks = {
@@ -808,6 +817,19 @@ def render_visual_bible(document: Mapping[str, Any], *, root: Path | None = None
 def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: MutableMapping[str, Any]) -> None:
     import streamlit as st
 
+    if (root / "summary.json").is_file() and (root / "summary_manifest.json").is_file():
+        result = inspect_selected_workflow(root, {})
+        render_workflow_summary(result)
+        st.info(
+            "Đây là Summary package. Story Studio hiển thị projection ở chế độ chỉ đọc; "
+            "hãy dùng Tóm tắt để hoàn tất Stage hoặc sửa Summary manifest."
+        )
+        st.dataframe(result.get("checks", []), hide_index=True, width="stretch")
+        st.dataframe(result.get("files", []), hide_index=True, width="stretch")
+        with st.expander("Summary manifest nguồn"):
+            st.json(result.get("manifest", {}), expanded=False)
+        return
+
     st.caption("ZIP được đọc trong bộ nhớ và phải đúng prompt v5 hoặc v4 legacy được hỗ trợ.")
     render_package_migration(root, state)
     resolved_root = str(root.resolve())
@@ -859,7 +881,8 @@ def render_workflow_workspace(root: Path, reports: Mapping[str, Any], state: Mut
         render_image_prompt_schema_repair(root, result, state)
         render_manifest_repair(root, result)
     st.caption("Phạm vi kiểm tra: schema manifest, allowlist, hash/size, ownership, CRC và parent trực tiếp khi được cung cấp. Không chứng nhận an toàn/nội dung/mỹ thuật chỉ từ metadata.")
-    if result["compatibility"] != "NATIVE_CURRENT":
+    compatibility = result.get("compatibility")
+    if compatibility is not None and compatibility != "NATIVE_CURRENT":
         st.error("UNSUPPORTED: gói không đúng prompt v5 hoặc v4 legacy được hỗ trợ.")
     st.dataframe(result["files"], hide_index=True, width="stretch")
     with st.expander("Manifest nguồn"):

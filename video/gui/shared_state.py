@@ -6,11 +6,13 @@ from video.gui.global_run_monitor import (
     WORKSPACE_JOB_TIMELINE_KEY,
     WORKSPACE_LAST_JOB_APP_KEY,
     WORKSPACE_LAST_JOB_ERROR_KEY,
+    WORKSPACE_LAST_JOB_MESSAGE_KEY,
     WORKSPACE_LAST_JOB_OUTPUT_KEY,
     WORKSPACE_LAST_JOB_PROGRESS_KEY,
     WORKSPACE_LAST_JOB_STAGE_KEY,
     WORKSPACE_LAST_JOB_STATUS_KEY,
     WORKSPACE_LAST_JOB_SUMMARY_KEY,
+    WORKSPACE_LAST_JOB_UPDATED_AT_KEY,
     global_run_monitor_state,
 )
 from video.gui.workspace_handoff import workspace_handoff_state
@@ -30,6 +32,8 @@ def ensure_workspace_state() -> None:
         WORKSPACE_LAST_JOB_OUTPUT_KEY: "",
         WORKSPACE_LAST_JOB_ERROR_KEY: "",
         WORKSPACE_LAST_JOB_SUMMARY_KEY: None,
+        WORKSPACE_LAST_JOB_MESSAGE_KEY: "",
+        WORKSPACE_LAST_JOB_UPDATED_AT_KEY: "",
         WORKSPACE_JOB_TIMELINE_KEY: [],
     }
     for key, value in defaults.items():
@@ -75,11 +79,13 @@ def ensure_global_run_monitor_state() -> None:
     ensure_workspace_state()
 
 
-def update_global_run_monitor(*, app: str, stage: str, status: str, progress: int | float = 0, output_path: str = "", error_text: str = "", summary: dict | None = None) -> None:
+def update_global_run_monitor(*, app: str, stage: str, status: str, progress: int | float = 0, output_path: str = "", error_text: str = "", summary: dict | None = None, message: str = "") -> None:
     ensure_global_run_monitor_state()
     monitor = global_run_monitor_state(st.session_state)
     monitor.app, monitor.stage, monitor.status = app, stage, status
     monitor.progress, monitor.output, monitor.error, monitor.summary = progress, output_path, error_text, summary
+    monitor.message = message
+    monitor.touch()
 
 
 def append_global_run_event(*, app: str, stage: str, status: str, message: str = "", output_path: str = "", error_text: str = "") -> None:

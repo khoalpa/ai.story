@@ -14,6 +14,8 @@ from audio.story_package_v416 import (
     parse_story_text,
     validate_story,
 )
+from studio.summary_stages import build_summary_stage1
+from tests.contracts.test_summary_projection import summary_fixture
 
 
 def test_v416_story_converts_to_render_and_raw_scripts(sample_story_text: str) -> None:
@@ -59,3 +61,13 @@ def test_audio_rejects_zip_without_v416_manifest(tmp_path: Path) -> None:
         archive.writestr("story.json", '{"schema_version":"3.16"}')
     with pytest.raises(ValueError, match="v4.1.6"):
         load_package_bytes(package.read_bytes())
+
+
+def test_audio_opens_complete_summary_zip_projection(tmp_path: Path) -> None:
+    package = build_summary_stage1(summary_fixture(), tmp_path / "summary_stage1.zip")
+
+    text, inspection = load_package_bytes(package.read_bytes())
+
+    assert parse_story_text(text)["schema_version"] == "4.1.3"
+    assert inspection["package_kind"] == "SUMMARY"
+    assert inspection["stage"] == "SUMMARY_STAGE1"

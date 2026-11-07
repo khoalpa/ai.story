@@ -49,7 +49,7 @@ def build_summary_visual_plan(summary: Mapping[str, Any]) -> dict[str, Any]:
         )
     plan = {
         "schema_version": "1.0.0",
-        "prompt_version": "1.4.0",
+        "prompt_version": "1.5.0",
         "image_mode": summary["meta"]["image_mode"],
         "coverage": summary["meta"]["coverage"],
         "reference_mode": "DESCRIPTION_ONLY",

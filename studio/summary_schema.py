@@ -48,7 +48,7 @@ def validate_summary_document(document: Any) -> list[str]:
         return ["summary.json root phải là object"]
     if set(document) != ROOT_FIELDS:
         errors.append("summary.json root không đúng closed schema")
-    if document.get("schema_version") != "1.1.0" or document.get("prompt_version") != "1.4.0":
+    if document.get("schema_version") != "1.1.0" or document.get("prompt_version") != "1.5.0":
         errors.append("summary schema/prompt version không hợp lệ")
 
     meta = document.get("meta")

@@ -112,7 +112,7 @@ def build_render_plan(
             )
     return {
         "schema_version": "1.0.0",
-        "prompt_version": "1.4.0",
+        "prompt_version": "1.5.0",
         "source_visual_plan_sha256": hashlib.sha256(visual_raw).hexdigest(),
         "config": selected,
         "assets": assets,
@@ -140,7 +140,7 @@ def validate_render_plan(plan: Any) -> list[str]:
     if not isinstance(plan, Mapping) or set(plan) != root:
         return ["summary_render_plan.json không đúng closed schema"]
     errors = validate_render_config(plan.get("config"))
-    if plan.get("schema_version") != "1.0.0" or plan.get("prompt_version") != "1.4.0":
+    if plan.get("schema_version") != "1.0.0" or plan.get("prompt_version") != "1.5.0":
         errors.append("summary_render_plan version không hợp lệ")
     if not _sha(plan.get("source_visual_plan_sha256")):
         errors.append("source_visual_plan_sha256 không hợp lệ")
@@ -312,13 +312,13 @@ def inspect_rendered_media(
     return (
         {
             "schema_version": "1.0.0",
-            "prompt_version": "1.4.0",
+            "prompt_version": "1.5.0",
             "assets": log_assets,
             "extra_paths": extra_paths,
         },
         {
             "schema_version": "1.0.0",
-            "prompt_version": "1.4.0",
+            "prompt_version": "1.5.0",
             "visual_plan_sha256": render_plan["source_visual_plan_sha256"],
             "assets": review_assets,
             "metrics": {
